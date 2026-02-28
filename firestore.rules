@@ -10,7 +10,7 @@ service cloud.firestore {
     }
 
     function isInstitutionalUser() {
-      // Robust check for main domain and institutional subdomains
+      // Robust check for institutional domain and its subdomains
       return isSignedIn() && 
              'email' in request.auth.token &&
              request.auth.token.email.matches('(?i).*@([^@]+\\.)?neu\\.edu\\.ph$');
@@ -21,49 +21,50 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      // Use exists() to check for explicit admin role in roles_admin collection
-      // Avoid using this function inside the roles_admin block itself to prevent recursion
+      // Direct exists check on roles_admin collection to identify administrators
       return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
     function isNotBlocked() {
       let profilePath = /databases/$(database)/documents/user_profiles/$(request.auth.uid);
-      // If profile doesn't exist, they are not blocked yet (initial creation)
+      // Access is allowed if the profile doesn't exist yet (initial setup) or if explicitly active
       return !exists(profilePath) || get(profilePath).data.isBlocked == false;
     }
 
     // --- Collection Rules ---
 
     match /user_profiles/{userId} {
-      // Owners and Admins can always read profiles. Institutional users can check existence.
+      // Owners and Admins can always read profiles. Verified institutional users can check existence.
       allow get: if isOwner(userId) || isAdmin() || isInstitutionalUser();
-      // Admins and institutional users can list for management.
+      // Admins and institutional users can list for staff management.
       allow list: if isInstitutionalUser() || isAdmin();
-      // Users can create their own profile if they have an institutional email.
+      // Institutional users can create their own profile.
       allow create: if isInstitutionalUser() && isOwner(userId);
-      // Admins can update any profile; users can update their own.
+      // Admins can manage any profile; users can update their own details.
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
     }
 
     match /room_logs/{logId} {
-      // Admins and institutional users can monitor activity logs.
+      // Admins and institutional staff can monitor activity logs for security.
       allow get, list: if isAdmin() || isInstitutionalUser();
-      // Active institutional users can log their sessions.
+      // Active institutional users can log their laboratory entries.
       allow create: if isInstitutionalUser() && 
                        isNotBlocked() && 
                        request.resource.data.professorId == request.auth.uid;
-      // Only admins can modify or remove historical logs.
+      // Modification and deletion are strictly administrative tasks.
       allow update, delete: if isAdmin();
     }
 
     match /roles_admin/{userId} {
-      // Owners can check their own status without triggering recursive isAdmin()
+      // Avoid recursion in isAdmin() by checking exists directly in the layout, 
+      // but rules allow self-read and admin-read.
       allow get: if isOwner(userId) || (isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid)));
-      // Authorized institutional users can register as an admin marker for themselves.
+      // Institutional users can set their admin status marker (typically initialized via login sync).
       allow create, update: if isOwner(userId) && isInstitutionalUser();
-      // Only existing admins can list or delete admin markers.
-      allow list, delete: if isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      // Listing admin markers is restricted to existing admins.
+      allow list: if isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      allow delete: if isAdmin();
     }
   }
 }

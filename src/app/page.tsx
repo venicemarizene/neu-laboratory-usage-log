@@ -6,14 +6,14 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertCircle, LogIn, Monitor, QrCode, Loader2, ShieldCheck, UserCircle, LogOut, Mail, Lock, Info } from 'lucide-react';
+import { AlertCircle, LogIn, Monitor, QrCode, Loader2, ShieldCheck, UserCircle, LogOut, Mail, Lock, Info, AlertTriangle } from 'lucide-react';
 import { useAuth, useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { GoogleAuthProvider, signInWithPopup, signOut, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function Home() {
   const router = useRouter();
@@ -58,19 +58,23 @@ export default function Home() {
     setIsLoggingIn(true);
     
     const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
+    // Allow users to select which institutional account to use
+    provider.setCustomParameters({ 
+      prompt: 'select_account'
+    });
 
     try {
       const result = await signInWithPopup(auth, provider);
       const userEmail = result.user.email?.toLowerCase();
+      // Robust institutional domain check
       const isInstitutional = !!userEmail?.match(/@([^@]+\.)?neu\.edu\.ph$/i);
 
       if (!isInstitutional) {
         await signOut(auth);
         toast({
           variant: 'destructive',
-          title: 'Access Restricted',
-          description: 'Only institutional accounts (@neu.edu.ph) are permitted.',
+          title: 'Institutional Account Required',
+          description: 'Access is restricted to official @neu.edu.ph Google accounts.',
         });
         return;
       }
@@ -83,8 +87,8 @@ export default function Home() {
       });
 
       toast({
-        title: 'Authentication Successful',
-        description: `Welcome to the ${targetRole} portal.`,
+        title: 'Institutional Access Granted',
+        description: `Authenticated as ${targetRole}. Redirecting...`,
       });
       
       router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
@@ -94,7 +98,7 @@ export default function Home() {
       toast({
         variant: 'destructive',
         title: 'Authentication Error',
-        description: error.message || 'An unexpected error occurred during sign-in.',
+        description: error.message || 'An unexpected error occurred during institutional sign-in.',
       });
     } finally {
       setIsLoggingIn(false);
@@ -103,7 +107,7 @@ export default function Home() {
 
   const handleEmailSignIn = async (targetRole: 'admin' | 'professor') => {
     if (!auth || !firestore || !email || !password) {
-      toast({ variant: 'destructive', title: 'Input Required', description: 'Please enter your credentials.' });
+      toast({ variant: 'destructive', title: 'Missing Credentials', description: 'Email and password are required for manual entry.' });
       return;
     }
     
@@ -111,7 +115,7 @@ export default function Home() {
     try {
       const isInstitutional = !!email.toLowerCase().match(/@([^@]+\.)?neu\.edu\.ph$/i);
       if (!isInstitutional) {
-        toast({ variant: 'destructive', title: 'Invalid Domain', description: 'Please use your @neu.edu.ph email.' });
+        toast({ variant: 'destructive', title: 'Invalid Domain', description: 'Manual login also requires an @neu.edu.ph address.' });
         return;
       }
 
@@ -123,12 +127,13 @@ export default function Home() {
         role: targetRole === 'admin' ? 'Admin' : 'Professor'
       });
 
-      toast({ title: 'Sign-in Successful', description: `Welcome back.` });
+      toast({ title: 'Authorized Sign-in', description: 'System credentials verified.' });
       router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
     } catch (error: any) {
       let errorMessage = error.message;
+      // Provide actionable feedback for the common "Wrong Password" confusion
       if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        errorMessage = 'Credential mismatch. Use "Google SSO" if you use Google for your work email.';
+        errorMessage = 'Credential mismatch. NOTE: Your Google account password will NOT work here. Use the "Google SSO" tab instead.';
       }
       
       toast({
@@ -144,7 +149,7 @@ export default function Home() {
   const handleSignOut = async () => {
     if (auth) {
       await signOut(auth);
-      toast({ title: 'Signed out', description: 'Session ended successfully.' });
+      toast({ title: 'Signed out', description: 'Institutional session ended.' });
     }
   };
 
@@ -157,10 +162,11 @@ export default function Home() {
         videoRef.current.srcObject = stream;
       }
       
+      // Mocking a successful QR scan for prototype purposes
       setTimeout(async () => {
         const mockScannedQR = 'ADMIN_QR_001'; 
         handleQRLogin(mockScannedQR);
-      }, 500);
+      }, 1500);
 
     } catch (error) {
       setHasCameraPermission(false);
@@ -244,10 +250,10 @@ export default function Home() {
                 </TabsList>
                 
                 <TabsContent value="google" className="space-y-4">
-                  <Alert variant="default" className="bg-primary/5 border-primary/20 py-2">
-                    <Info className="h-3 w-3 text-primary" />
-                    <AlertDescription className="text-[10px] font-medium text-left">
-                      Sign in with your institutional Google account for easy access.
+                  <Alert variant="default" className="bg-primary/5 border-primary/20 py-3 text-left">
+                    <Info className="h-4 w-4 text-primary" />
+                    <AlertDescription className="text-xs font-medium">
+                      Standard login for all NEU faculty. Use your official Google account.
                     </AlertDescription>
                   </Alert>
                   <Button 
@@ -261,6 +267,13 @@ export default function Home() {
                 </TabsContent>
 
                 <TabsContent value="manual" className="space-y-4">
+                  <Alert variant="destructive" className="py-2 text-left bg-destructive/5 border-destructive/20">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle className="text-xs font-bold">Important Notice</AlertTitle>
+                    <AlertDescription className="text-[10px] font-medium leading-tight">
+                      Your Google password <strong>will not work here</strong>. Use this tab only if you have a separate system password.
+                    </AlertDescription>
+                  </Alert>
                   <div className="space-y-2">
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
@@ -306,10 +319,10 @@ export default function Home() {
                 </TabsList>
 
                 <TabsContent value="google" className="space-y-4">
-                  <Alert variant="default" className="bg-primary/5 border-primary/20 py-2">
-                    <Info className="h-3 w-3 text-primary" />
-                    <AlertDescription className="text-[10px] font-medium text-left">
-                      Administrators should use their institutional Google login.
+                  <Alert variant="default" className="bg-primary/5 border-primary/20 py-3 text-left">
+                    <ShieldCheck className="h-4 w-4 text-primary" />
+                    <AlertDescription className="text-xs font-medium">
+                      Admin privileges are tied to your institutional Google identity.
                     </AlertDescription>
                   </Alert>
                   <Button 
@@ -323,6 +336,13 @@ export default function Home() {
                 </TabsContent>
 
                 <TabsContent value="manual" className="space-y-4">
+                  <Alert variant="destructive" className="py-2 text-left bg-destructive/5 border-destructive/20">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle className="text-xs font-bold">Security Notice</AlertTitle>
+                    <AlertDescription className="text-[10px] font-medium leading-tight">
+                      Use the "Google SSO" tab if you use your University Google account.
+                    </AlertDescription>
+                  </Alert>
                   <div className="space-y-2">
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
@@ -363,7 +383,7 @@ export default function Home() {
         </Card>
 
         <p className="text-[10px] font-medium text-muted-foreground">
-          Secure laboratory tracking for verified <span className="text-primary font-bold">@neu.edu.ph</span> accounts.
+          Verified <span className="text-primary font-bold">@neu.edu.ph</span> Google accounts are required for institutional entry.
         </p>
       </div>
     </div>

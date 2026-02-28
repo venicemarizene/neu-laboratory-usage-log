@@ -61,12 +61,13 @@ export default function AdminLayout({
       setIsAuthorized(true);
     } else {
       // Grace period for first-time synchronization (especially for institutional accounts)
-      if (checkCount.current < 3 && isInstitutional) {
+      // This prevents the "redirection loop" if the database sync hasn't finished yet
+      if (checkCount.current < 5 && isInstitutional) {
         checkCount.current += 1;
         const timer = setTimeout(() => {
           // Trigger a re-evaluation
           setIsAuthorized(null);
-        }, 1000);
+        }, 800);
         return () => clearTimeout(timer);
       } else {
         // If still not authorized after checks, redirect
@@ -90,7 +91,7 @@ export default function AdminLayout({
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
           <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
-          <p className="text-muted-foreground font-bold text-sm tracking-tight">Verifying Administrator Access...</p>
+          <p className="text-muted-foreground font-bold text-sm tracking-tight italic">Verifying Institutional Admin Status...</p>
         </div>
       </div>
     );
