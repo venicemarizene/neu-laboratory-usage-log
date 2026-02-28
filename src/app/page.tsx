@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertCircle, LogIn, Monitor, QrCode, Loader2, ShieldCheck, UserCircle, LogOut } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
@@ -125,7 +125,7 @@ export default function Home() {
             <Monitor className="w-12 h-12 text-primary-foreground" />
           </div>
           <h1 className="text-4xl font-extrabold tracking-tight text-primary font-headline">NEU LabTrack</h1>
-          <p className="text-muted-foreground font-medium">Institutional Computer Laboratory Management System</p>
+          <p className="text-muted-foreground font-medium uppercase tracking-wider">NEU Computer Laboratory Usage Log</p>
         </div>
 
         {user && (
