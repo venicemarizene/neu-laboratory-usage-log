@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -23,13 +22,10 @@ export default function Home() {
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Removed automatic redirect useEffect to allow users to choose their portal via tabs
-
   const handleGoogleSignIn = async (targetRole: 'admin' | 'professor') => {
     if (!auth) return;
     setIsLoggingIn(true);
     const provider = new GoogleAuthProvider();
-    // Force the account picker so users can switch between accounts easily
     provider.setCustomParameters({ 
       hd: 'neu.edu.ph',
       prompt: 'select_account'
@@ -49,7 +45,6 @@ export default function Home() {
         return;
       }
 
-      // Successful login, navigate to the requested portal
       toast({
         title: 'Access Granted',
         description: `Welcome to the ${targetRole === 'admin' ? 'Administrator' : 'Professor'} portal.`,
@@ -83,7 +78,6 @@ export default function Home() {
         videoRef.current.srcObject = stream;
       }
       
-      // Simulate scanning a QR code after 3 seconds for prototype demonstration
       setTimeout(async () => {
         const mockScannedQR = 'ADMIN_QR_001'; 
         handleQRLogin(mockScannedQR);
@@ -103,7 +97,6 @@ export default function Home() {
   };
 
   const handleQRLogin = (qrString: string) => {
-    // Logic to handle navigation based on scanned QR token
     if (qrString === 'ADMIN_QR_001') {
       toast({ title: 'Admin QR Validated', description: 'Navigating to Administrator Panel.' });
       router.push('/admin');
@@ -204,7 +197,7 @@ export default function Home() {
 
             <TabsContent value="admin" className="p-8 space-y-6 m-0 animate-in fade-in duration-300">
               <div className="text-center space-y-2">
-                <CardTitle className="text-2xl font-bold">Admin Suite</CardTitle>
+                <CardTitle className="text-2xl font-bold">Admin Portal</CardTitle>
                 <CardDescription>Oversight and laboratory management for authorized personnel.</CardDescription>
               </div>
 
