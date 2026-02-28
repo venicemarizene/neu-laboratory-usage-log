@@ -58,28 +58,25 @@ export default function Home() {
   };
 
   /**
-   * Handles Google SSO as requested.
-   * Strictly enforces institutional domain restriction (@neu.edu.ph only).
+   * Handles Google SSO using the specific code snippet logic provided.
    */
   const handleGoogleSignIn = (targetRole: 'admin' | 'professor') => {
     if (!auth || !firestore) return;
     setIsLoggingIn(true);
     
     const provider = new GoogleAuthProvider();
-    // Always prompt for account selection to support multiple institutional accounts
     provider.setCustomParameters({ 
       prompt: 'select_account'
     });
 
-    // Implementation matching your provided snippet logic
     signInWithPopup(auth, provider)
       .then(async (result) => {
         const signedInUser = result.user;
         const userEmail = signedInUser.email?.toLowerCase() || '';
-        
-        // Restriction check using your specific snippet logic
+
+        // Strict NEU email restriction as requested
         if (!userEmail.endsWith("@neu.edu.ph")) {
-          alert("Unauthorized access. Institutional email (@neu.edu.ph) only.");
+          alert("Unauthorized access.");
           await signOut(auth);
           setIsLoggingIn(false);
           return;
@@ -92,7 +89,7 @@ export default function Home() {
           role: targetRole === 'admin' ? 'Admin' : 'Professor'
         });
 
-        console.log("Signed in:", signedInUser.email);
+        console.log("Signed in:", userEmail);
         
         toast({
           title: 'Authentication Successful',
