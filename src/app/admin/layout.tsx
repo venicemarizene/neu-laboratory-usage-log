@@ -119,7 +119,7 @@ export default function AdminLayout({
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         <header className="h-16 border-b bg-card px-8 flex items-center justify-between shrink-0">
-          <h2 className="font-bold text-lg text-primary">Institutional Control Panel</h2>
+          <h2 className="font-bold text-lg text-primary">Admin Dashboard</h2>
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold leading-none">{user.displayName || 'Administrator'}</p>

@@ -11,7 +11,7 @@ import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Bar, BarChart, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell } from "recharts";
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Cell } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 
 const roomList = ['M101', 'M102', 'M103', 'M104', 'M105', 'M106', 'M107', 'M108', 'M109', 'M110', 'M111'];
@@ -96,7 +96,7 @@ export default function AdminDashboard() {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-700 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold font-headline text-primary tracking-tight">Lab Analytics Dashboard</h1>
+          <h1 className="text-3xl font-extrabold font-headline text-primary tracking-tight">Laboratory Analytics</h1>
           <p className="text-muted-foreground font-medium">Monitoring institutional computer laboratory utilization</p>
         </div>
         <div className="flex items-center gap-3">
@@ -146,7 +146,7 @@ export default function AdminDashboard() {
       {/* Usage Chart Section */}
       <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
         <CardHeader>
-          <CardTitle className="text-xl font-bold">Laboratory Utilization by Room</CardTitle>
+          <CardTitle className="text-xl font-bold">Computer Laboratory Distribution</CardTitle>
           <CardDescription>Frequency of use across computer laboratories M101 to M111</CardDescription>
         </CardHeader>
         <CardContent className="pt-4">
