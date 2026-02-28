@@ -1,9 +1,8 @@
-
 "use client"
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, LogOut, Microscope, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, Monitor, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser, useAuth } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -44,8 +43,8 @@ export default function AdminLayout({
       {/* Sidebar */}
       <aside className="w-64 bg-primary text-primary-foreground hidden md:flex flex-col p-6 shadow-2xl">
         <div className="flex items-center gap-3 mb-10 px-2">
-          <Microscope className="w-8 h-8 text-accent" />
-          <span className="text-xl font-bold tracking-tight font-headline">NEU Lab</span>
+          <Monitor className="w-8 h-8 text-accent" />
+          <span className="text-xl font-bold tracking-tight font-headline">NEU LabTrack</span>
         </div>
         
         <nav className="flex-1 space-y-2">

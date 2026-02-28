@@ -4,8 +4,8 @@ import { FirebaseClientProvider } from '@/firebase';
 import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
-  title: 'NEU Lab Log | Institutional Access Management',
-  description: 'Secure laboratory usage logging and administrative monitoring system for NEU.',
+  title: 'NEU LabTrack | Institutional Computer Laboratory Management',
+  description: 'Secure computer laboratory usage logging and administrative monitoring system for NEU.',
 };
 
 export default function RootLayout({

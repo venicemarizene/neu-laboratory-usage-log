@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -7,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Microscope, QrCode, LogOut, CheckCircle2, AlertTriangle, Camera, Loader2 } from 'lucide-react';
+import { Monitor, QrCode, LogOut, CheckCircle2, AlertTriangle, Camera, Loader2 } from 'lucide-react';
 import { useUser, useAuth, useFirestore } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
@@ -113,8 +112,8 @@ export default function ProfessorPortal() {
     <div className="min-h-screen bg-background p-4 md:p-8 flex flex-col items-center">
       <header className="w-full max-w-xl flex items-center justify-between mb-8">
         <div className="flex items-center gap-2">
-          <Microscope className="w-6 h-6 text-primary" />
-          <h1 className="text-xl font-bold text-primary font-headline">NEU Lab Log</h1>
+          <Monitor className="w-6 h-6 text-primary" />
+          <h1 className="text-xl font-bold text-primary font-headline">NEU LabTrack</h1>
         </div>
         <Button variant="ghost" size="sm" onClick={handleSignOut} className="gap-2">
           <LogOut className="w-4 h-4" />
@@ -128,21 +127,21 @@ export default function ProfessorPortal() {
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
               <QrCode className="w-8 h-8 text-primary" />
             </div>
-            <CardTitle>Register Room Usage</CardTitle>
-            <CardDescription>Scan the laboratory QR code to log your session</CardDescription>
+            <CardTitle>Register Computer Usage</CardTitle>
+            <CardDescription>Scan the computer laboratory QR code to log your session</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">Select Lab Room</label>
+              <label className="text-sm font-medium text-muted-foreground">Select Computer Lab</label>
               <Select value={room} onValueChange={setRoom}>
                 <SelectTrigger className="h-12">
                   <SelectValue placeholder="Select a laboratory" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Lab 101">Lab 101 - BioTech</SelectItem>
-                  <SelectItem value="Lab 102">Lab 102 - Nanoscale</SelectItem>
-                  <SelectItem value="Lab 204">Lab 204 - Optics</SelectItem>
-                  <SelectItem value="Lab 305">Lab 305 - Robotics</SelectItem>
+                  <SelectItem value="Lab 101">Lab 101 - PC Cluster A</SelectItem>
+                  <SelectItem value="Lab 102">Lab 102 - PC Cluster B</SelectItem>
+                  <SelectItem value="Lab 204">Lab 204 - Advanced Graphics</SelectItem>
+                  <SelectItem value="Lab 305">Lab 305 - Software Dev</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -10,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LogIn, Microscope, QrCode, Camera, Loader2, AlertCircle, ShieldCheck, UserCircle } from 'lucide-react';
+import { LogIn, Monitor, QrCode, Camera, Loader2, AlertCircle, ShieldCheck, UserCircle } from 'lucide-react';
 import { useAuth, useFirestore, useUser } from '@/firebase';
 import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
@@ -156,10 +155,10 @@ export default function Home() {
       <div className="max-w-md w-full space-y-8 text-center">
         <div className="space-y-2">
           <div className="mx-auto w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-lg transform transition hover:scale-105">
-            <Microscope className="w-10 h-10 text-primary-foreground" />
+            <Monitor className="w-10 h-10 text-primary-foreground" />
           </div>
-          <h1 className="text-4xl font-bold tracking-tight text-primary font-headline">NEU Lab Log</h1>
-          <p className="text-muted-foreground">Institutional Laboratory Access Management System</p>
+          <h1 className="text-4xl font-bold tracking-tight text-primary font-headline">NEU LabTrack</h1>
+          <p className="text-muted-foreground">Institutional Computer Laboratory Management System</p>
         </div>
 
         <Card className="border-none shadow-xl overflow-hidden">
@@ -263,7 +262,7 @@ export default function Home() {
         </Card>
 
         <p className="text-xs text-muted-foreground">
-          By continuing, you agree to follow the institutional laboratory safety protocols and data usage policies. Only <strong>@neu.edu.ph</strong> accounts are authorized.
+          By continuing, you agree to follow the institutional computer laboratory safety protocols and data usage policies. Only <strong>@neu.edu.ph</strong> accounts are authorized.
         </p>
       </div>
     </div>

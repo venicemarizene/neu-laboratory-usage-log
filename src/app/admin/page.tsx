@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Search, Calendar, Users, Microscope, Ban, Download } from 'lucide-react';
+import { Search, Calendar, Users, Monitor, Ban, Download } from 'lucide-react';
 import { MOCK_LOGS, getStats } from '@/lib/mock-data';
 import UsageReport from '@/components/UsageReport';
 import { UsageStats } from '@/lib/types';
@@ -30,8 +30,8 @@ export default function AdminDashboard() {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold font-headline text-primary">Usage Analytics</h1>
-          <p className="text-muted-foreground">Real-time overview of laboratory utilization</p>
+          <h1 className="text-3xl font-bold font-headline text-primary">LabTrack Analytics</h1>
+          <p className="text-muted-foreground">Real-time overview of computer laboratory utilization</p>
         </div>
         <div className="flex gap-3">
            <UsageReport logs={MOCK_LOGS} />
@@ -47,7 +47,7 @@ export default function AdminDashboard() {
         <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Room Uses Today</CardTitle>
-            <Microscope className="h-4 w-4 text-primary" />
+            <Monitor className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.totalUsesToday ?? 0}</div>
@@ -80,7 +80,7 @@ export default function AdminDashboard() {
       <Card className="border-none shadow-lg">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Recent Room Logs</CardTitle>
+            <CardTitle className="text-lg">Recent Computer Usage Logs</CardTitle>
             <div className="relative w-72">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input 
