@@ -23,7 +23,7 @@ export default function AdminLayout({
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const checkCount = useRef(0);
 
-  // Check if current user is an admin via roles_admin collection
+  // Robust check if current user is an admin via roles_admin collection
   const adminRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'roles_admin', user.uid);
@@ -40,37 +40,30 @@ export default function AdminLayout({
   const { data: profileData, isLoading: isProfileLoading } = useDoc(profileRef);
 
   useEffect(() => {
-    // 1. Wait for the Firebase Auth state to be determined
     if (isUserLoading) return;
 
-    // 2. If no user is authenticated, redirect to home immediately
     if (!user) {
       setIsAuthorized(false);
       router.push('/');
       return;
     }
 
-    // 3. Wait for Firestore documents to be fetched
     if (isAdminCheckLoading || isProfileLoading) return;
 
-    // 4. Determine authorization: 
     const hasExplicitAdminRole = !!adminRoleDoc || profileData?.role === 'Admin';
     const isInstitutional = !!user.email?.toLowerCase().match(/@([^@]+\.)?neu\.edu\.ph$/i);
     
     if (hasExplicitAdminRole) {
       setIsAuthorized(true);
     } else {
-      // Grace period for first-time synchronization (especially for institutional accounts)
-      // This prevents the "redirection loop" if the database sync hasn't finished yet
+      // Grace period for first-time synchronization
       if (checkCount.current < 5 && isInstitutional) {
         checkCount.current += 1;
         const timer = setTimeout(() => {
-          // Trigger a re-evaluation
-          setIsAuthorized(null);
-        }, 800);
+          setIsAuthorized(null); // Re-trigger check
+        }, 1000);
         return () => clearTimeout(timer);
       } else {
-        // If still not authorized after checks, redirect
         setIsAuthorized(false);
         router.push('/');
       }
@@ -85,7 +78,6 @@ export default function AdminLayout({
     }
   };
 
-  // Show loader while verifying identity or navigating
   if (isUserLoading || isAdminCheckLoading || isProfileLoading || isAuthorized === null || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">

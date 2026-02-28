@@ -58,7 +58,6 @@ export default function Home() {
     setIsLoggingIn(true);
     
     const provider = new GoogleAuthProvider();
-    // Allow users to select which institutional account to use
     provider.setCustomParameters({ 
       prompt: 'select_account'
     });
@@ -66,7 +65,6 @@ export default function Home() {
     try {
       const result = await signInWithPopup(auth, provider);
       const userEmail = result.user.email?.toLowerCase();
-      // Robust institutional domain check
       const isInstitutional = !!userEmail?.match(/@([^@]+\.)?neu\.edu\.ph$/i);
 
       if (!isInstitutional) {
@@ -79,7 +77,6 @@ export default function Home() {
         return;
       }
 
-      // Sync profile before redirecting
       syncUserProfile(result.user.uid, {
         name: result.user.displayName,
         email: result.user.email,
@@ -131,9 +128,8 @@ export default function Home() {
       router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
     } catch (error: any) {
       let errorMessage = error.message;
-      // Provide actionable feedback for the common "Wrong Password" confusion
       if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        errorMessage = 'Credential mismatch. NOTE: Your Google account password will NOT work here. Use the "Google SSO" tab instead.';
+        errorMessage = 'Credential mismatch. NOTE: Your University Google password will NOT work here. Use the "Google SSO" tab instead.';
       }
       
       toast({
@@ -162,7 +158,6 @@ export default function Home() {
         videoRef.current.srcObject = stream;
       }
       
-      // Mocking a successful QR scan for prototype purposes
       setTimeout(async () => {
         const mockScannedQR = 'ADMIN_QR_001'; 
         handleQRLogin(mockScannedQR);
@@ -271,7 +266,7 @@ export default function Home() {
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle className="text-xs font-bold">Important Notice</AlertTitle>
                     <AlertDescription className="text-[10px] font-medium leading-tight">
-                      Your Google password <strong>will not work here</strong>. Use this tab only if you have a separate system password.
+                      Your University Google password <strong>will not work here</strong>. Use the "Google SSO" tab if you use your University Google account.
                     </AlertDescription>
                   </Alert>
                   <div className="space-y-2">
