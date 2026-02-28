@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -12,7 +13,7 @@
         },
         "name": {
           "type": "string",
-          "description": "The full name of the user as provided by their Google account."
+          "description": "The full name of the user as provided by their Google account or manual registration."
         },
         "email": {
           "type": "string",
@@ -81,6 +82,7 @@
   "auth": {
     "providers": [
       "password",
+      "google.com",
       "anonymous"
     ]
   },
