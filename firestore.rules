@@ -48,6 +48,8 @@ service cloud.firestore {
     }
 
     match /roles_admin/{userId} {
+      // Allow the owner to check if they have an admin role
+      allow get: if isOwner(userId);
       allow read, write: if false;
     }
   }
