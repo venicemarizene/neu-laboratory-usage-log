@@ -39,48 +39,43 @@ export default function AdminLayout({
   const { data: profileData, isLoading: isProfileLoading } = useDoc(profileRef);
 
   useEffect(() => {
-    // If auth state is still loading, do nothing
     if (isUserLoading) return;
 
-    // If no user, they aren't authorized to be in /admin
     if (!user) {
       setIsAuthorized(false);
       router.push('/');
       return;
     }
 
-    // If we are still loading profile data, wait
+    // Secondary domain check for security
+    const isInstitutional = user.email?.toLowerCase().endsWith('@neu.edu.ph');
+    if (!isInstitutional) {
+      signOut(auth).then(() => router.push('/'));
+      setIsAuthorized(false);
+      return;
+    }
+
     if (isMarkerLoading || isProfileLoading) return;
 
-    // A user is authorized if they have an admin role OR the marker document exists
+    // Admin is authorized if they have the marker or the profile indicates Admin role
     const isAdmin = !!adminMarker || profileData?.role === 'Admin';
-    const isInstitutional = !!user.email?.toLowerCase().match(/@([^@]+\.)?neu\.edu\.ph$/i);
     
     if (isAdmin) {
       setIsAuthorized(true);
     } else {
-      // If the user just signed in as an institutional user, Firestore might still be 
-      // synchronizing the newly created Admin marker in the background.
-      // We give a grace period for initial synchronization before redirecting.
-      if (isInstitutional) {
-        const timer = setTimeout(() => {
-          // Re-check auth state after the delay
-          if (!isAdmin) {
-            setIsAuthorized(false);
-            router.push('/');
-          }
-        }, 5000);
-        return () => clearTimeout(timer);
-      } else {
-        setIsAuthorized(false);
-        router.push('/');
-      }
+      // Grace period for sync before redirection
+      const timer = setTimeout(() => {
+        if (!isAdmin) {
+          setIsAuthorized(false);
+          router.push('/');
+        }
+      }, 3000);
+      return () => clearTimeout(timer);
     }
-  }, [user, isUserLoading, isMarkerLoading, isProfileLoading, adminMarker, profileData, router]);
+  }, [user, isUserLoading, isMarkerLoading, isProfileLoading, adminMarker, profileData, router, auth]);
 
   const handleSignOut = async () => {
     if (auth) {
-      setIsAuthorized(false);
       await signOut(auth);
       router.push('/');
     }

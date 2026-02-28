@@ -26,6 +26,7 @@ export default function Home() {
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Profile sync logic to ensure user existence in Firestore
   const syncUserProfile = async (userId: string, data: any) => {
     if (!firestore) return;
     const userRef = doc(firestore, 'user_profiles', userId);
@@ -57,20 +58,23 @@ export default function Home() {
     setIsLoggingIn(true);
     
     const provider = new GoogleAuthProvider();
+    // Force account selection to allow multiple institutional emails
     provider.setCustomParameters({ 
       prompt: 'select_account'
     });
 
     try {
       const result = await signInWithPopup(auth, provider);
-      const userEmail = result.user.email?.toLowerCase();
-      const isInstitutional = !!userEmail?.match(/@([^@]+\.)?neu\.edu\.ph$/i);
+      const userEmail = result.user.email?.toLowerCase() || '';
+      
+      // Strict domain restriction check
+      const isInstitutional = userEmail.endsWith('@neu.edu.ph');
 
       if (!isInstitutional) {
         await signOut(auth);
         toast({
           variant: 'destructive',
-          title: 'Institutional Account Required',
+          title: 'Unauthorized Access',
           description: 'Access is restricted to official @neu.edu.ph Google accounts.',
         });
         return;
@@ -84,7 +88,7 @@ export default function Home() {
 
       toast({
         title: 'Authentication Successful',
-        description: `Redirecting to ${targetRole} portal...`,
+        description: `Welcome, ${result.user.displayName}. Access granted.`,
       });
       
       router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
@@ -117,7 +121,7 @@ export default function Home() {
         videoRef.current.srcObject = stream;
       }
       
-      // Simulating a QR detection
+      // Simulating a QR detection for entry logic
       setTimeout(async () => {
         handleQRDetected('PROF_MOCK_TOKEN');
       }, 3000);
@@ -208,7 +212,7 @@ export default function Home() {
                   className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
                 >
                   {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}
-                  Sign In with Institutional Google
+                  Sign In with Google
                 </Button>
               </div>
               
@@ -247,7 +251,7 @@ export default function Home() {
                   className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
                 >
                   {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
-                  Admin Portal Google Sign-In
+                  Admin Google Sign-In
                 </Button>
               </div>
               
