@@ -75,7 +75,7 @@ export default function Home() {
         return;
       }
 
-      // Sync and immediately transition to the dashboard
+      // Sync profile before redirecting
       syncUserProfile(result.user.uid, {
         name: result.user.displayName,
         email: result.user.email,

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useUser, useAuth, useDoc, useMemoFirebase, useFirestore } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 export default function AdminLayout({
   children,
@@ -21,6 +21,7 @@ export default function AdminLayout({
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const checkCount = useRef(0);
 
   // Check if current user is an admin via roles_admin collection
   const adminRef = useMemoFirebase(() => {
@@ -53,17 +54,25 @@ export default function AdminLayout({
     if (isAdminCheckLoading || isProfileLoading) return;
 
     // 4. Determine authorization: 
-    // - Check the explicit admin role document
-    // - OR check the profile data field
-    // We add a tiny safety check: if both are null, it means the documents don't exist yet.
     const hasExplicitAdminRole = !!adminRoleDoc || profileData?.role === 'Admin';
+    const isInstitutional = !!user.email?.toLowerCase().match(/@([^@]+\.)?neu\.edu\.ph$/i);
     
     if (hasExplicitAdminRole) {
       setIsAuthorized(true);
     } else {
-      // If we are definitely sure they aren't an admin after loading finishes, redirect
-      setIsAuthorized(false);
-      router.push('/');
+      // Grace period for first-time synchronization (especially for institutional accounts)
+      if (checkCount.current < 3 && isInstitutional) {
+        checkCount.current += 1;
+        const timer = setTimeout(() => {
+          // Trigger a re-evaluation
+          setIsAuthorized(null);
+        }, 1000);
+        return () => clearTimeout(timer);
+      } else {
+        // If still not authorized after checks, redirect
+        setIsAuthorized(false);
+        router.push('/');
+      }
     }
   }, [user, isUserLoading, isAdminCheckLoading, isProfileLoading, adminRoleDoc, profileData, router]);
 

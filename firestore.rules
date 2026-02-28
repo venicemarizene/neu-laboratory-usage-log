@@ -10,7 +10,7 @@ service cloud.firestore {
     }
 
     function isInstitutionalUser() {
-      // Robust check for main domain and institutional subdomains with field existence check
+      // Robust check for main domain and institutional subdomains
       return isSignedIn() && 
              'email' in request.auth.token &&
              request.auth.token.email.matches('(?i).*@([^@]+\\.)?neu\\.edu\\.ph$');
@@ -22,6 +22,7 @@ service cloud.firestore {
 
     function isAdmin() {
       // Use exists() to check for explicit admin role in roles_admin collection
+      // Avoid using this function inside the roles_admin block itself to prevent recursion
       return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
@@ -34,9 +35,9 @@ service cloud.firestore {
     // --- Collection Rules ---
 
     match /user_profiles/{userId} {
-      // Owners and Admins can always read profiles. Institutional users can check existence for directory.
+      // Owners and Admins can always read profiles. Institutional users can check existence.
       allow get: if isOwner(userId) || isAdmin() || isInstitutionalUser();
-      // Admins and institutional users can list for the faculty directory.
+      // Admins and institutional users can list for management.
       allow list: if isInstitutionalUser() || isAdmin();
       // Users can create their own profile if they have an institutional email.
       allow create: if isInstitutionalUser() && isOwner(userId);
@@ -57,7 +58,7 @@ service cloud.firestore {
     }
 
     match /roles_admin/{userId} {
-      // Explicitly allow owners to read their own admin status without calling a recursive isAdmin()
+      // Owners can check their own status without triggering recursive isAdmin()
       allow get: if isOwner(userId) || (isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid)));
       // Authorized institutional users can register as an admin marker for themselves.
       allow create, update: if isOwner(userId) && isInstitutionalUser();
