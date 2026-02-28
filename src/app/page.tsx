@@ -7,11 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { LogIn, ShieldCheck, Microscope, QrCode, Camera, Loader2, AlertCircle } from 'lucide-react';
+import { LogIn, Microscope, QrCode, Camera, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth, useFirestore, useUser } from '@/firebase';
 import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function Home() {
   const router = useRouter();
@@ -28,8 +30,6 @@ export default function Home() {
   useEffect(() => {
     if (!isUserLoading && user) {
       if (user.email?.endsWith('@neu.edu.ph')) {
-        // In a real app, we'd check the 'role' field in Firestore
-        // For this prototype, we'll just check if it's an admin email or default to professor
         if (user.email === 'admin@neu.edu.ph') {
           router.push('/admin');
         } else {
@@ -58,7 +58,6 @@ export default function Home() {
         });
       }
     } catch (error: any) {
-      console.error('Sign-in error:', error);
       toast({
         variant: 'destructive',
         title: 'Authentication Failed',
@@ -80,13 +79,11 @@ export default function Home() {
       
       // Simulate scanning a QR code after 3 seconds
       setTimeout(async () => {
-        // Mocking a successful scan of a professor's QR string
         const mockScannedQR = 'PROF_QR_101'; 
         handleQRLogin(mockScannedQR);
       }, 3000);
 
     } catch (error) {
-      console.error('Camera error:', error);
       setHasCameraPermission(false);
     }
   };
@@ -99,41 +96,47 @@ export default function Home() {
     }
   };
 
-  const handleQRLogin = async (qrString: string) => {
+  const handleQRLogin = (qrString: string) => {
     if (!firestore) return;
     
-    // In a real implementation, we would call a Cloud Function to issue a custom token
-    // For this prototype, we simulate the validation and redirect
     const q = query(collection(firestore, 'user_profiles'), where('qrString', '==', qrString), limit(1));
-    const querySnapshot = await getDocs(q);
+    
+    getDocs(q)
+      .then((querySnapshot) => {
+        if (!querySnapshot.empty) {
+          const userData = querySnapshot.docs[0].data();
+          if (userData.isBlocked) {
+            toast({
+              variant: 'destructive',
+              title: 'Access Blocked',
+              description: 'Your account has been restricted by an administrator.',
+            });
+            stopScanning();
+            return;
+          }
 
-    if (!querySnapshot.empty) {
-      const userData = querySnapshot.docs[0].data();
-      if (userData.isBlocked) {
-        toast({
-          variant: 'destructive',
-          title: 'Access Blocked',
-          description: 'Your account has been restricted by an administrator.',
-        });
+          toast({
+            title: 'QR Code Validated',
+            description: `Welcome back, ${userData.name}!`,
+          });
+          
+          router.push(userData.role === 'Admin' ? '/admin' : '/professor');
+        } else {
+          toast({
+            variant: 'destructive',
+            title: 'Invalid QR Code',
+            description: 'The scanned QR code is not recognized.',
+          });
+        }
         stopScanning();
-        return;
-      }
-
-      toast({
-        title: 'QR Code Validated',
-        description: `Welcome back, ${userData.name}!`,
+      })
+      .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'user_profiles',
+          operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
       });
-      
-      // Simulate login by navigating (Real login would happen via custom token)
-      router.push(userData.role === 'Admin' ? '/admin' : '/professor');
-    } else {
-      toast({
-        variant: 'destructive',
-        title: 'Invalid QR Code',
-        description: 'The scanned QR code is not recognized.',
-      });
-    }
-    stopScanning();
   };
 
   if (isUserLoading) {

@@ -10,8 +10,10 @@ import { Badge } from '@/components/ui/badge';
 import { Microscope, QrCode, LogOut, CheckCircle2, AlertTriangle, Camera, Loader2 } from 'lucide-react';
 import { useUser, useAuth, useFirestore } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function ProfessorPortal() {
   const router = useRouter();
@@ -33,11 +35,20 @@ export default function ProfessorPortal() {
   useEffect(() => {
     const fetchProfile = async () => {
       if (user && firestore) {
-        const q = query(collection(firestore, 'user_profiles'), where('id', '==', user.uid), limit(1));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          setProfileData(snap.docs[0].data());
-        }
+        const docRef = doc(firestore, 'user_profiles', user.uid);
+        getDoc(docRef)
+          .then((snap) => {
+            if (snap.exists()) {
+              setProfileData(snap.data());
+            }
+          })
+          .catch((err) => {
+            const permissionError = new FirestorePermissionError({
+              path: docRef.path,
+              operation: 'get',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+          });
       }
     };
     fetchProfile();
@@ -54,30 +65,32 @@ export default function ProfessorPortal() {
     if (!room) return;
     setScanning(true);
     
-    // Simulate real database check
-    setTimeout(async () => {
+    setTimeout(() => {
       setScanning(false);
       if (profileData?.isBlocked) {
         setStatus('blocked');
       } else {
-        try {
-          if (firestore && user) {
-            await addDoc(collection(firestore, 'room_logs'), {
-              professorId: user.uid,
-              professorName: user.displayName || profileData?.name || 'Professor',
-              roomNumber: room,
-              timestamp: new Date().toISOString(),
-              status: 'Active'
+        if (firestore && user) {
+          const logData = {
+            professorId: user.uid,
+            professorName: user.displayName || profileData?.name || 'Professor',
+            roomNumber: room,
+            timestamp: new Date().toISOString(),
+            status: 'Active'
+          };
+          
+          addDoc(collection(firestore, 'room_logs'), logData)
+            .then(() => {
+              setStatus('success');
+            })
+            .catch(async (serverError) => {
+              const permissionError = new FirestorePermissionError({
+                path: 'room_logs',
+                operation: 'create',
+                requestResourceData: logData,
+              });
+              errorEmitter.emit('permission-error', permissionError);
             });
-          }
-          setStatus('success');
-        } catch (error) {
-          console.error('Logging error:', error);
-          toast({
-            variant: 'destructive',
-            title: 'Logging Failed',
-            description: 'Could not record room entry. Please check your connection.',
-          });
         }
       }
     }, 2000);
