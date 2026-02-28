@@ -13,10 +13,12 @@ import { UsageStats } from '@/lib/types';
 export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [stats, setStats] = useState<UsageStats | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // Defer dynamic calculations until after hydration
+    // Defer dynamic calculations and mounting flag until after hydration
     setStats(getStats());
+    setMounted(true);
   }, []);
 
   const filteredLogs = MOCK_LOGS.filter(log => 
@@ -108,7 +110,8 @@ export default function AdminDashboard() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Calendar className="w-3 h-3 text-muted-foreground" />
-                      {new Date(log.timestamp).toLocaleString()}
+                      {/* Using a mounted check to avoid hydration mismatch for locale-sensitive dates */}
+                      {mounted ? new Date(log.timestamp).toLocaleString() : 'Loading date...'}
                     </div>
                   </TableCell>
                   <TableCell>
