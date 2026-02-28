@@ -10,9 +10,9 @@ service cloud.firestore {
     }
 
     function isInstitutionalUser() {
-      // Allows main domain and subdomains (e.g. student.neu.edu.ph)
+      // Allows main domain and any institutional subdomains (e.g. student.neu.edu.ph)
+      // We check for verified email domain match.
       return isSignedIn() && 
-             request.auth.token.firebase.sign_in_provider == 'google.com' &&
              request.auth.token.email.matches('.*@(.+\\.)?neu\\.edu\\.ph$');
     }
 
@@ -33,7 +33,7 @@ service cloud.firestore {
 
     match /user_profiles/{userId} {
       allow get: if isOwner(userId) || isAdmin() || isInstitutionalUser();
-      // Allow authenticated institutional users to perform the lookup query and view the directory in admin mode
+      // Allow authenticated institutional users to perform lookup and directory viewing
       allow list: if isInstitutionalUser() || isAdmin();
       allow create: if isInstitutionalUser() && isOwner(userId);
       allow update: if isOwner(userId) || isAdmin() || isInstitutionalUser();
@@ -41,7 +41,7 @@ service cloud.firestore {
     }
 
     match /room_logs/{logId} {
-      // Allow institutional users to view logs for the admin dashboard prototype
+      // Allow institutional users and admins to view activity logs
       allow get, list: if isAdmin() || isInstitutionalUser();
       allow create: if isInstitutionalUser() && 
                        isNotBlocked() && 

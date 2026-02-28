@@ -28,22 +28,27 @@ export default function Home() {
   const handleGoogleSignIn = async (targetRole: 'admin' | 'professor') => {
     if (!auth || !firestore) return;
     setIsLoggingIn(true);
+    
+    // Removing hd: 'neu.edu.ph' to be more inclusive of subdomains (e.g. @student.neu.edu.ph)
+    // which Google's hd parameter sometimes filters too strictly.
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ 
-      hd: 'neu.edu.ph',
       prompt: 'select_account'
     });
 
     try {
       const result = await signInWithPopup(auth, provider);
-      const email = result.user.email;
+      const email = result.user.email?.toLowerCase();
 
-      if (!email?.match(/@(.+\.)?neu\.edu\.ph$/)) {
+      // Flexible regex for any institutional subdomain under neu.edu.ph
+      const isInstitutional = !!email?.match(/@(.+\.)?neu\.edu\.ph$/);
+
+      if (!isInstitutional) {
         await signOut(auth);
         toast({
           variant: 'destructive',
-          title: 'Invalid Domain',
-          description: 'Only institutional accounts (@neu.edu.ph) are allowed.',
+          title: 'Access Restricted',
+          description: 'Only institutional accounts (@neu.edu.ph) are permitted.',
         });
         return;
       }
@@ -59,8 +64,8 @@ export default function Home() {
       }, { merge: true });
 
       toast({
-        title: 'Access Granted',
-        description: `Welcome to the ${targetRole === 'admin' ? 'Administrator' : 'Professor'} portal.`,
+        title: 'Sign-in Successful',
+        description: `Welcome to the ${targetRole === 'admin' ? 'Admin' : 'Professor'} portal.`,
       });
       router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
 
@@ -70,8 +75,8 @@ export default function Home() {
       }
       toast({
         variant: 'destructive',
-        title: 'Authentication Failed',
-        description: error.message || 'Could not complete sign-in.',
+        title: 'Authentication Error',
+        description: error.message || 'An unexpected error occurred during sign-in.',
       });
     } finally {
       setIsLoggingIn(false);
@@ -81,7 +86,7 @@ export default function Home() {
   const handleSignOut = async () => {
     if (auth) {
       await signOut(auth);
-      toast({ title: 'Signed out', description: 'You have been signed out successfully.' });
+      toast({ title: 'Signed out', description: 'Session ended successfully.' });
     }
   };
 
@@ -94,7 +99,6 @@ export default function Home() {
         videoRef.current.srcObject = stream;
       }
       
-      // Snappier mock scan delay (800ms instead of 3000ms)
       setTimeout(async () => {
         const mockScannedQR = 'ADMIN_QR_001'; 
         handleQRLogin(mockScannedQR);
@@ -115,13 +119,13 @@ export default function Home() {
 
   const handleQRLogin = (qrString: string) => {
     if (qrString === 'ADMIN_QR_001') {
-      toast({ title: 'Admin QR Validated', description: 'Navigating to Administrator Panel.' });
+      toast({ title: 'Access Verified', description: 'Entering Administrator Panel.' });
       router.push('/admin');
     } else if (qrString.startsWith('PROF')) {
-      toast({ title: 'Professor QR Validated', description: 'Navigating to Professor Portal.' });
+      toast({ title: 'Access Verified', description: 'Entering Professor Portal.' });
       router.push('/professor');
     } else {
-      toast({ variant: 'destructive', title: 'Invalid QR', description: 'Institutional token not recognized.' });
+      toast({ variant: 'destructive', title: 'Invalid Token', description: 'Institutional QR code not recognized.' });
     }
     stopScanning();
   };
@@ -251,7 +255,7 @@ export default function Home() {
         </Card>
 
         <p className="text-sm font-medium text-muted-foreground">
-          Restricted to authorized <span className="text-primary">@neu.edu.ph</span> personnel.
+          Institutional access for verified <span className="text-primary">@neu.edu.ph</span> accounts.
         </p>
       </div>
     </div>
