@@ -58,57 +58,59 @@ export default function Home() {
   };
 
   /**
-   * Handles Google SSO with institutional domain enforcement.
+   * Handles Google SSO with institutional domain enforcement as requested.
    */
   const handleGoogleSignIn = async (targetRole: 'admin' | 'professor') => {
     if (!auth || !firestore) return;
     setIsLoggingIn(true);
     
     const provider = new GoogleAuthProvider();
-    // Forces account selection to allow switching between institutional emails
+    // Ensures account selection dialog appears every time for different accounts
     provider.setCustomParameters({ 
       prompt: 'select_account'
     });
 
     try {
+      // Use signInWithPopup as requested
       const result = await signInWithPopup(auth, provider);
-      const userEmail = result.user.email?.toLowerCase() || '';
+      const signedInUser = result.user;
+      const userEmail = signedInUser.email?.toLowerCase() || '';
       
-      // Strict institutional domain restriction
-      const isInstitutional = userEmail.endsWith('@neu.edu.ph');
-
-      if (!isInstitutional) {
+      // Strict institutional domain restriction (@neu.edu.ph only)
+      if (!userEmail.endsWith('@neu.edu.ph')) {
         await signOut(auth);
         toast({
           variant: 'destructive',
           title: 'Unauthorized Access',
-          description: 'Access is restricted to official @neu.edu.ph Google accounts.',
+          description: 'Access is restricted to official @neu.edu.ph accounts only.',
         });
         return;
       }
 
-      await syncUserProfile(result.user.uid, {
-        name: result.user.displayName,
-        email: result.user.email,
+      // Sync the user profile for role-based dashboard access
+      await syncUserProfile(signedInUser.uid, {
+        name: signedInUser.displayName,
+        email: signedInUser.email,
         role: targetRole === 'admin' ? 'Admin' : 'Professor'
       });
 
+      console.log("Signed in:", signedInUser.email);
+      
       toast({
         title: 'Authentication Successful',
-        description: `Welcome, ${result.user.displayName}. Access granted.`,
+        description: `Welcome, ${signedInUser.displayName}. Access granted.`,
       });
       
-      // Redirect after a short delay for data propagation
-      setTimeout(() => {
-        router.push(`/${targetRole}`);
-      }, 500);
+      // Redirect based on target portal
+      router.push(`/${targetRole}`);
 
     } catch (error: any) {
       if (error.code === 'auth/popup-closed-by-user') return;
+      console.error(error);
       toast({
         variant: 'destructive',
         title: 'Authentication Error',
-        description: error.message || 'Failed to connect to Google.',
+        description: 'Failed to connect to Google institutional services.',
       });
     } finally {
       setIsLoggingIn(false);
@@ -213,16 +215,17 @@ export default function Home() {
                 <Alert variant="default" className="bg-primary/5 border-primary/20 py-4 text-left">
                   <Info className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
-                    Please use your official @neu.edu.ph Google account to sign in as a professor.
+                    Please use your official @neu.edu.ph Google account to sign in.
                   </AlertDescription>
                 </Alert>
+                {/* No manual email or password fields. Only Google sign-in. */}
                 <Button 
                   onClick={() => handleGoogleSignIn('professor')}
                   disabled={isLoggingIn}
                   className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
                 >
                   {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}
-                  Sign In with Institutional Google
+                  Sign In with Google
                 </Button>
               </div>
               
@@ -252,9 +255,10 @@ export default function Home() {
                 <Alert variant="default" className="bg-primary/5 border-primary/20 py-4 text-left">
                   <ShieldCheck className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
-                    Admin access is restricted to verified institutional identities.
+                    Admin access restricted to verified institutional identities.
                   </AlertDescription>
                 </Alert>
+                {/* Strictly Google sign-in for Admins. No password fields. */}
                 <Button 
                   onClick={() => handleGoogleSignIn('admin')}
                   disabled={isLoggingIn}
@@ -289,7 +293,7 @@ export default function Home() {
         </Card>
 
         <p className="text-xs font-medium text-muted-foreground">
-          Verified <span className="text-primary font-bold">@neu.edu.ph</span> Google accounts only.
+          Institutional <span className="text-primary font-bold">@neu.edu.ph</span> access only.
         </p>
       </div>
     </div>
