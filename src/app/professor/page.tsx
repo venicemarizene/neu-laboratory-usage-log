@@ -25,6 +25,8 @@ export default function ProfessorPortal() {
   const [status, setStatus] = useState<'idle' | 'success' | 'blocked'>('idle');
   const [profileData, setProfileData] = useState<any>(null);
 
+  const roomList = Array.from({ length: 11 }, (_, i) => `M${101 + i}`);
+
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.push('/');
@@ -138,10 +140,11 @@ export default function ProfessorPortal() {
                   <SelectValue placeholder="Select a laboratory" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Lab 101">Lab 101 - PC Cluster A</SelectItem>
-                  <SelectItem value="Lab 102">Lab 102 - PC Cluster B</SelectItem>
-                  <SelectItem value="Lab 204">Lab 204 - Advanced Graphics</SelectItem>
-                  <SelectItem value="Lab 305">Lab 305 - Software Dev</SelectItem>
+                  {roomList.map((roomNum) => (
+                    <SelectItem key={roomNum} value={roomNum}>
+                      Laboratory {roomNum}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -162,7 +165,7 @@ export default function ProfessorPortal() {
                 <div className="p-6 bg-green-50 rounded-xl border border-green-100 space-y-3">
                   <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto" />
                   <h3 className="text-xl font-bold text-green-700">Access Logged!</h3>
-                  <p className="text-green-600">Thank you for using room {room}. Your session is now active.</p>
+                  <p className="text-green-600 font-medium text-lg">Thank you for using room {room}.</p>
                 </div>
                 <Button variant="outline" onClick={handleReset} className="w-full h-12">Log Another Room</Button>
               </div>
