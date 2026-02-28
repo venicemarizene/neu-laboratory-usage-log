@@ -2,13 +2,13 @@
 "use client"
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, LogOut, Monitor, Loader2 } from 'lucide-react';
+import { useRouter, usePathname } from 'next/navigation';
+import { LayoutDashboard, Users, LogOut, Monitor, Loader2, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser, useAuth, useDoc, useMemoFirebase, useFirestore } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function AdminLayout({
   children,
@@ -16,24 +16,36 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { auth } = useAuth() ? { auth: useAuth() } : { auth: null };
   const { firestore } = useFirestore() ? { firestore: useFirestore() } : { firestore: null };
   const { user, isUserLoading } = useUser();
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
 
   // Check if current user is an admin via roles_admin collection
   const adminRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'roles_admin', user.uid);
   }, [firestore, user]);
+  
   const { data: adminRoleDoc, isLoading: isAdminCheckLoading } = useDoc(adminRef);
 
   useEffect(() => {
     if (!isUserLoading && !isAdminCheckLoading) {
-      // Allow access if user exists and (is hardcoded admin OR has role in roles_admin)
-      const isAuthorizedAdmin = user && (user.email === 'admin@neu.edu.ph' || adminRoleDoc);
-      
-      if (!isAuthorizedAdmin) {
+      if (!user) {
         router.push('/');
+        return;
+      }
+
+      // Hardcoded check for the primary admin email or presence in roles_admin
+      const hasAdminAccess = user.email === 'admin@neu.edu.ph' || !!adminRoleDoc;
+      
+      if (!hasAdminAccess) {
+        // If not authorized, kick back to home
+        router.push('/');
+        setIsAuthorized(false);
+      } else {
+        setIsAuthorized(true);
       }
     }
   }, [user, isUserLoading, isAdminCheckLoading, adminRoleDoc, router]);
@@ -45,10 +57,13 @@ export default function AdminLayout({
     }
   };
 
-  if (isUserLoading || isAdminCheckLoading || !user) {
+  if (isUserLoading || isAdminCheckLoading || isAuthorized === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        <div className="text-center space-y-4">
+          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
+          <p className="text-muted-foreground font-medium">Verifying Administrative Credentials...</p>
+        </div>
       </div>
     );
   }
@@ -63,17 +78,31 @@ export default function AdminLayout({
         </div>
         
         <nav className="flex-1 space-y-2">
-          <Link href="/admin" className="flex items-center gap-3 p-3 rounded-lg hover:bg-white/10 transition-colors">
+          <Link 
+            href="/admin" 
+            className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
+              pathname === '/admin' ? 'bg-white/20' : 'hover:bg-white/10'
+            }`}
+          >
             <LayoutDashboard className="w-5 h-5" />
             <span>Dashboard</span>
           </Link>
-          <Link href="/admin/professors" className="flex items-center gap-3 p-3 rounded-lg hover:bg-white/10 transition-colors">
+          <Link 
+            href="/admin/professors" 
+            className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
+              pathname === '/admin/professors' ? 'bg-white/20' : 'hover:bg-white/10'
+            }`}
+          >
             <Users className="w-5 h-5" />
-            <span>Professors</span>
+            <span>Professor Directory</span>
           </Link>
         </nav>
 
-        <div className="pt-6 border-t border-white/10">
+        <div className="pt-6 border-t border-white/10 space-y-4">
+          <div className="flex items-center gap-2 px-3 py-2 bg-accent/20 rounded-lg">
+            <ShieldCheck className="w-4 h-4 text-accent" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-accent-foreground">Admin Mode</span>
+          </div>
           <Button 
             variant="ghost" 
             onClick={handleSignOut}
@@ -86,17 +115,20 @@ export default function AdminLayout({
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 border-b bg-card px-8 flex items-center justify-between">
-          <h2 className="font-semibold text-lg text-primary">Administrator Panel</h2>
+      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+        <header className="h-16 border-b bg-card px-8 flex items-center justify-between shrink-0">
+          <h2 className="font-bold text-lg text-primary">Institutional Control Panel</h2>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">{user.email}</span>
-            <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center font-bold text-primary text-xs">
-              {user.displayName?.[0] || 'A'}
+            <div className="text-right hidden sm:block">
+              <p className="text-sm font-bold leading-none">{user.displayName || 'Administrator'}</p>
+              <p className="text-xs text-muted-foreground">{user.email}</p>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center font-bold text-primary shadow-inner">
+              {user.email?.[0].toUpperCase() || 'A'}
             </div>
           </div>
         </header>
-        <div className="p-8 overflow-auto">
+        <div className="flex-1 p-8 overflow-y-auto bg-slate-50/50">
           {children}
         </div>
       </main>
