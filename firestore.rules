@@ -1,0 +1,117 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * NEU Lab Log - Security Rules Documentation
+     *
+     * Core Philosophy:
+     * This ruleset implements a strict Role-Based Access Control (RBAC) model combined with individual 
+     * User Ownership. Access is restricted to users authenticated via Google using the institutional 
+     * email domain (@neu.edu.ph).
+     *
+     * Data Structure:
+     * - /user_profiles/{userId}: Public/Private profile data for users (Professors/Admins).
+     * - /room_logs/{logId}: Records of laboratory usage, primarily managed by Admins.
+     * - /roles_admin/{userId}: A restricted collection where the existence of a UID signifies Admin status.
+     *
+     * Key Security Decisions:
+     * 1. Institutional Lock: Only users with a verified '@neu.edu.ph' email from Google are permitted.
+     * 2. DBAC (Database Access Control): Admin permissions are verified by checking the existence 
+     *    of the user's UID in the `/roles_admin` collection, ensuring authorization is independent 
+     *    of the user's editable profile.
+     * 3. Blocked Status: User operations on room logs are gated by an `isBlocked` check on their profile.
+     * 4. QR Security: While QR strings are stored on profiles, they are only readable by the owner 
+     *    or an Admin, preventing enumeration.
+     * 5. Minimalist Validation: In this prototyping phase, rules focus on relational integrity 
+     *    (e.g., ensuring a user creates logs under their own ID) rather than strict schema validation.
+     */
+
+    // --- Global Helper Functions ---
+
+    /** Checks if the user is authenticated. */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /** Validates that the user is signing in with the required institutional domain via Google. */
+    function isInstitutionalUser() {
+      return isSignedIn() && 
+             request.auth.token.firebase.sign_in_provider == 'google.com' &&
+             request.auth.token.email.matches('.*@neu\\.edu\\.ph$');
+    }
+
+    /** Checks if the user's UID matches the provided ID. */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /** 
+     * Checks if the user is an Admin by looking up their UID in the roles_admin collection.
+     * This is a "lookup-based" authorization pattern.
+     */
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    /** Checks if the user's profile exists and is NOT currently blocked. */
+    function isNotBlocked() {
+      return get(/databases/$(database)/documents/user_profiles/$(request.auth.uid)).data.isBlocked == false;
+    }
+
+    /** Combined check for existing document ownership. */
+    function isExistingOwner(userId) {
+      return resource != null && isOwner(userId);
+    }
+
+    // --- Collection Rules ---
+
+    /**
+     * @description Rules for user profiles. Users can manage their own profiles upon account creation; 
+     *              Admins have full oversight.
+     * @path /user_profiles/{userId}
+     * @allow (get) If user is the owner or an Admin. (list) If user is an Admin.
+     * @deny (create) If the user email is not @neu.edu.ph or UID does not match.
+     * @principle Ownership for individuals, global access for Admins.
+     */
+    match /user_profiles/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isInstitutionalUser() && isOwner(userId);
+      allow update: if (isExistingOwner(userId) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Records of laboratory usage. Professors can log entries, while Admins manage 
+     *              the logs and view dashboards.
+     * @path /room_logs/{logId}
+     * @allow (create) If the user is an unblocked institutional user and provides their own ID.
+     * @deny (list/get) If the user is not an Admin.
+     * @principle Structural segregation: Data is write-only for users to preserve log integrity.
+     */
+    match /room_logs/{logId} {
+      // Per IR Reasoning: Professors can only create logs, not list/read others'. Admins read all.
+      allow get, list: if isAdmin();
+      
+      allow create: if isInstitutionalUser() && 
+                       isNotBlocked() && 
+                       request.resource.data.professorId == request.auth.uid;
+      
+      allow update, delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description Restricted collection for administrative role assignments. 
+     *              This collection is used purely for security rule lookups.
+     * @path /roles_admin/{userId}
+     * @allow (all) Denied for all client-side requests.
+     * @principle DBAC (Database Access Control) - prevents users from seeing or modifying admin lists.
+     */
+    match /roles_admin/{userId} {
+      // This collection is strictly for internal rule evaluation via exists() and get().
+      // No client-side direct access is permitted.
+      allow read, write: if false;
+    }
+  }
+}
