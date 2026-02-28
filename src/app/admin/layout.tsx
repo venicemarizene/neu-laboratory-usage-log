@@ -39,37 +39,42 @@ export default function AdminLayout({
   const { data: profileData, isLoading: isProfileLoading } = useDoc(profileRef);
 
   useEffect(() => {
+    // If auth state is still loading, do nothing
     if (isUserLoading) return;
 
+    // If no user, they aren't authorized to be in /admin
     if (!user) {
       setIsAuthorized(false);
       router.push('/');
       return;
     }
 
+    // If we are still loading profile data, wait
     if (isMarkerLoading || isProfileLoading) return;
 
+    // A user is authorized if they have an admin role OR the marker document exists
     const isAdmin = !!adminMarker || profileData?.role === 'Admin';
     const isInstitutional = !!user.email?.toLowerCase().match(/@([^@]+\.)?neu\.edu\.ph$/i);
     
     if (isAdmin) {
       setIsAuthorized(true);
     } else {
-      // If the user just signed in, Firestore might still be syncing in background.
-      // We check if they are institutional first.
-      if (!isInstitutional) {
-        setIsAuthorized(false);
-        router.push('/');
-      } else {
-        // Institutional users who just signed in as Admin get a grace period
-        // to wait for the background synchronization to complete.
+      // If the user just signed in as an institutional user, Firestore might still be 
+      // synchronizing the newly created Admin marker in the background.
+      // We give a 3-second grace period for initial synchronization before redirecting.
+      if (isInstitutional) {
         const timer = setTimeout(() => {
+          // Re-check after 3 seconds
           if (!isAdmin) {
             setIsAuthorized(false);
             router.push('/');
           }
-        }, 3000); // 3 second grace period for initial sync
+        }, 3000);
         return () => clearTimeout(timer);
+      } else {
+        // Not institutional and not admin? Redirect immediately
+        setIsAuthorized(false);
+        router.push('/');
       }
     }
   }, [user, isUserLoading, isMarkerLoading, isProfileLoading, adminMarker, profileData, router]);
@@ -82,7 +87,7 @@ export default function AdminLayout({
     }
   };
 
-  if (isUserLoading || isMarkerLoading || isProfileLoading || isAuthorized === null || !user) {
+  if (isUserLoading || isAuthorized === null || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">

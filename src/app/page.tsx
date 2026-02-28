@@ -192,25 +192,25 @@ export default function Home() {
               </TabsTrigger>
             </TabsList>
             
-            <TabsContent value="professor" className="p-6 space-y-4 m-0">
+            <TabsContent value="professor" className="p-6 space-y-6 m-0">
               <div className="space-y-4">
-                <Alert variant="default" className="bg-primary/5 border-primary/20 py-3 text-left">
+                <Alert variant="default" className="bg-primary/5 border-primary/20 py-4 text-left">
                   <Info className="h-4 w-4 text-primary" />
-                  <AlertDescription className="text-xs font-medium">
+                  <AlertDescription className="text-sm font-medium">
                     Institutional Google accounts required for faculty entry.
                   </AlertDescription>
                 </Alert>
                 <Button 
                   onClick={() => handleGoogleSignIn('professor')}
                   disabled={isLoggingIn}
-                  className="w-full h-12 text-base font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
+                  className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
                 >
                   {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}
-                  Faculty Google Login
+                  Sign In with Institutional Google
                 </Button>
               </div>
               
-              <div className="relative">
+              <div className="relative py-2">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t border-border" />
                 </div>
@@ -223,7 +223,7 @@ export default function Home() {
                 <Button 
                   variant="outline" 
                   onClick={startScanning}
-                  className="w-full h-12 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
+                  className="w-full h-14 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
                 >
                   <QrCode className="w-5 h-5" />
                   Scan Professor QR
@@ -231,30 +231,30 @@ export default function Home() {
               } onStop={stopScanning} videoRef={videoRef} hasCameraPermission={hasCameraPermission} isScanning={isScanning} />
             </TabsContent>
 
-            <TabsContent value="admin" className="p-6 space-y-4 m-0">
+            <TabsContent value="admin" className="p-6 space-y-6 m-0">
               <div className="space-y-4">
-                <Alert variant="default" className="bg-primary/5 border-primary/20 py-3 text-left">
+                <Alert variant="default" className="bg-primary/5 border-primary/20 py-4 text-left">
                   <ShieldCheck className="h-4 w-4 text-primary" />
-                  <AlertDescription className="text-xs font-medium">
-                    Admin privileges are strictly tied to institutional Google identities.
+                  <AlertDescription className="text-sm font-medium">
+                    Admin privileges are tied to verified institutional identities.
                   </AlertDescription>
                 </Alert>
                 <Button 
                   onClick={() => handleGoogleSignIn('admin')}
                   disabled={isLoggingIn}
-                  className="w-full h-12 text-base font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
+                  className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
                 >
                   {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
-                  Admin Google Sign-In
+                  Admin Portal Google Sign-In
                 </Button>
               </div>
               
-              <div className="relative">
+              <div className="relative py-2">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t border-border" />
                 </div>
                 <div className="relative flex justify-center text-[10px] font-bold uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">Admin QR Login</span>
+                  <span className="bg-card px-2 text-muted-foreground">Admin QR Entry</span>
                 </div>
               </div>
 
@@ -262,7 +262,7 @@ export default function Home() {
                 <Button 
                   variant="outline" 
                   onClick={startScanning}
-                  className="w-full h-12 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
+                  className="w-full h-14 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
                 >
                   <QrCode className="w-5 h-5" />
                   Scan Admin Access QR
@@ -272,8 +272,8 @@ export default function Home() {
           </Tabs>
         </Card>
 
-        <p className="text-[10px] font-medium text-muted-foreground">
-          Verified <span className="text-primary font-bold">@neu.edu.ph</span> Google accounts are required for institutional entry.
+        <p className="text-xs font-medium text-muted-foreground">
+          Verified <span className="text-primary font-bold">@neu.edu.ph</span> Google accounts are required.
         </p>
       </div>
     </div>
