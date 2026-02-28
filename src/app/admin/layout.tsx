@@ -50,18 +50,21 @@ export default function AdminLayout({
 
     if (isAdminCheckLoading || isProfileLoading) return;
 
+    // Check both explicit role marker and profile data
     const hasExplicitAdminRole = !!adminRoleDoc || profileData?.role === 'Admin';
     const isInstitutional = !!user.email?.toLowerCase().match(/@([^@]+\.)?neu\.edu\.ph$/i);
     
     if (hasExplicitAdminRole) {
       setIsAuthorized(true);
     } else {
-      // Grace period for first-time synchronization
+      // Grace period for first-time synchronization:
+      // If the user is institutional but the admin documents haven't synced yet,
+      // we wait for a few cycles before redirecting.
       if (checkCount.current < 5 && isInstitutional) {
         checkCount.current += 1;
         const timer = setTimeout(() => {
-          setIsAuthorized(null); // Re-trigger check
-        }, 1000);
+          setIsAuthorized(null); // Force re-evaluation
+        }, 800);
         return () => clearTimeout(timer);
       } else {
         setIsAuthorized(false);

@@ -111,11 +111,7 @@ export default function Home() {
     setIsLoggingIn(true);
     try {
       const isInstitutional = !!email.toLowerCase().match(/@([^@]+\.)?neu\.edu\.ph$/i);
-      if (!isInstitutional) {
-        toast({ variant: 'destructive', title: 'Invalid Domain', description: 'Manual login also requires an @neu.edu.ph address.' });
-        return;
-      }
-
+      
       const result = await signInWithEmailAndPassword(auth, email, password);
       
       syncUserProfile(result.user.uid, {
