@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { Microscope, QrCode, LogOut, CheckCircle2, AlertTriangle, Camera } from 'lucide-react';
 import { MOCK_USERS } from '@/lib/mock-data';
 
