@@ -46,12 +46,10 @@ export default function AdminLayout({
         return;
       }
 
-      // Inclusive check for institutional users (e.g. @neu.edu.ph, @student.neu.edu.ph)
-      const isInstitutional = !!user.email?.toLowerCase().match(/@([^@]+\.)?neu\.edu\.ph$/i);
+      // Stricter check: must have an explicit admin role or record
       const hasExplicitAdminRole = !!adminRoleDoc || profileData?.role === 'Admin';
       
-      // Admins MUST be institutional users OR have an explicit admin role entry
-      if (!isInstitutional && !hasExplicitAdminRole) {
+      if (!hasExplicitAdminRole) {
         setIsAuthorized(false);
         router.push('/');
       } else {
@@ -62,13 +60,12 @@ export default function AdminLayout({
 
   const handleSignOut = async () => {
     if (auth) {
-      setIsAuthorized(false); // Reset authorization immediately on sign-out
+      setIsAuthorized(false);
       await signOut(auth);
       router.push('/');
     }
   };
 
-  // Guard against null user or loading states
   if (isUserLoading || isAdminCheckLoading || isProfileLoading || isAuthorized === null || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -82,7 +79,6 @@ export default function AdminLayout({
 
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Sidebar */}
       <aside className="w-64 bg-primary text-primary-foreground hidden md:flex flex-col p-6 shadow-2xl">
         <div className="flex items-center gap-3 mb-10 px-2">
           <Monitor className="w-8 h-8 text-accent" />
@@ -126,7 +122,6 @@ export default function AdminLayout({
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         <header className="h-16 border-b bg-card px-8 flex items-center justify-between shrink-0">
           <h2 className="font-bold text-lg text-primary">Admin Dashboard</h2>

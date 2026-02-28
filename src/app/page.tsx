@@ -35,15 +35,17 @@ export default function Home() {
     if (!firestore) return;
     const userRef = doc(firestore, 'user_profiles', userId);
     
-    // Check if profile exists to avoid overwriting the block status
+    // Fetch existing profile to preserve sensitive fields
     const existingDoc = await getDoc(userRef);
+    const existingData = existingDoc.data();
     
     const profileData: any = {
       id: userId,
-      name: data.name || data.displayName || 'Anonymous Faculty',
-      email: data.email,
-      role: data.role || 'Professor',
-      qrString: data.role === 'Admin' ? `ADMIN_${userId.slice(0,5)}` : `PROF_${userId.slice(0,5)}`
+      name: data.name || data.displayName || existingData?.name || 'Anonymous Faculty',
+      email: data.email || existingData?.email,
+      // Only set role if it's a new user; otherwise preserve existing role
+      role: existingData?.role || data.role || 'Professor',
+      qrString: existingData?.qrString || (data.role === 'Admin' ? `ADMIN_${userId.slice(0,5)}` : `PROF_${userId.slice(0,5)}`)
     };
 
     // Only set isBlocked to false if it's a brand new user
@@ -128,7 +130,7 @@ export default function Home() {
     } catch (error: any) {
       let errorMessage = error.message;
       if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-        errorMessage = 'Credential mismatch. If this is a Google-based institutional email, please use the "Google SSO" tab instead.';
+        errorMessage = 'Credential mismatch. If you normally use Google for your institutional email, please use the "Google SSO" tab above instead.';
       }
       
       toast({
@@ -249,7 +251,7 @@ export default function Home() {
                   <Alert variant="default" className="bg-primary/5 border-primary/20">
                     <Info className="h-4 w-4 text-primary" />
                     <AlertDescription className="text-xs font-medium text-left">
-                      Recommended: Sign in with your institutional Google account.
+                      Recommended: Sign in with your institutional Google account for a seamless experience.
                     </AlertDescription>
                   </Alert>
                   <Button 
@@ -265,7 +267,7 @@ export default function Home() {
                 <TabsContent value="manual" className="space-y-4">
                   <Alert variant="destructive" className="bg-destructive/5 text-left py-2 border-destructive/20">
                     <AlertDescription className="text-[10px] leading-tight font-bold">
-                      Note: Institutional Google passwords will not work here. Use Google SSO unless you have a direct system password.
+                      Note: Your Google password will NOT work here. Use Google SSO unless you have been issued a direct system password.
                     </AlertDescription>
                   </Alert>
                   <div className="space-y-3">
