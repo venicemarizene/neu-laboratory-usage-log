@@ -6,12 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Search, Calendar, Users, Monitor, Ban, FileText, Loader2 } from 'lucide-react';
+import { Search, Calendar, Users, Monitor, Ban, FileText, Loader2, Activity } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Cell } from "recharts";
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Cell, ResponsiveContainer } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 
 const roomList = ['M101', 'M102', 'M103', 'M104', 'M105', 'M106', 'M107', 'M108', 'M109', 'M110', 'M111'];
@@ -27,12 +27,12 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'weekly' | 'monthly'>('all');
   const [mounted, setMounted] = useState(false);
-  const { firestore } = useFirestore() ? { firestore: useFirestore() } : { firestore: null };
+  const firestore = useFirestore();
 
   // Fetch real-time logs
   const logsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'room_logs'), orderBy('timestamp', 'desc'), limit(500));
+    return query(collection(firestore, 'room_logs'), orderBy('timestamp', 'desc'), limit(1000));
   }, [firestore]);
 
   const { data: logs, isLoading: isLogsLoading } = useCollection(logsQuery);
@@ -54,15 +54,18 @@ export default function AdminDashboard() {
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     
-    // Using simple subtraction for prototype robustness
     const startOfWeek = Date.now() - (7 * 24 * 60 * 60 * 1000);
     const startOfMonth = Date.now() - (30 * 24 * 60 * 60 * 1000);
 
     return logs.filter(log => {
       const logTime = new Date(log.timestamp).getTime();
+      const profName = log.professorName || '';
+      const roomNum = log.roomNumber || '';
+      const term = searchTerm.toLowerCase();
+
       const matchesSearch = 
-        log.professorName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.roomNumber?.toLowerCase().includes(searchTerm.toLowerCase());
+        profName.toLowerCase().includes(term) ||
+        roomNum.toLowerCase().includes(term);
       
       let matchesDate = true;
       if (dateFilter === 'today') matchesDate = logTime >= startOfDay;
@@ -74,11 +77,12 @@ export default function AdminDashboard() {
   }, [logs, searchTerm, dateFilter]);
 
   const chartData = useMemo(() => {
+    // Generate data based on filtered logs to show distribution for the selected period/search
     return roomList.map(room => ({
       room,
-      count: (logs || []).filter(l => l.roomNumber === room).length
+      count: filteredLogs.filter(l => l.roomNumber === room).length
     }));
-  }, [logs]);
+  }, [filteredLogs]);
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -96,72 +100,72 @@ export default function AdminDashboard() {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-700 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold font-headline text-primary tracking-tight">Laboratory Analytics</h1>
-          <p className="text-muted-foreground font-medium">Monitoring institutional computer laboratory utilization</p>
+          <h1 className="text-3xl font-black font-headline text-primary tracking-tight">Laboratory Analytics</h1>
+          <p className="text-muted-foreground font-medium uppercase tracking-wider text-xs">Monitoring institutional computer laboratory utilization</p>
         </div>
         <div className="flex items-center gap-3">
-           <Button variant="outline" className="gap-2 border-2">
+           <Button variant="outline" className="gap-2 border-2 rounded-xl font-bold bg-card shadow-sm">
              <FileText className="w-4 h-4" />
-             Export Data
+             Export Period Data
            </Button>
         </div>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card className="border-none shadow-lg hover:scale-[1.02] transition-transform duration-300">
+        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl bg-gradient-to-br from-primary to-primary/90 text-primary-foreground">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Active Logs Today</CardTitle>
-            <Monitor className="h-5 w-5 text-primary" />
+            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] opacity-80">Active Logs Today</CardTitle>
+            <Activity className="h-5 w-5 opacity-80" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-primary">{stats.totalUsesToday}</div>
-            <p className="text-xs text-muted-foreground mt-1 font-medium">Sessions recorded since midnight</p>
+            <div className="text-4xl font-black">{stats.totalUsesToday}</div>
+            <p className="text-xs mt-2 font-bold opacity-70">New sessions since 00:00</p>
           </CardContent>
         </Card>
         
-        <Card className="border-none shadow-lg hover:scale-[1.02] transition-transform duration-300">
+        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl bg-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Unique Faculty</CardTitle>
+            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Unique Faculty</CardTitle>
             <Users className="h-5 w-5 text-accent" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-accent">{stats.totalUniqueProfessors}</div>
-            <p className="text-xs text-muted-foreground mt-1 font-medium">Distinct professors active in labs</p>
+            <div className="text-4xl font-black text-primary">{stats.totalUniqueProfessors}</div>
+            <p className="text-xs mt-2 font-bold text-muted-foreground">Active teaching staff</p>
           </CardContent>
         </Card>
         
-        <Card className="border-none shadow-lg hover:scale-[1.02] transition-transform duration-300">
+        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl bg-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Restricted Access</CardTitle>
+            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Blocked Accounts</CardTitle>
             <Ban className="h-5 w-5 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-destructive">{stats.totalBlockedUsers}</div>
-            <p className="text-xs text-muted-foreground mt-1 font-medium">Professor accounts currently blocked</p>
+            <div className="text-4xl font-black text-destructive">{stats.totalBlockedUsers}</div>
+            <p className="text-xs mt-2 font-bold text-muted-foreground">Restricted system access</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Usage Chart Section */}
-      <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
-        <CardHeader>
+      <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-card">
+        <CardHeader className="border-b pb-6">
           <CardTitle className="text-xl font-bold">Computer Laboratory Distribution</CardTitle>
-          <CardDescription>Frequency of use across computer laboratories M101 to M111</CardDescription>
+          <CardDescription>Visual frequency of usage across M101–M111 for current filters</CardDescription>
         </CardHeader>
-        <CardContent className="pt-4">
+        <CardContent className="pt-8">
           <div className="h-[350px] w-full">
             <ChartContainer config={chartConfig}>
               <BarChart
                 data={chartData}
-                margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
               >
                 <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis 
                   dataKey="room" 
                   tickLine={false} 
                   axisLine={false} 
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontWeight: 600 }}
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontWeight: 700 }}
                   dy={10}
                 />
                 <YAxis 
@@ -182,32 +186,33 @@ export default function AdminDashboard() {
       </Card>
 
       {/* Logs Table */}
-      <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
+      <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-card">
         <CardHeader className="bg-card border-b pb-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <CardTitle className="text-xl font-bold">Laboratory Usage Logs</CardTitle>
-              <CardDescription>Detailed stream of all computer lab interactions</CardDescription>
+              <CardTitle className="text-xl font-bold">Laboratory Activity Logs</CardTitle>
+              <CardDescription>Real-time summary and search of room interactions</CardDescription>
             </div>
             <div className="flex flex-col sm:flex-row items-center gap-2">
-              <div className="relative w-full sm:w-64">
+              <div className="relative w-full sm:w-72">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
                   placeholder="Search professor or room..." 
-                  className="pl-10 h-10 border-2"
+                  className="pl-10 h-11 border-2 rounded-xl"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
               <Select value={dateFilter} onValueChange={(v: any) => setDateFilter(v)}>
-                <SelectTrigger className="w-full sm:w-40 h-10 border-2">
+                <SelectTrigger className="w-full sm:w-44 h-11 border-2 rounded-xl font-bold">
+                  <Calendar className="w-4 h-4 mr-2 opacity-50" />
                   <SelectValue placeholder="Period" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Time</SelectItem>
-                  <SelectItem value="today">Today</SelectItem>
-                  <SelectItem value="weekly">This Week</SelectItem>
-                  <SelectItem value="monthly">This Month</SelectItem>
+                  <SelectItem value="all">All Logs</SelectItem>
+                  <SelectItem value="today">Today Only</SelectItem>
+                  <SelectItem value="weekly">Past 7 Days</SelectItem>
+                  <SelectItem value="monthly">Past 30 Days</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -215,47 +220,51 @@ export default function AdminDashboard() {
         </CardHeader>
         <CardContent className="p-0">
           {isLogsLoading ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <div className="flex flex-col items-center justify-center py-24 gap-4">
               <Loader2 className="w-10 h-10 animate-spin text-primary" />
-              <p className="text-sm font-medium text-muted-foreground">Synchronizing laboratory data...</p>
+              <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Synchronizing activity logs...</p>
             </div>
           ) : (
             <Table>
-              <TableHeader className="bg-slate-50">
-                <TableRow>
-                  <TableHead className="font-bold py-4">Professor Name</TableHead>
-                  <TableHead className="font-bold py-4">Room Number</TableHead>
-                  <TableHead className="font-bold py-4">Session Date & Time</TableHead>
-                  <TableHead className="font-bold py-4">Verification Status</TableHead>
+              <TableHeader className="bg-slate-50/50">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="font-bold py-5 px-6">Faculty Member</TableHead>
+                  <TableHead className="font-bold py-5">Computer Laboratory</TableHead>
+                  <TableHead className="font-bold py-5">Session Timestamp</TableHead>
+                  <TableHead className="font-bold py-5 px-6">Verification</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredLogs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-20 text-muted-foreground font-medium">
-                      No matching laboratory activity logs found.
+                    <TableCell colSpan={4} className="text-center py-24 text-muted-foreground">
+                      <div className="flex flex-col items-center gap-2">
+                        <Monitor className="w-12 h-12 opacity-10" />
+                        <p className="font-bold text-lg">No laboratory activity logs found</p>
+                        <p className="text-sm">Adjust your filters or search term to see more results.</p>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredLogs.map((log) => (
                     <TableRow key={log.id} className="hover:bg-accent/5 transition-colors group">
-                      <TableCell className="font-bold text-slate-700">{log.professorName}</TableCell>
+                      <TableCell className="font-bold text-slate-800 px-6 py-4">{log.professorName}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="font-mono bg-white">
+                        <Badge variant="outline" className="font-mono px-3 py-1 bg-white shadow-sm rounded-lg border-primary/20 text-primary">
                           {log.roomNumber}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2 text-muted-foreground font-medium">
-                          <Calendar className="w-4 h-4" />
+                        <div className="flex items-center gap-2 text-muted-foreground font-bold text-sm">
+                          <Calendar className="w-4 h-4 text-primary/40" />
                           {new Date(log.timestamp).toLocaleString(undefined, {
                             dateStyle: 'medium',
                             timeStyle: 'short'
                           })}
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">
+                      <TableCell className="px-6 py-4">
+                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200 px-3 py-1 rounded-full font-bold">
                           {log.status}
                         </Badge>
                       </TableCell>
