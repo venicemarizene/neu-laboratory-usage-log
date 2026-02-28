@@ -64,6 +64,7 @@ export default function AdminLayout({
       setIsAuthorized(true);
     } else {
       // Extended grace period for synchronization before redirection
+      // This allows the syncUserProfile logic from page.tsx to complete
       const timer = setTimeout(() => {
         if (!isAdmin) {
           setIsAuthorized(false);

@@ -66,6 +66,7 @@ export default function Home() {
     setIsLoggingIn(true);
     
     const provider = new GoogleAuthProvider();
+    // Always prompt for account selection to support multiple institutional accounts
     provider.setCustomParameters({ 
       prompt: 'select_account'
     });
@@ -76,13 +77,9 @@ export default function Home() {
         const signedInUser = result.user;
         const userEmail = signedInUser.email?.toLowerCase() || '';
         
-        // Restriction check
-        if (!userEmail.endsWith('@neu.edu.ph')) {
-          toast({
-            variant: 'destructive',
-            title: 'Unauthorized Access',
-            description: 'Institutional access only (@neu.edu.ph).',
-          });
+        // Restriction check using your specific snippet logic
+        if (!userEmail.endsWith("@neu.edu.ph")) {
+          alert("Unauthorized access. Institutional email (@neu.edu.ph) only.");
           await signOut(auth);
           setIsLoggingIn(false);
           return;
