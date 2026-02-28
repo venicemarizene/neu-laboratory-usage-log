@@ -13,8 +13,12 @@ import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 
+/**
+ * Faculty Management Page.
+ * Unwraps Next.js 15 params using use().
+ */
 export default function ProfessorManagement(props: { params: Promise<any>; searchParams: Promise<any> }) {
-  // Next.js 15: unwrap params
+  // Next.js 15: unwrap params explicitly
   const params = use(props.params);
   const searchParams = use(props.searchParams);
   

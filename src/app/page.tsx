@@ -13,6 +13,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
+/**
+ * Main Landing and Authentication Page.
+ * Strictly uses Google Redirect SSO for institutional accounts.
+ */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   // Next.js 15: unwrap params and searchParams using React.use()
   const params = use(props.params);
@@ -29,7 +33,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Idempotent user profile synchronization
+  // Sync user profile with Firestore after Google Redirect login
   const syncUserProfile = async (userId: string, data: any) => {
     if (!firestore) return;
     const userRef = doc(firestore, 'user_profiles', userId);
@@ -54,7 +58,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     }
   };
 
-  // Handle redirect result on component mount
+  // Handle redirect result on component mount (Standard Google SSO Flow)
   useEffect(() => {
     if (!auth || !firestore) return;
 
@@ -63,14 +67,13 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         const signedInUser = result.user;
         const userEmail = signedInUser.email?.toLowerCase() || '';
 
-        // Domain restriction check
+        // Restriction: NEU Institutional accounts only
         if (!userEmail.endsWith("@neu.edu.ph")) {
           alert("Unauthorized access.");
           await signOut(auth);
           return;
         }
 
-        // Retrieve target role from storage (set before redirect)
         const targetRole = sessionStorage.getItem('auth_target_role') || 'professor';
         
         await syncUserProfile(signedInUser.uid, {
@@ -95,7 +98,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     if (!auth) return;
     setIsLoggingIn(true);
     
-    // Store target role in sessionStorage to persist through the redirect
+    // Persist target role through redirect
     sessionStorage.setItem('auth_target_role', targetRole);
 
     const provider = new GoogleAuthProvider();
@@ -103,7 +106,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       prompt: 'select_account'
     });
 
-    // Use specific code structure requested: signInWithRedirect
+    // Requested: Use signInWithRedirect for Google auth
     signInWithRedirect(auth, provider);
   };
 
@@ -122,6 +125,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
+      // Mock detection for demo
       setTimeout(() => {
         handleQRDetected('PROF_MOCK_TOKEN');
       }, 3000);

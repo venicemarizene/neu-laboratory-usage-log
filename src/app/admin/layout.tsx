@@ -9,11 +9,15 @@ import { signOut } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
 import { useEffect, useState, use } from 'react';
 
+/**
+ * Administrative Layout wrapper.
+ * Unwraps Next.js 15 params using use() and verifies authorization.
+ */
 export default function AdminLayout(props: {
   children: React.ReactNode;
   params: Promise<any>;
 }) {
-  // Next.js 15: unwrap params
+  // Next.js 15: unwrap params explicitly
   const params = use(props.params);
   
   const router = useRouter();
@@ -23,6 +27,7 @@ export default function AdminLayout(props: {
   const { user, isUserLoading } = useUser();
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
 
+  // Stabilize document references
   const adminMarkerRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'roles_admin', user.uid);
@@ -55,11 +60,13 @@ export default function AdminLayout(props: {
 
     if (isMarkerLoading || isProfileLoading) return;
 
+    // Check both marker collection and profile role
     const isAdmin = !!adminMarker || profileData?.role === 'Admin';
     
     if (isAdmin) {
       setIsAuthorized(true);
     } else {
+      // Grace period for sync before booting
       const timer = setTimeout(() => {
         if (!isAdmin) {
           setIsAuthorized(false);

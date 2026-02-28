@@ -15,13 +15,18 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
 
+/**
+ * Professor Portal for Laboratory Entry.
+ * Unwraps Next.js 15 params using use().
+ */
 export default function ProfessorPortal(props: { params: Promise<any>; searchParams: Promise<any> }) {
-  // Next.js 15: unwrap params
+  // Next.js 15: unwrap params explicitly
   const params = use(props.params);
   const searchParams = use(props.searchParams);
   
   const router = useRouter();
-  const { auth, firestore } = useAuth() ? { auth: useAuth(), firestore: useFirestore() } : { auth: null, firestore: null };
+  const auth = useAuth();
+  const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
 

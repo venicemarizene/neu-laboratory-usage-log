@@ -22,8 +22,12 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
+/**
+ * Main Administrative Analytics Dashboard.
+ * Unwraps Next.js 15 params/searchParams using use().
+ */
 export default function AdminDashboard(props: { params: Promise<any>; searchParams: Promise<any> }) {
-  // Next.js 15: unwrap params
+  // Next.js 15: unwrap params explicitly to avoid enumeration errors
   const params = use(props.params);
   const searchParams = use(props.searchParams);
   
@@ -32,6 +36,7 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
   const [mounted, setMounted] = useState(false);
   const firestore = useFirestore();
 
+  // Stabilized queries
   const logsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collection(firestore, 'room_logs'), orderBy('timestamp', 'desc'), limit(1000));
