@@ -8,13 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LogIn, Monitor, QrCode, Loader2, AlertCircle, ShieldCheck, UserCircle } from 'lucide-react';
+import { LogIn, Monitor, QrCode, Loader2, AlertCircle, ShieldCheck, UserCircle, LogOut } from 'lucide-react';
 import { useAuth, useFirestore, useUser, useDoc, useMemoFirebase } from '@/firebase';
 import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function Home() {
   const router = useRouter();
@@ -52,7 +50,11 @@ export default function Home() {
     if (!auth) return;
     setIsLoggingIn(true);
     const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ hd: 'neu.edu.ph' });
+    // Force the account picker so users can switch between accounts
+    provider.setCustomParameters({ 
+      hd: 'neu.edu.ph',
+      prompt: 'select_account'
+    });
 
     try {
       const result = await signInWithPopup(auth, provider);
@@ -74,6 +76,13 @@ export default function Home() {
       });
     } finally {
       setIsLoggingIn(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (auth) {
+      await signOut(auth);
+      toast({ title: 'Signed out', description: 'You have been signed out successfully.' });
     }
   };
 
@@ -108,8 +117,6 @@ export default function Home() {
   const handleQRLogin = (qrString: string) => {
     if (!firestore) return;
     
-    // In this prototype, we'll use mock validation for the QR scanner
-    // In a real app, this would call a secure Cloud Function or verified Firestore document
     if (qrString === 'ADMIN_QR_001') {
       toast({ title: 'Admin QR Validated', description: 'Welcome, Administrator.' });
       router.push('/admin');
@@ -140,6 +147,24 @@ export default function Home() {
           <h1 className="text-4xl font-bold tracking-tight text-primary font-headline">NEU LabTrack</h1>
           <p className="text-muted-foreground">Institutional Computer Laboratory Management System</p>
         </div>
+
+        {user && (
+          <div className="p-4 bg-card border rounded-lg shadow-sm flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center font-bold text-primary">
+                {user.email?.[0].toUpperCase()}
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-medium leading-none">{user.displayName || 'User'}</p>
+                <p className="text-xs text-muted-foreground">{user.email}</p>
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" onClick={handleSignOut} className="text-destructive hover:text-destructive hover:bg-destructive/10">
+              <LogOut className="w-4 h-4 mr-1" />
+              Sign Out
+            </Button>
+          </div>
+        )}
 
         <Card className="border-none shadow-xl overflow-hidden">
           <Tabs defaultValue="professor" className="w-full">
