@@ -6,17 +6,15 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LogIn, Monitor, QrCode, Loader2, AlertCircle, ShieldCheck, UserCircle, LogOut } from 'lucide-react';
-import { useAuth, useFirestore, useUser, useDoc, useMemoFirebase } from '@/firebase';
+import { AlertCircle, LogIn, Monitor, QrCode, Loader2, ShieldCheck, UserCircle, LogOut } from 'lucide-react';
+import { useAuth, useUser } from '@/firebase';
 import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function Home() {
   const router = useRouter();
-  const { auth, firestore } = useAuth() ? { auth: useAuth(), firestore: useFirestore() } : { auth: null, firestore: null };
+  const { auth } = useAuth() ? { auth: useAuth() } : { auth: null };
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
   
@@ -25,32 +23,13 @@ export default function Home() {
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Check if current user is an admin
-  const adminRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, 'roles_admin', user.uid);
-  }, [firestore, user]);
-  const { data: adminRoleDoc, isLoading: isAdminCheckLoading } = useDoc(adminRef);
+  // Removed automatic redirect useEffect to allow users to choose their portal via tabs
 
-  // Redirect logic
-  useEffect(() => {
-    if (!isUserLoading && !isAdminCheckLoading && user) {
-      if (user.email?.endsWith('@neu.edu.ph')) {
-        // Grant admin access if email is specific admin email OR exists in roles_admin collection
-        if (user.email === 'admin@neu.edu.ph' || adminRoleDoc) {
-          router.push('/admin');
-        } else {
-          router.push('/professor');
-        }
-      }
-    }
-  }, [user, isUserLoading, isAdminCheckLoading, adminRoleDoc, router]);
-
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignIn = async (targetRole: 'admin' | 'professor') => {
     if (!auth) return;
     setIsLoggingIn(true);
     const provider = new GoogleAuthProvider();
-    // Force the account picker so users can switch between accounts
+    // Force the account picker so users can switch between accounts easily
     provider.setCustomParameters({ 
       hd: 'neu.edu.ph',
       prompt: 'select_account'
@@ -67,7 +46,16 @@ export default function Home() {
           title: 'Invalid Domain',
           description: 'Only institutional accounts (@neu.edu.ph) are allowed.',
         });
+        return;
       }
+
+      // Successful login, navigate to the requested portal
+      toast({
+        title: 'Access Granted',
+        description: `Welcome to the ${targetRole === 'admin' ? 'Administrator' : 'Professor'} portal.`,
+      });
+      router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
+
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -95,9 +83,9 @@ export default function Home() {
         videoRef.current.srcObject = stream;
       }
       
-      // Simulate scanning a QR code after 3 seconds
+      // Simulate scanning a QR code after 3 seconds for prototype demonstration
       setTimeout(async () => {
-        const mockScannedQR = 'ADMIN_QR_001'; // Simulated scan
+        const mockScannedQR = 'ADMIN_QR_001'; 
         handleQRLogin(mockScannedQR);
       }, 3000);
 
@@ -115,16 +103,15 @@ export default function Home() {
   };
 
   const handleQRLogin = (qrString: string) => {
-    if (!firestore) return;
-    
+    // Logic to handle navigation based on scanned QR token
     if (qrString === 'ADMIN_QR_001') {
-      toast({ title: 'Admin QR Validated', description: 'Welcome, Administrator.' });
+      toast({ title: 'Admin QR Validated', description: 'Navigating to Administrator Panel.' });
       router.push('/admin');
     } else if (qrString.startsWith('PROF')) {
-      toast({ title: 'Professor QR Validated', description: 'Welcome, Professor.' });
+      toast({ title: 'Professor QR Validated', description: 'Navigating to Professor Portal.' });
       router.push('/professor');
     } else {
-      toast({ variant: 'destructive', title: 'Invalid QR', description: 'Token not recognized.' });
+      toast({ variant: 'destructive', title: 'Invalid QR', description: 'Institutional token not recognized.' });
     }
     stopScanning();
   };
@@ -141,21 +128,21 @@ export default function Home() {
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
       <div className="max-w-md w-full space-y-8 text-center">
         <div className="space-y-2">
-          <div className="mx-auto w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-lg transform transition hover:scale-105">
-            <Monitor className="w-10 h-10 text-primary-foreground" />
+          <div className="mx-auto w-20 h-20 bg-primary rounded-3xl flex items-center justify-center shadow-2xl transform transition hover:scale-110">
+            <Monitor className="w-12 h-12 text-primary-foreground" />
           </div>
-          <h1 className="text-4xl font-bold tracking-tight text-primary font-headline">NEU LabTrack</h1>
-          <p className="text-muted-foreground">Institutional Computer Laboratory Management System</p>
+          <h1 className="text-4xl font-extrabold tracking-tight text-primary font-headline">NEU LabTrack</h1>
+          <p className="text-muted-foreground font-medium">Institutional Computer Laboratory Management System</p>
         </div>
 
         {user && (
-          <div className="p-4 bg-card border rounded-lg shadow-sm flex items-center justify-between">
+          <div className="p-4 bg-card border rounded-xl shadow-sm flex items-center justify-between animate-in fade-in slide-in-from-top-4">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center font-bold text-primary">
+              <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center font-bold text-primary shadow-inner">
                 {user.email?.[0].toUpperCase()}
               </div>
               <div className="text-left">
-                <p className="text-sm font-medium leading-none">{user.displayName || 'User'}</p>
+                <p className="text-sm font-semibold leading-none">{user.displayName || 'Faculty Member'}</p>
                 <p className="text-xs text-muted-foreground">{user.email}</p>
               </div>
             </div>
@@ -166,31 +153,31 @@ export default function Home() {
           </div>
         )}
 
-        <Card className="border-none shadow-xl overflow-hidden">
+        <Card className="border-none shadow-2xl overflow-hidden rounded-2xl">
           <Tabs defaultValue="professor" className="w-full">
-            <TabsList className="w-full grid grid-cols-2 rounded-none h-14 bg-muted/50">
-              <TabsTrigger value="professor" className="data-[state=active]:bg-card flex items-center gap-2">
-                <UserCircle className="w-4 h-4" />
+            <TabsList className="w-full grid grid-cols-2 rounded-none h-16 bg-muted/30">
+              <TabsTrigger value="professor" className="data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-2 text-base font-semibold">
+                <UserCircle className="w-5 h-5" />
                 Professor
               </TabsTrigger>
-              <TabsTrigger value="admin" className="data-[state=active]:bg-card flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4" />
+              <TabsTrigger value="admin" className="data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-2 text-base font-semibold">
+                <ShieldCheck className="w-5 h-5" />
                 Administrator
               </TabsTrigger>
             </TabsList>
             
-            <TabsContent value="professor" className="p-6 space-y-4 m-0">
-              <CardHeader className="p-0 mb-4">
-                <CardTitle className="text-xl">Staff Access</CardTitle>
-                <CardDescription>Log in using your @neu.edu.ph account or scan your QR code.</CardDescription>
-              </CardHeader>
+            <TabsContent value="professor" className="p-8 space-y-6 m-0 animate-in fade-in duration-300">
+              <div className="text-center space-y-2">
+                <CardTitle className="text-2xl font-bold">Staff Portal</CardTitle>
+                <CardDescription>Register your laboratory usage via Google or QR scanner.</CardDescription>
+              </div>
               
               <Button 
-                onClick={handleGoogleSignIn}
+                onClick={() => handleGoogleSignIn('professor')}
                 disabled={isLoggingIn}
-                className="w-full h-12 text-lg font-medium bg-primary hover:bg-primary/90 transition-all flex items-center justify-center gap-3"
+                className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-lg flex items-center justify-center gap-3 transition-all active:scale-95"
               >
-                {isLoggingIn ? <Loader2 className="animate-spin" /> : <LogIn className="w-5 h-5" />}
+                {isLoggingIn ? <Loader2 className="animate-spin" /> : <LogIn className="w-6 h-6" />}
                 Sign in with Google
               </Button>
               
@@ -198,8 +185,8 @@ export default function Home() {
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t border-border" />
                 </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">OR</span>
+                <div className="relative flex justify-center text-xs font-bold uppercase">
+                  <span className="bg-card px-3 text-muted-foreground">Quick Access</span>
                 </div>
               </div>
 
@@ -207,26 +194,26 @@ export default function Home() {
                 <Button 
                   variant="outline" 
                   onClick={startScanning}
-                  className="w-full h-12 border-2 hover:bg-accent transition-all flex items-center justify-center gap-3"
+                  className="w-full h-14 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all active:scale-95"
                 >
-                  <QrCode className="w-5 h-5" />
+                  <QrCode className="w-6 h-6" />
                   Scan Professor QR
                 </Button>
               } onStop={stopScanning} videoRef={videoRef} hasCameraPermission={hasCameraPermission} isScanning={isScanning} />
             </TabsContent>
 
-            <TabsContent value="admin" className="p-6 space-y-4 m-0">
-              <CardHeader className="p-0 mb-4">
-                <CardTitle className="text-xl">Admin Portal</CardTitle>
-                <CardDescription>Authorized laboratory oversight and management access.</CardDescription>
-              </CardHeader>
+            <TabsContent value="admin" className="p-8 space-y-6 m-0 animate-in fade-in duration-300">
+              <div className="text-center space-y-2">
+                <CardTitle className="text-2xl font-bold">Admin Suite</CardTitle>
+                <CardDescription>Oversight and laboratory management for authorized personnel.</CardDescription>
+              </div>
 
               <Button 
-                onClick={handleGoogleSignIn}
+                onClick={() => handleGoogleSignIn('admin')}
                 disabled={isLoggingIn}
-                className="w-full h-12 text-lg font-medium bg-primary hover:bg-primary/90 transition-all flex items-center justify-center gap-3"
+                className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-lg flex items-center justify-center gap-3 transition-all active:scale-95"
               >
-                {isLoggingIn ? <Loader2 className="animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
+                {isLoggingIn ? <Loader2 className="animate-spin" /> : <ShieldCheck className="w-6 h-6" />}
                 Admin Google Sign-In
               </Button>
               
@@ -234,8 +221,8 @@ export default function Home() {
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t border-border" />
                 </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">OR</span>
+                <div className="relative flex justify-center text-xs font-bold uppercase">
+                  <span className="bg-card px-3 text-muted-foreground">Admin QR Login</span>
                 </div>
               </div>
 
@@ -243,18 +230,18 @@ export default function Home() {
                 <Button 
                   variant="outline" 
                   onClick={startScanning}
-                  className="w-full h-12 border-2 hover:bg-accent transition-all flex items-center justify-center gap-3"
+                  className="w-full h-14 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all active:scale-95"
                 >
-                  <QrCode className="w-5 h-5" />
-                  Scan Admin QR
+                  <QrCode className="w-6 h-6" />
+                  Scan Admin Access QR
                 </Button>
               } onStop={stopScanning} videoRef={videoRef} hasCameraPermission={hasCameraPermission} isScanning={isScanning} />
             </TabsContent>
           </Tabs>
         </Card>
 
-        <p className="text-xs text-muted-foreground">
-          Access is restricted to authorized <strong>@neu.edu.ph</strong> personnel only.
+        <p className="text-sm font-medium text-muted-foreground">
+          Restricted to authorized <span className="text-primary">@neu.edu.ph</span> personnel.
         </p>
       </div>
     </div>
@@ -277,27 +264,29 @@ function QRScannerDialog({ trigger, onStop, videoRef, hasCameraPermission, isSca
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Scan Access Token</DialogTitle>
+          <DialogTitle className="text-xl font-bold">Scan Access Token</DialogTitle>
           <DialogDescription>
-            Point your camera at your institutional QR code.
+            Point your camera at your institutional QR code to authenticate.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col items-center justify-center space-y-4 py-4">
-          <div className="relative w-full aspect-square max-w-[300px] overflow-hidden rounded-xl border-4 border-dashed border-muted bg-black flex items-center justify-center">
+        <div className="flex flex-col items-center justify-center space-y-6 py-6">
+          <div className="relative w-full aspect-square max-w-[320px] overflow-hidden rounded-2xl border-4 border-dashed border-primary/20 bg-black flex items-center justify-center shadow-2xl">
             <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" autoPlay muted playsInline />
-            {!hasCameraPermission && hasCameraPermission !== null && (
-              <div className="z-10 text-white text-center p-4">
-                <AlertCircle className="w-12 h-12 mx-auto mb-2 text-destructive" />
-                <p className="text-sm font-medium">Camera access required</p>
+            {hasCameraPermission === false && (
+              <div className="z-10 text-white text-center p-6 bg-black/60 backdrop-blur-sm h-full w-full flex flex-col items-center justify-center">
+                <AlertCircle className="w-14 h-14 mx-auto mb-4 text-destructive" />
+                <p className="text-lg font-bold mb-2">Camera Access Required</p>
+                <p className="text-sm opacity-90">Please enable camera permissions in your browser settings to continue.</p>
               </div>
             )}
-            {isScanning && (
-              <div className="absolute inset-0 z-20 pointer-events-none border-2 border-accent animate-pulse m-8 rounded-lg" />
+            {isScanning && hasCameraPermission && (
+              <div className="absolute inset-0 z-20 pointer-events-none border-[6px] border-accent/60 animate-pulse m-10 rounded-xl" />
             )}
           </div>
-          <p className="text-sm text-muted-foreground">
-            Waiting for QR token detection...
-          </p>
+          <div className="flex items-center gap-3 text-sm font-bold text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+            Waiting for token detection...
+          </div>
         </div>
       </DialogContent>
     </Dialog>
