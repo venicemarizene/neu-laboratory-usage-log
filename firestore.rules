@@ -10,8 +10,9 @@ service cloud.firestore {
     }
 
     function isInstitutionalUser() {
-      // Robust check for main domain and institutional subdomains
+      // Robust check for main domain and institutional subdomains with field existence check
       return isSignedIn() && 
+             'email' in request.auth.token &&
              request.auth.token.email.matches('(?i).*@([^@]+\\.)?neu\\.edu\\.ph$');
     }
 
@@ -26,6 +27,7 @@ service cloud.firestore {
 
     function isNotBlocked() {
       let profilePath = /databases/$(database)/documents/user_profiles/$(request.auth.uid);
+      // If profile doesn't exist, they are not blocked yet (initial creation)
       return !exists(profilePath) || get(profilePath).data.isBlocked == false;
     }
 
@@ -50,9 +52,9 @@ service cloud.firestore {
     match /roles_admin/{userId} {
       // Allow the user to check their own role status and institutional users to check existence
       allow get: if isOwner(userId) || isAdmin() || isInstitutionalUser();
-      // Only system-level or initial setup should create these; for MVP, allow institutional users to 'create' their own if setting themselves as admin
-      allow create: if isOwner(userId) && isInstitutionalUser();
-      allow list, update, delete: if false;
+      // Allow creation and update for the owner (marker for admin status)
+      allow create, update: if isOwner(userId) && isInstitutionalUser();
+      allow list, delete: if false;
     }
   }
 }

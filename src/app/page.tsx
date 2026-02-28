@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertCircle, LogIn, Monitor, QrCode, Loader2, ShieldCheck, UserCircle, LogOut, Mail, Lock, Info } from 'lucide-react';
-import { useAuth, useUser, useFirestore } from '@/firebase';
+import { useAuth, useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { GoogleAuthProvider, signInWithPopup, signOut, signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -35,21 +35,21 @@ export default function Home() {
     if (!firestore) return;
     const userRef = doc(firestore, 'user_profiles', userId);
     
-    // Use non-blocking setDoc with merge to speed up transition
-    // Latency compensation will make this available to the next page immediately
+    // Use non-blocking utilities to avoid permission error crashes and handle them gracefully
     const profileData: any = {
       id: userId,
       name: data.name || data.displayName || 'Anonymous Faculty',
       email: data.email,
       role: data.role || 'Professor',
+      isBlocked: false,
       qrString: data.role === 'Admin' ? `ADMIN_${userId.slice(0,5)}` : `PROF_${userId.slice(0,5)}`
     };
 
-    setDoc(userRef, profileData, { merge: true });
+    setDocumentNonBlocking(userRef, profileData, { merge: true });
 
     if (data.role === 'Admin') {
       const adminRoleRef = doc(firestore, 'roles_admin', userId);
-      setDoc(adminRoleRef, { active: true }, { merge: true });
+      setDocumentNonBlocking(adminRoleRef, { active: true }, { merge: true });
     }
   };
 
