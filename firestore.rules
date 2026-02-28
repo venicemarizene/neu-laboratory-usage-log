@@ -31,25 +31,26 @@ service cloud.firestore {
     // --- Collection Rules ---
 
     match /user_profiles/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      // Allow authenticated institutional users to perform the QR lookup query
+      allow get: if isOwner(userId) || isAdmin() || isInstitutionalUser();
+      // Allow authenticated institutional users to perform the lookup query and view the directory in admin mode
       allow list: if isInstitutionalUser() || isAdmin();
       allow create: if isInstitutionalUser() && isOwner(userId);
-      allow update: if isOwner(userId) || isAdmin();
+      allow update: if isOwner(userId) || isAdmin() || isInstitutionalUser();
       allow delete: if isAdmin();
     }
 
     match /room_logs/{logId} {
-      allow get, list: if isAdmin();
+      // Allow institutional users to view logs for the admin dashboard prototype
+      allow get, list: if isAdmin() || isInstitutionalUser();
       allow create: if isInstitutionalUser() && 
                        isNotBlocked() && 
                        request.resource.data.professorId == request.auth.uid;
-      allow update, delete: if isAdmin();
+      allow update, delete: if isAdmin() || isInstitutionalUser();
     }
 
     match /roles_admin/{userId} {
       // Allow the owner to check if they have an admin role
-      allow get: if isOwner(userId);
+      allow get: if isOwner(userId) || isInstitutionalUser();
       allow read, write: if false;
     }
   }
