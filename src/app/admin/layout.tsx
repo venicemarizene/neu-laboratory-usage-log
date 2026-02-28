@@ -17,8 +17,8 @@ export default function AdminLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { auth } = useAuth() ? { auth: useAuth() } : { auth: null };
-  const { firestore } = useFirestore() ? { firestore: useFirestore() } : { firestore: null };
+  const auth = useAuth();
+  const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
 
@@ -59,7 +59,8 @@ export default function AdminLayout({
     }
   };
 
-  if (isUserLoading || isAdminCheckLoading || isAuthorized === null) {
+  // Guard against null user or loading states
+  if (isUserLoading || isAdminCheckLoading || isAuthorized === null || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
