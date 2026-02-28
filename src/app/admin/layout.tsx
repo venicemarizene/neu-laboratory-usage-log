@@ -1,11 +1,13 @@
+
 "use client"
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LayoutDashboard, Users, LogOut, Monitor, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useUser, useAuth } from '@/firebase';
+import { useUser, useAuth, useDoc, useMemoFirebase, useFirestore } from '@/firebase';
 import { signOut } from 'firebase/auth';
+import { doc } from 'firebase/firestore';
 import { useEffect } from 'react';
 
 export default function AdminLayout({
@@ -15,13 +17,26 @@ export default function AdminLayout({
 }) {
   const router = useRouter();
   const { auth } = useAuth() ? { auth: useAuth() } : { auth: null };
+  const { firestore } = useFirestore() ? { firestore: useFirestore() } : { firestore: null };
   const { user, isUserLoading } = useUser();
 
+  // Check if current user is an admin via roles_admin collection
+  const adminRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'roles_admin', user.uid);
+  }, [firestore, user]);
+  const { data: adminRoleDoc, isLoading: isAdminCheckLoading } = useDoc(adminRef);
+
   useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.push('/');
+    if (!isUserLoading && !isAdminCheckLoading) {
+      // Allow access if user exists and (is hardcoded admin OR has role in roles_admin)
+      const isAuthorizedAdmin = user && (user.email === 'admin@neu.edu.ph' || adminRoleDoc);
+      
+      if (!isAuthorizedAdmin) {
+        router.push('/');
+      }
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading, isAdminCheckLoading, adminRoleDoc, router]);
 
   const handleSignOut = async () => {
     if (auth) {
@@ -30,7 +45,7 @@ export default function AdminLayout({
     }
   };
 
-  if (isUserLoading || !user) {
+  if (isUserLoading || isAdminCheckLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />

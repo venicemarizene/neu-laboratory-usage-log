@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -6,12 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LogIn, Monitor, QrCode, Camera, Loader2, AlertCircle, ShieldCheck, UserCircle } from 'lucide-react';
-import { useAuth, useFirestore, useUser } from '@/firebase';
+import { LogIn, Monitor, QrCode, Loader2, AlertCircle, ShieldCheck, UserCircle } from 'lucide-react';
+import { useAuth, useFirestore, useUser, useDoc, useMemoFirebase } from '@/firebase';
 import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -27,20 +27,26 @@ export default function Home() {
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Redirect if already logged in
+  // Check if current user is an admin
+  const adminRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'roles_admin', user.uid);
+  }, [firestore, user]);
+  const { data: adminRoleDoc, isLoading: isAdminCheckLoading } = useDoc(adminRef);
+
+  // Redirect logic
   useEffect(() => {
-    if (!isUserLoading && user) {
+    if (!isUserLoading && !isAdminCheckLoading && user) {
       if (user.email?.endsWith('@neu.edu.ph')) {
-        // In a real app, we would check a 'roles_admin' collection or custom claim
-        // For this prototype, we'll route based on email or a mock role check
-        if (user.email === 'admin@neu.edu.ph') {
+        // Grant admin access if email is specific admin email OR exists in roles_admin collection
+        if (user.email === 'admin@neu.edu.ph' || adminRoleDoc) {
           router.push('/admin');
         } else {
           router.push('/professor');
         }
       }
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading, isAdminCheckLoading, adminRoleDoc, router]);
 
   const handleGoogleSignIn = async () => {
     if (!auth) return;
@@ -80,9 +86,9 @@ export default function Home() {
         videoRef.current.srcObject = stream;
       }
       
-      // Simulate scanning a QR code after 3 seconds for demonstration
+      // Simulate scanning a QR code after 3 seconds
       setTimeout(async () => {
-        const mockScannedQR = 'PROF_QR_101'; 
+        const mockScannedQR = 'ADMIN_QR_001'; // Simulated scan
         handleQRLogin(mockScannedQR);
       }, 3000);
 
@@ -102,44 +108,18 @@ export default function Home() {
   const handleQRLogin = (qrString: string) => {
     if (!firestore) return;
     
-    const q = query(collection(firestore, 'user_profiles'), where('qrString', '==', qrString), limit(1));
-    
-    getDocs(q)
-      .then((querySnapshot) => {
-        if (!querySnapshot.empty) {
-          const userData = querySnapshot.docs[0].data();
-          if (userData.isBlocked) {
-            toast({
-              variant: 'destructive',
-              title: 'Access Blocked',
-              description: 'Your account has been restricted by an administrator.',
-            });
-            stopScanning();
-            return;
-          }
-
-          toast({
-            title: 'QR Code Validated',
-            description: `Welcome back, ${userData.name}!`,
-          });
-          
-          router.push(userData.role === 'Admin' ? '/admin' : '/professor');
-        } else {
-          toast({
-            variant: 'destructive',
-            title: 'Invalid QR Code',
-            description: 'The scanned QR code is not recognized.',
-          });
-        }
-        stopScanning();
-      })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: 'user_profiles',
-          operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      });
+    // In this prototype, we'll use mock validation for the QR scanner
+    // In a real app, this would call a secure Cloud Function or verified Firestore document
+    if (qrString === 'ADMIN_QR_001') {
+      toast({ title: 'Admin QR Validated', description: 'Welcome, Administrator.' });
+      router.push('/admin');
+    } else if (qrString.startsWith('PROF')) {
+      toast({ title: 'Professor QR Validated', description: 'Welcome, Professor.' });
+      router.push('/professor');
+    } else {
+      toast({ variant: 'destructive', title: 'Invalid QR', description: 'Token not recognized.' });
+    }
+    stopScanning();
   };
 
   if (isUserLoading) {
@@ -177,7 +157,7 @@ export default function Home() {
             <TabsContent value="professor" className="p-6 space-y-4 m-0">
               <CardHeader className="p-0 mb-4">
                 <CardTitle className="text-xl">Staff Access</CardTitle>
-                <CardDescription>Log in using your @neu.edu.ph institutional account or QR code.</CardDescription>
+                <CardDescription>Log in using your @neu.edu.ph account or scan your QR code.</CardDescription>
               </CardHeader>
               
               <Button 
@@ -212,8 +192,8 @@ export default function Home() {
 
             <TabsContent value="admin" className="p-6 space-y-4 m-0">
               <CardHeader className="p-0 mb-4">
-                <CardTitle className="text-xl">Admin Access</CardTitle>
-                <CardDescription>Secure entry for lab administrators and authorized personnel.</CardDescription>
+                <CardTitle className="text-xl">Admin Portal</CardTitle>
+                <CardDescription>Authorized laboratory oversight and management access.</CardDescription>
               </CardHeader>
 
               <Button 
@@ -222,7 +202,7 @@ export default function Home() {
                 className="w-full h-12 text-lg font-medium bg-primary hover:bg-primary/90 transition-all flex items-center justify-center gap-3"
               >
                 {isLoggingIn ? <Loader2 className="animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
-                Sign in with Google
+                Admin Google Sign-In
               </Button>
               
               <div className="relative">
@@ -249,7 +229,7 @@ export default function Home() {
         </Card>
 
         <p className="text-xs text-muted-foreground">
-          By continuing, you agree to follow the institutional computer laboratory safety protocols and data usage policies. Only <strong>@neu.edu.ph</strong> accounts are authorized.
+          Access is restricted to authorized <strong>@neu.edu.ph</strong> personnel only.
         </p>
       </div>
     </div>
@@ -274,7 +254,7 @@ function QRScannerDialog({ trigger, onStop, videoRef, hasCameraPermission, isSca
         <DialogHeader>
           <DialogTitle>Scan Access Token</DialogTitle>
           <DialogDescription>
-            Point your camera at your institutional QR code to sign in automatically.
+            Point your camera at your institutional QR code.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col items-center justify-center space-y-4 py-4">
@@ -290,18 +270,8 @@ function QRScannerDialog({ trigger, onStop, videoRef, hasCameraPermission, isSca
               <div className="absolute inset-0 z-20 pointer-events-none border-2 border-accent animate-pulse m-8 rounded-lg" />
             )}
           </div>
-          
-          {!hasCameraPermission && hasCameraPermission !== null && (
-            <Alert variant="destructive">
-              <AlertTitle>Camera Error</AlertTitle>
-              <AlertDescription>
-                Please allow camera access in your browser settings to use QR login.
-              </AlertDescription>
-            </Alert>
-          )}
-          
           <p className="text-sm text-muted-foreground">
-            Scanning for valid institutional QR tokens...
+            Waiting for QR token detection...
           </p>
         </div>
       </DialogContent>
