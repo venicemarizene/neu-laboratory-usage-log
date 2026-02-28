@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef } from 'react';
@@ -62,11 +61,11 @@ export default function ProfessorPortal() {
         videoRef.current.srcObject = stream;
       }
       
-      // Snappier mock room scan delay (800ms instead of 2500ms)
+      // Snappier mock room scan delay
       setTimeout(() => {
         const mockScannedRoom = 'M105'; 
         handleQRDetected(mockScannedRoom);
-      }, 800);
+      }, 300);
 
     } catch (error) {
       setHasCameraPermission(false);
@@ -93,12 +92,12 @@ export default function ProfessorPortal() {
         title: 'Lab Detected',
         description: `Laboratory ${detectedRoom} identified.`,
       });
-      // Faster auto-trigger (200ms instead of 500ms)
+      // Faster auto-trigger
       setTimeout(() => {
         setIsScanning(false);
         stopScanning();
         performEntry(detectedRoom);
-      }, 200);
+      }, 50);
     } else {
       toast({
         variant: 'destructive',
@@ -163,7 +162,7 @@ export default function ProfessorPortal() {
   if (isUserLoading || isProfileLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -175,16 +174,16 @@ export default function ProfessorPortal() {
           <Monitor className="w-6 h-6 text-primary" />
           <h1 className="text-xl font-bold text-primary font-headline">NEU LabTrack</h1>
         </div>
-        <Button variant="ghost" size="sm" onClick={handleSignOut} className="gap-2">
+        <Button variant="ghost" size="sm" onClick={handleSignOut} className="gap-2 transition-all duration-150">
           <LogOut className="w-4 h-4" />
           Sign Out
         </Button>
       </header>
 
       <main className="w-full max-w-xl space-y-6">
-        <Card className="border-none shadow-xl animate-in fade-in zoom-in-95 duration-200">
+        <Card className="border-none shadow-xl animate-in fade-in zoom-in-95 duration-150">
           <CardHeader className="text-center">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-2">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-2 transition-all duration-150">
               <Monitor className="w-8 h-8 text-primary" />
             </div>
             <CardTitle className="text-2xl font-bold">Lab Entry System</CardTitle>
@@ -192,11 +191,11 @@ export default function ProfessorPortal() {
           </CardHeader>
           <CardContent className="space-y-6">
             {status === 'idle' && (
-              <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="space-y-6 animate-in fade-in duration-150">
                 <div className="space-y-3">
                   <label className="text-xs font-black text-muted-foreground uppercase tracking-widest">Manual Selection</label>
                   <Select value={room} onValueChange={setRoom}>
-                    <SelectTrigger className="h-14 text-lg border-2 border-primary/20 hover:border-primary/40 transition-colors shadow-sm">
+                    <SelectTrigger className="h-14 text-lg border-2 border-primary/20 hover:border-primary/40 transition-all duration-150 shadow-sm">
                       <SelectValue placeholder="Select Lab (M101 - M111)" />
                     </SelectTrigger>
                     <SelectContent className="max-h-72">
@@ -226,7 +225,7 @@ export default function ProfessorPortal() {
                       <Button 
                         variant="outline" 
                         onClick={startScanning}
-                        className="h-14 border-2 border-primary/20 hover:border-primary hover:bg-primary/5 font-bold gap-3 shadow-sm transition-all duration-200 active:scale-95"
+                        className="h-14 border-2 border-primary/20 hover:border-primary hover:bg-primary/5 font-bold gap-3 shadow-sm transition-all duration-150 active:scale-95"
                       >
                         <QrCode className="w-5 h-5 text-primary" />
                         Scan Lab QR Code
@@ -240,7 +239,7 @@ export default function ProfessorPortal() {
                         </DialogDescription>
                       </DialogHeader>
                       <div className="flex flex-col items-center justify-center space-y-6 py-6">
-                        <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black flex items-center justify-center border-4 border-primary/20 shadow-2xl">
+                        <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black flex items-center justify-center border-4 border-primary/20 shadow-2xl transition-all duration-150">
                           <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" autoPlay muted playsInline />
                           {hasCameraPermission === false && (
                             <div className="z-10 text-white text-center p-6 bg-black/60 backdrop-blur-sm h-full w-full flex flex-col items-center justify-center">
@@ -256,12 +255,12 @@ export default function ProfessorPortal() {
                   <Button 
                     onClick={handleManualEntry} 
                     disabled={!room || isProcessing}
-                    className="h-16 text-xl font-black bg-primary hover:bg-primary/90 shadow-xl gap-3 transition-all duration-200 active:scale-95 group"
+                    className="h-16 text-xl font-black bg-primary hover:bg-primary/90 shadow-xl gap-3 transition-all duration-150 active:scale-95 group"
                   >
                     {isProcessing ? (
                       <Loader2 className="w-6 h-6 animate-spin" />
                     ) : (
-                      <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform duration-200" />
+                      <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform duration-150" />
                     )}
                     {isProcessing ? 'Verifying...' : room ? `Enter Lab ${room}` : 'Select a Lab to Begin'}
                   </Button>
@@ -270,9 +269,9 @@ export default function ProfessorPortal() {
             )}
 
             {status === 'success' && (
-              <div className="text-center space-y-6 animate-in zoom-in-95 duration-300">
+              <div className="text-center space-y-6 animate-in zoom-in-95 duration-150">
                 <div className="p-10 bg-green-50 rounded-3xl border-2 border-green-200 space-y-6 shadow-inner">
-                  <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto shadow-lg ring-8 ring-green-100">
+                  <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto shadow-lg ring-8 ring-green-100 transition-all duration-150">
                     <CheckCircle2 className="w-12 h-12 text-white" />
                   </div>
                   <div className="space-y-3">
@@ -285,7 +284,7 @@ export default function ProfessorPortal() {
                 <Button 
                   variant="outline" 
                   onClick={handleReset} 
-                  className="w-full h-14 text-lg font-bold border-2 hover:bg-slate-50 transition-all duration-200 rounded-xl"
+                  className="w-full h-14 text-lg font-bold border-2 hover:bg-slate-50 transition-all duration-150 rounded-xl"
                 >
                   Register Another Session
                 </Button>
@@ -293,7 +292,7 @@ export default function ProfessorPortal() {
             )}
 
             {status === 'blocked' && (
-              <div className="text-center space-y-6 animate-in zoom-in-95 duration-300">
+              <div className="text-center space-y-6 animate-in zoom-in-95 duration-150">
                 <div className="p-8 bg-destructive/5 rounded-3xl border-2 border-destructive/20 space-y-4">
                   <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-2">
                     <AlertTriangle className="w-10 h-10 text-destructive" />
@@ -303,7 +302,7 @@ export default function ProfessorPortal() {
                     <p className="text-muted-foreground font-medium text-lg px-4">Access suspended. Visit Admin office for resolution.</p>
                   </div>
                 </div>
-                <Button variant="outline" onClick={handleReset} className="w-full h-14 text-lg font-bold border-2 rounded-xl transition-all duration-200">
+                <Button variant="outline" onClick={handleReset} className="w-full h-14 text-lg font-bold border-2 rounded-xl transition-all duration-150">
                   Try Again
                 </Button>
               </div>
@@ -311,8 +310,8 @@ export default function ProfessorPortal() {
           </CardContent>
         </Card>
 
-        <div className="bg-card p-6 rounded-3xl shadow-lg border border-slate-100 flex items-center gap-5 transition-all duration-200 hover:shadow-xl">
-          <div className="w-14 h-14 rounded-2xl bg-accent text-primary flex items-center justify-center font-black text-2xl shadow-inner transform rotate-3">
+        <div className="bg-card p-6 rounded-3xl shadow-lg border border-slate-100 flex items-center gap-5 transition-all duration-150 hover:shadow-xl">
+          <div className="w-14 h-14 rounded-2xl bg-accent text-primary flex items-center justify-center font-black text-2xl shadow-inner transform rotate-3 transition-transform duration-150">
             {user.displayName?.[0] || 'P'}
           </div>
           <div className="flex-1 min-w-0">

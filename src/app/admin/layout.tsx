@@ -1,4 +1,3 @@
-
 "use client"
 
 import Link from 'next/link';
@@ -48,15 +47,14 @@ export default function AdminLayout({
       }
 
       // Check for authorization: doc in roles_admin collection OR explicit 'Admin' role in profile
-      // This provides a fallback if the roles_admin check is still propagating
       const hasExplicitAdminRole = !!adminRoleDoc || profileData?.role === 'Admin';
       
       if (!hasExplicitAdminRole) {
         setIsAuthorized(false);
-        // Short delay to avoid race conditions with sign-in routing
+        // Minimal delay to ensure routing doesn't conflict
         const timer = setTimeout(() => {
           router.push('/');
-        }, 500);
+        }, 100);
         return () => clearTimeout(timer);
       } else {
         setIsAuthorized(true);
@@ -76,8 +74,8 @@ export default function AdminLayout({
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
-          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
-          <p className="text-muted-foreground font-medium">Verifying Administrative Access...</p>
+          <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
+          <p className="text-muted-foreground font-bold text-sm tracking-tight">Verifying Access...</p>
         </div>
       </div>
     );
@@ -85,7 +83,7 @@ export default function AdminLayout({
 
   return (
     <div className="min-h-screen flex bg-background">
-      <aside className="w-64 bg-primary text-primary-foreground hidden md:flex flex-col p-6 shadow-2xl">
+      <aside className="w-64 bg-primary text-primary-foreground hidden md:flex flex-col p-6 shadow-2xl transition-all duration-150">
         <div className="flex items-center gap-3 mb-10 px-2">
           <Monitor className="w-8 h-8 text-accent" />
           <span className="text-xl font-bold tracking-tight font-headline">NEU LabTrack</span>
@@ -94,7 +92,7 @@ export default function AdminLayout({
         <nav className="flex-1 space-y-2">
           <Link 
             href="/admin" 
-            className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
+            className={`flex items-center gap-3 p-3 rounded-lg transition-colors duration-150 ${
               pathname === '/admin' ? 'bg-white/20' : 'hover:bg-white/10'
             }`}
           >
@@ -103,7 +101,7 @@ export default function AdminLayout({
           </Link>
           <Link 
             href="/admin/professors" 
-            className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
+            className={`flex items-center gap-3 p-3 rounded-lg transition-colors duration-150 ${
               pathname === '/admin/professors' ? 'bg-white/20' : 'hover:bg-white/10'
             }`}
           >
@@ -120,7 +118,7 @@ export default function AdminLayout({
           <Button 
             variant="ghost" 
             onClick={handleSignOut}
-            className="w-full justify-start text-white hover:bg-white/10 gap-3"
+            className="w-full justify-start text-white hover:bg-white/10 gap-3 transition-all duration-150"
           >
             <LogOut className="w-5 h-5" />
             Sign Out

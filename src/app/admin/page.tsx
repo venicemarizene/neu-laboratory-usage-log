@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo } from 'react';
@@ -96,14 +95,14 @@ export default function AdminDashboard() {
   if (!mounted) return null;
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300 pb-12">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-150 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black font-headline text-primary tracking-tight">Laboratory Analytics</h1>
           <p className="text-muted-foreground font-medium uppercase tracking-wider text-xs">Monitoring institutional computer laboratory utilization</p>
         </div>
         <div className="flex items-center gap-3">
-           <Button variant="outline" className="gap-2 border-2 rounded-xl font-bold bg-card shadow-sm">
+           <Button variant="outline" className="gap-2 border-2 rounded-xl font-bold bg-card shadow-sm transition-all duration-150">
              <FileText className="w-4 h-4" />
              Export Period Data
            </Button>
@@ -112,7 +111,7 @@ export default function AdminDashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-200 rounded-2xl bg-gradient-to-br from-primary to-primary/90 text-primary-foreground">
+        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-150 rounded-2xl bg-gradient-to-br from-primary to-primary/90 text-primary-foreground">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-[0.2em] opacity-80">Active Logs Today</CardTitle>
             <Activity className="h-5 w-5 opacity-80" />
@@ -123,7 +122,7 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
         
-        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-200 rounded-2xl bg-card">
+        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-150 rounded-2xl bg-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Unique Faculty</CardTitle>
             <Users className="h-5 w-5 text-accent" />
@@ -134,7 +133,7 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
         
-        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-200 rounded-2xl bg-card">
+        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-150 rounded-2xl bg-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Blocked Accounts</CardTitle>
             <Ban className="h-5 w-5 text-destructive" />
@@ -147,7 +146,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Usage Chart Section */}
-      <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-card">
+      <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-card transition-all duration-150">
         <CardHeader className="border-b pb-6">
           <CardTitle className="text-xl font-bold">Computer Laboratory Distribution</CardTitle>
           <CardDescription>Visual frequency of usage across M101–M111 for current filters</CardDescription>
@@ -185,7 +184,7 @@ export default function AdminDashboard() {
       </Card>
 
       {/* Logs Table */}
-      <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-card">
+      <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-card transition-all duration-150">
         <CardHeader className="bg-card border-b pb-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
@@ -197,13 +196,13 @@ export default function AdminDashboard() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
                   placeholder="Search professor or room..." 
-                  className="pl-10 h-11 border-2 rounded-xl"
+                  className="pl-10 h-11 border-2 rounded-xl transition-all duration-150"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
               <Select value={dateFilter} onValueChange={(v: any) => setDateFilter(v)}>
-                <SelectTrigger className="w-full sm:w-44 h-11 border-2 rounded-xl font-bold">
+                <SelectTrigger className="w-full sm:w-44 h-11 border-2 rounded-xl font-bold transition-all duration-150">
                   <Calendar className="w-4 h-4 mr-2 opacity-50" />
                   <SelectValue placeholder="Period" />
                 </SelectTrigger>
@@ -220,8 +219,8 @@ export default function AdminDashboard() {
         <CardContent className="p-0">
           {isLogsLoading ? (
             <div className="flex flex-col items-center justify-center py-24 gap-4">
-              <Loader2 className="w-10 h-10 animate-spin text-primary" />
-              <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Synchronizing activity logs...</p>
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Updating...</p>
             </div>
           ) : (
             <Table>
@@ -240,13 +239,12 @@ export default function AdminDashboard() {
                       <div className="flex flex-col items-center gap-2">
                         <Monitor className="w-12 h-12 opacity-10" />
                         <p className="font-bold text-lg">No laboratory activity logs found</p>
-                        <p className="text-sm">Adjust your filters or search term to see more results.</p>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredLogs.map((log) => (
-                    <TableRow key={log.id} className="hover:bg-accent/5 transition-colors group">
+                    <TableRow key={log.id} className="hover:bg-accent/5 transition-colors duration-150 group">
                       <TableCell className="font-bold text-slate-800 px-6 py-4">{log.professorName}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="font-mono px-3 py-1 bg-white shadow-sm rounded-lg border-primary/20 text-primary">

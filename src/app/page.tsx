@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useRef } from 'react';
@@ -44,17 +43,14 @@ export default function Home() {
       id: userId,
       name: data.name || data.displayName || existingData?.name || 'Anonymous Faculty',
       email: data.email || existingData?.email,
-      // Only set role if it's a new user or if target role is provided; otherwise preserve existing role
       role: data.role || existingData?.role || 'Professor',
       qrString: existingData?.qrString || (data.role === 'Admin' ? `ADMIN_${userId.slice(0,5)}` : `PROF_${userId.slice(0,5)}`)
     };
 
-    // Only set isBlocked to false if it's a brand new user
     if (!existingDoc.exists()) {
       profileData.isBlocked = false;
     }
 
-    // Ensure Admin status is reflected in both collections
     if (profileData.role === 'Admin') {
       await setDoc(adminRoleRef, { active: true }, { merge: true });
     }
@@ -72,7 +68,6 @@ export default function Home() {
     try {
       const result = await signInWithPopup(auth, provider);
       const userEmail = result.user.email?.toLowerCase();
-      // Robust institutional domain check (case-insensitive)
       const isInstitutional = !!userEmail?.match(/@([^@]+\.)?neu\.edu\.ph$/i);
 
       if (!isInstitutional) {
@@ -168,7 +163,7 @@ export default function Home() {
       setTimeout(async () => {
         const mockScannedQR = 'ADMIN_QR_001'; 
         handleQRLogin(mockScannedQR);
-      }, 800);
+      }, 300);
 
     } catch (error) {
       setHasCameraPermission(false);
@@ -199,95 +194,90 @@ export default function Home() {
   if (isUserLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
-      <div className="max-w-md w-full space-y-8 text-center">
+      <div className="max-w-md w-full space-y-6 text-center animate-in fade-in duration-150">
         <div className="space-y-2">
-          <div className="mx-auto w-20 h-20 bg-primary rounded-3xl flex items-center justify-center shadow-2xl transform transition-transform duration-200 hover:scale-110">
-            <Monitor className="w-12 h-12 text-primary-foreground" />
+          <div className="mx-auto w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-xl transform transition-transform duration-150 hover:scale-105">
+            <Monitor className="w-10 h-10 text-primary-foreground" />
           </div>
-          <h1 className="text-4xl font-extrabold tracking-tight text-primary font-headline">NEU LabTrack</h1>
-          <p className="text-muted-foreground font-medium uppercase tracking-wider text-xs">NEU Computer Laboratory Usage Log</p>
+          <h1 className="text-3xl font-extrabold tracking-tight text-primary font-headline">NEU LabTrack</h1>
+          <p className="text-muted-foreground font-medium uppercase tracking-wider text-[10px]">NEU Computer Laboratory Usage Log</p>
         </div>
 
         {user && (
-          <div className="p-4 bg-card border rounded-xl shadow-sm flex items-center justify-between animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="p-3 bg-card border rounded-xl shadow-sm flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-150">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center font-bold text-primary shadow-inner">
+              <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center font-bold text-primary shadow-inner text-xs">
                 {user.email?.[0].toUpperCase()}
               </div>
               <div className="text-left">
-                <p className="text-sm font-semibold leading-none">{user.displayName || 'Faculty Member'}</p>
-                <p className="text-xs text-muted-foreground">{user.email}</p>
+                <p className="text-xs font-semibold leading-none">{user.displayName || 'Faculty'}</p>
+                <p className="text-[10px] text-muted-foreground">{user.email}</p>
               </div>
             </div>
-            <Button variant="ghost" size="sm" onClick={handleSignOut} className="text-destructive hover:text-destructive hover:bg-destructive/10">
-              <LogOut className="w-4 h-4 mr-1" />
+            <Button variant="ghost" size="sm" onClick={handleSignOut} className="h-8 text-[10px] text-destructive hover:bg-destructive/10 transition-all duration-150">
+              <LogOut className="w-3 h-3 mr-1" />
               Sign Out
             </Button>
           </div>
         )}
 
-        <Card className="border-none shadow-2xl overflow-hidden rounded-2xl">
+        <Card className="border-none shadow-2xl overflow-hidden rounded-2xl transition-all duration-150">
           <Tabs defaultValue="professor" className="w-full">
-            <TabsList className="w-full grid grid-cols-2 rounded-none h-16 bg-muted/30">
-              <TabsTrigger value="professor" className="data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-2 text-base font-semibold">
-                <UserCircle className="w-5 h-5" />
+            <TabsList className="w-full grid grid-cols-2 rounded-none h-14 bg-muted/30">
+              <TabsTrigger value="professor" className="data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-2 text-sm font-semibold transition-all duration-150">
+                <UserCircle className="w-4 h-4" />
                 Professor
               </TabsTrigger>
-              <TabsTrigger value="admin" className="data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-2 text-base font-semibold">
-                <ShieldCheck className="w-5 h-5" />
+              <TabsTrigger value="admin" className="data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-2 text-sm font-semibold transition-all duration-150">
+                <ShieldCheck className="w-4 h-4" />
                 Admin Portal
               </TabsTrigger>
             </TabsList>
             
-            <TabsContent value="professor" className="p-8 space-y-6 m-0 animate-in fade-in duration-200">
+            <TabsContent value="professor" className="p-6 space-y-4 m-0 animate-in fade-in duration-150">
               <Tabs defaultValue="google" className="w-full">
-                <TabsList className="grid grid-cols-2 w-full mb-6">
-                  <TabsTrigger value="google">Google SSO</TabsTrigger>
-                  <TabsTrigger value="manual">Manual Entry</TabsTrigger>
+                <TabsList className="grid grid-cols-2 w-full mb-4 h-9">
+                  <TabsTrigger value="google" className="text-xs">Google SSO</TabsTrigger>
+                  <TabsTrigger value="manual" className="text-xs">Manual Entry</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="google" className="space-y-4">
-                  <Alert variant="default" className="bg-primary/5 border-primary/20">
-                    <Info className="h-4 w-4 text-primary" />
-                    <AlertDescription className="text-xs font-medium text-left">
-                      Recommended: Sign in with your institutional Google account for a seamless experience.
+                  <Alert variant="default" className="bg-primary/5 border-primary/20 py-2">
+                    <Info className="h-3 w-3 text-primary" />
+                    <AlertDescription className="text-[10px] font-medium text-left">
+                      Recommended: Sign in with your institutional Google account.
                     </AlertDescription>
                   </Alert>
                   <Button 
                     onClick={() => handleGoogleSignIn('professor')}
                     disabled={isLoggingIn}
-                    className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-lg flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
+                    className="w-full h-12 text-base font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-150 active:scale-95"
                   >
-                    {isLoggingIn ? <Loader2 className="animate-spin" /> : <LogIn className="w-6 h-6" />}
+                    {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}
                     Sign in with Google
                   </Button>
                 </TabsContent>
 
                 <TabsContent value="manual" className="space-y-4">
-                  <Alert variant="destructive" className="bg-destructive/5 text-left py-2 border-destructive/20">
-                    <AlertDescription className="text-[10px] leading-tight font-bold">
-                      Note: Your Google password will NOT work here. Use Google SSO unless you have been issued a direct system password.
-                    </AlertDescription>
-                  </Alert>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input placeholder="name@neu.edu.ph" className="pl-10" value={email} onChange={(e) => setEmail(e.target.value)} />
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                      <Input placeholder="name@neu.edu.ph" className="pl-9 h-10 text-sm" value={email} onChange={(e) => setEmail(e.target.value)} />
                     </div>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input type="password" placeholder="System Password" className="pl-10" value={password} onChange={(e) => setPassword(e.target.value)} />
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                      <Input type="password" placeholder="System Password" className="pl-9 h-10 text-sm" value={password} onChange={(e) => setPassword(e.target.value)} />
                     </div>
                   </div>
-                  <Button onClick={() => handleEmailSignIn('professor')} disabled={isLoggingIn} className="w-full h-12 font-bold">
-                    {isLoggingIn ? <Loader2 className="animate-spin" /> : 'Manual Login'}
+                  <Button onClick={() => handleEmailSignIn('professor')} disabled={isLoggingIn} className="w-full h-10 font-bold transition-all duration-150">
+                    {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Manual Login'}
                   </Button>
                 </TabsContent>
               </Tabs>
@@ -296,8 +286,8 @@ export default function Home() {
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t border-border" />
                 </div>
-                <div className="relative flex justify-center text-xs font-bold uppercase">
-                  <span className="bg-card px-3 text-muted-foreground">Quick Access</span>
+                <div className="relative flex justify-center text-[10px] font-bold uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Quick Access</span>
                 </div>
               </div>
 
@@ -305,51 +295,51 @@ export default function Home() {
                 <Button 
                   variant="outline" 
                   onClick={startScanning}
-                  className="w-full h-14 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
+                  className="w-full h-12 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all duration-150 active:scale-95"
                 >
-                  <QrCode className="w-6 h-6" />
+                  <QrCode className="w-5 h-5" />
                   Scan Professor QR
                 </Button>
               } onStop={stopScanning} videoRef={videoRef} hasCameraPermission={hasCameraPermission} isScanning={isScanning} />
             </TabsContent>
 
-            <TabsContent value="admin" className="p-8 space-y-6 m-0 animate-in fade-in duration-200">
+            <TabsContent value="admin" className="p-6 space-y-4 m-0 animate-in fade-in duration-150">
               <Tabs defaultValue="google" className="w-full">
-                <TabsList className="grid grid-cols-2 w-full mb-6">
-                  <TabsTrigger value="google">Google SSO</TabsTrigger>
-                  <TabsTrigger value="manual">Manual Entry</TabsTrigger>
+                <TabsList className="grid grid-cols-2 w-full mb-4 h-9">
+                  <TabsTrigger value="google" className="text-xs">Google SSO</TabsTrigger>
+                  <TabsTrigger value="manual" className="text-xs">Manual Entry</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="google" className="space-y-4">
-                  <Alert variant="default" className="bg-primary/5 border-primary/20">
-                    <Info className="h-4 w-4 text-primary" />
-                    <AlertDescription className="text-xs font-medium text-left">
-                      Use your admin institutional Google account to sign in.
+                  <Alert variant="default" className="bg-primary/5 border-primary/20 py-2">
+                    <Info className="h-3 w-3 text-primary" />
+                    <AlertDescription className="text-[10px] font-medium text-left">
+                      Use your admin institutional Google account.
                     </AlertDescription>
                   </Alert>
                   <Button 
                     onClick={() => handleGoogleSignIn('admin')}
                     disabled={isLoggingIn}
-                    className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-lg flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
+                    className="w-full h-12 text-base font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-150 active:scale-95"
                   >
-                    {isLoggingIn ? <Loader2 className="animate-spin" /> : <ShieldCheck className="w-6 h-6" />}
+                    {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
                     Admin Google Sign-In
                   </Button>
                 </TabsContent>
 
                 <TabsContent value="manual" className="space-y-4">
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input placeholder="admin@neu.edu.ph" className="pl-10" value={email} onChange={(e) => setEmail(e.target.value)} />
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                      <Input placeholder="admin@neu.edu.ph" className="pl-9 h-10 text-sm" value={email} onChange={(e) => setEmail(e.target.value)} />
                     </div>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input type="password" placeholder="Admin Password" className="pl-10" value={password} onChange={(e) => setPassword(e.target.value)} />
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                      <Input type="password" placeholder="Admin Password" className="pl-9 h-10 text-sm" value={password} onChange={(e) => setPassword(e.target.value)} />
                     </div>
                   </div>
-                  <Button onClick={() => handleEmailSignIn('admin')} disabled={isLoggingIn} className="w-full h-12 font-bold bg-primary">
-                    {isLoggingIn ? <Loader2 className="animate-spin" /> : 'Admin Login'}
+                  <Button onClick={() => handleEmailSignIn('admin')} disabled={isLoggingIn} className="w-full h-10 font-bold bg-primary transition-all duration-150">
+                    {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Admin Login'}
                   </Button>
                 </TabsContent>
               </Tabs>
@@ -358,8 +348,8 @@ export default function Home() {
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t border-border" />
                 </div>
-                <div className="relative flex justify-center text-xs font-bold uppercase">
-                  <span className="bg-card px-3 text-muted-foreground">Admin QR Login</span>
+                <div className="relative flex justify-center text-[10px] font-bold uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Admin QR Login</span>
                 </div>
               </div>
 
@@ -367,9 +357,9 @@ export default function Home() {
                 <Button 
                   variant="outline" 
                   onClick={startScanning}
-                  className="w-full h-14 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
+                  className="w-full h-12 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all duration-150 active:scale-95"
                 >
-                  <QrCode className="w-6 h-6" />
+                  <QrCode className="w-5 h-5" />
                   Scan Admin Access QR
                 </Button>
               } onStop={stopScanning} videoRef={videoRef} hasCameraPermission={hasCameraPermission} isScanning={isScanning} />
@@ -377,8 +367,8 @@ export default function Home() {
           </Tabs>
         </Card>
 
-        <p className="text-sm font-medium text-muted-foreground">
-          Verified institutional access for <span className="text-primary">@neu.edu.ph</span> accounts.
+        <p className="text-[10px] font-medium text-muted-foreground">
+          Verified institutional access for <span className="text-primary font-bold">@neu.edu.ph</span> accounts.
         </p>
       </div>
     </div>
@@ -399,29 +389,28 @@ function QRScannerDialog({ trigger, onStop, videoRef, hasCameraPermission, isSca
       <DialogTrigger asChild>
         {trigger}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md transition-all duration-150">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">Scan Access Token</DialogTitle>
           <DialogDescription>
             Point your camera at your institutional QR code.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col items-center justify-center space-y-6 py-6">
-          <div className="relative w-full aspect-square max-w-[320px] overflow-hidden rounded-2xl border-4 border-dashed border-primary/20 bg-black flex items-center justify-center shadow-2xl">
+        <div className="flex flex-col items-center justify-center space-y-4 py-4">
+          <div className="relative w-full aspect-square max-w-[280px] overflow-hidden rounded-2xl border-4 border-dashed border-primary/20 bg-black flex items-center justify-center shadow-2xl transition-all duration-150">
             <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" autoPlay muted playsInline />
             {hasCameraPermission === false && (
               <div className="z-10 text-white text-center p-6 bg-black/60 backdrop-blur-sm h-full w-full flex flex-col items-center justify-center">
-                <AlertCircle className="w-14 h-14 mx-auto mb-4 text-destructive" />
-                <p className="text-lg font-bold mb-2">Camera Access Required</p>
-                <p className="text-sm opacity-90">Please enable camera permissions.</p>
+                <AlertCircle className="w-10 h-10 mx-auto mb-4 text-destructive" />
+                <p className="text-base font-bold mb-2">Camera Access Required</p>
               </div>
             )}
             {isScanning && hasCameraPermission && (
-              <div className="absolute inset-0 z-20 pointer-events-none border-[6px] border-accent/60 animate-pulse m-10 rounded-xl" />
+              <div className="absolute inset-0 z-20 pointer-events-none border-[4px] border-accent/60 animate-pulse m-8 rounded-xl" />
             )}
           </div>
-          <div className="flex items-center gap-3 text-sm font-bold text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+          <div className="flex items-center gap-3 text-[10px] font-bold text-muted-foreground">
+            <Loader2 className="w-3 h-3 animate-spin text-primary" />
             Waiting for token detection...
           </div>
         </div>
