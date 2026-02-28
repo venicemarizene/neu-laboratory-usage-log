@@ -163,7 +163,7 @@ export default function Home() {
       setTimeout(async () => {
         const mockScannedQR = 'ADMIN_QR_001'; 
         handleQRLogin(mockScannedQR);
-      }, 300);
+      }, 1000);
 
     } catch (error) {
       setHasCameraPermission(false);
@@ -201,9 +201,9 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
-      <div className="max-w-md w-full space-y-6 text-center animate-in fade-in duration-150">
+      <div className="max-w-md w-full space-y-6 text-center animate-in fade-in duration-300">
         <div className="space-y-2">
-          <div className="mx-auto w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-xl transform transition-transform duration-150 hover:scale-105">
+          <div className="mx-auto w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-xl transform transition-transform duration-200 hover:scale-105">
             <Monitor className="w-10 h-10 text-primary-foreground" />
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-primary font-headline">NEU LabTrack</h1>
@@ -211,7 +211,7 @@ export default function Home() {
         </div>
 
         {user && (
-          <div className="p-3 bg-card border rounded-xl shadow-sm flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="p-3 bg-card border rounded-xl shadow-sm flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center font-bold text-primary shadow-inner text-xs">
                 {user.email?.[0].toUpperCase()}
@@ -221,27 +221,27 @@ export default function Home() {
                 <p className="text-[10px] text-muted-foreground">{user.email}</p>
               </div>
             </div>
-            <Button variant="ghost" size="sm" onClick={handleSignOut} className="h-8 text-[10px] text-destructive hover:bg-destructive/10 transition-all duration-150">
+            <Button variant="ghost" size="sm" onClick={handleSignOut} className="h-8 text-[10px] text-destructive hover:bg-destructive/10 transition-all duration-200">
               <LogOut className="w-3 h-3 mr-1" />
               Sign Out
             </Button>
           </div>
         )}
 
-        <Card className="border-none shadow-2xl overflow-hidden rounded-2xl transition-all duration-150">
+        <Card className="border-none shadow-2xl overflow-hidden rounded-2xl transition-all duration-300">
           <Tabs defaultValue="professor" className="w-full">
             <TabsList className="w-full grid grid-cols-2 rounded-none h-14 bg-muted/30">
-              <TabsTrigger value="professor" className="data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-2 text-sm font-semibold transition-all duration-150">
+              <TabsTrigger value="professor" className="data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-2 text-sm font-semibold transition-all duration-200">
                 <UserCircle className="w-4 h-4" />
                 Professor
               </TabsTrigger>
-              <TabsTrigger value="admin" className="data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-2 text-sm font-semibold transition-all duration-150">
+              <TabsTrigger value="admin" className="data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-2 text-sm font-semibold transition-all duration-200">
                 <ShieldCheck className="w-4 h-4" />
                 Admin Portal
               </TabsTrigger>
             </TabsList>
             
-            <TabsContent value="professor" className="p-6 space-y-4 m-0 animate-in fade-in duration-150">
+            <TabsContent value="professor" className="p-6 space-y-4 m-0 animate-in fade-in duration-300">
               <Tabs defaultValue="google" className="w-full">
                 <TabsList className="grid grid-cols-2 w-full mb-4 h-9">
                   <TabsTrigger value="google" className="text-xs">Google SSO</TabsTrigger>
@@ -258,7 +258,7 @@ export default function Home() {
                   <Button 
                     onClick={() => handleGoogleSignIn('professor')}
                     disabled={isLoggingIn}
-                    className="w-full h-12 text-base font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-150 active:scale-95"
+                    className="w-full h-12 text-base font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-300 active:scale-95"
                   >
                     {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}
                     Sign in with Google
@@ -276,7 +276,7 @@ export default function Home() {
                       <Input type="password" placeholder="System Password" className="pl-9 h-10 text-sm" value={password} onChange={(e) => setPassword(e.target.value)} />
                     </div>
                   </div>
-                  <Button onClick={() => handleEmailSignIn('professor')} disabled={isLoggingIn} className="w-full h-10 font-bold transition-all duration-150">
+                  <Button onClick={() => handleEmailSignIn('professor')} disabled={isLoggingIn} className="w-full h-10 font-bold transition-all duration-200">
                     {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Manual Login'}
                   </Button>
                 </TabsContent>
@@ -295,7 +295,7 @@ export default function Home() {
                 <Button 
                   variant="outline" 
                   onClick={startScanning}
-                  className="w-full h-12 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all duration-150 active:scale-95"
+                  className="w-full h-12 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
                 >
                   <QrCode className="w-5 h-5" />
                   Scan Professor QR
@@ -303,7 +303,7 @@ export default function Home() {
               } onStop={stopScanning} videoRef={videoRef} hasCameraPermission={hasCameraPermission} isScanning={isScanning} />
             </TabsContent>
 
-            <TabsContent value="admin" className="p-6 space-y-4 m-0 animate-in fade-in duration-150">
+            <TabsContent value="admin" className="p-6 space-y-4 m-0 animate-in fade-in duration-300">
               <Tabs defaultValue="google" className="w-full">
                 <TabsList className="grid grid-cols-2 w-full mb-4 h-9">
                   <TabsTrigger value="google" className="text-xs">Google SSO</TabsTrigger>
@@ -320,7 +320,7 @@ export default function Home() {
                   <Button 
                     onClick={() => handleGoogleSignIn('admin')}
                     disabled={isLoggingIn}
-                    className="w-full h-12 text-base font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-150 active:scale-95"
+                    className="w-full h-12 text-base font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-300 active:scale-95"
                   >
                     {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
                     Admin Google Sign-In
@@ -338,7 +338,7 @@ export default function Home() {
                       <Input type="password" placeholder="Admin Password" className="pl-9 h-10 text-sm" value={password} onChange={(e) => setPassword(e.target.value)} />
                     </div>
                   </div>
-                  <Button onClick={() => handleEmailSignIn('admin')} disabled={isLoggingIn} className="w-full h-10 font-bold bg-primary transition-all duration-150">
+                  <Button onClick={() => handleEmailSignIn('admin')} disabled={isLoggingIn} className="w-full h-10 font-bold bg-primary transition-all duration-200">
                     {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Admin Login'}
                   </Button>
                 </TabsContent>
@@ -357,7 +357,7 @@ export default function Home() {
                 <Button 
                   variant="outline" 
                   onClick={startScanning}
-                  className="w-full h-12 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all duration-150 active:scale-95"
+                  className="w-full h-12 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
                 >
                   <QrCode className="w-5 h-5" />
                   Scan Admin Access QR
@@ -389,7 +389,7 @@ function QRScannerDialog({ trigger, onStop, videoRef, hasCameraPermission, isSca
       <DialogTrigger asChild>
         {trigger}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md transition-all duration-150">
+      <DialogContent className="sm:max-w-md transition-all duration-300">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">Scan Access Token</DialogTitle>
           <DialogDescription>
@@ -397,7 +397,7 @@ function QRScannerDialog({ trigger, onStop, videoRef, hasCameraPermission, isSca
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col items-center justify-center space-y-4 py-4">
-          <div className="relative w-full aspect-square max-w-[280px] overflow-hidden rounded-2xl border-4 border-dashed border-primary/20 bg-black flex items-center justify-center shadow-2xl transition-all duration-150">
+          <div className="relative w-full aspect-square max-w-[280px] overflow-hidden rounded-2xl border-4 border-dashed border-primary/20 bg-black flex items-center justify-center shadow-2xl transition-all duration-300">
             <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" autoPlay muted playsInline />
             {hasCameraPermission === false && (
               <div className="z-10 text-white text-center p-6 bg-black/60 backdrop-blur-sm h-full w-full flex flex-col items-center justify-center">

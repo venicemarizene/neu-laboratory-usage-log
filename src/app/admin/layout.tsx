@@ -51,10 +51,10 @@ export default function AdminLayout({
       
       if (!hasExplicitAdminRole) {
         setIsAuthorized(false);
-        // Minimal delay to ensure routing doesn't conflict
+        // Standard delay to ensure routing doesn't conflict
         const timer = setTimeout(() => {
           router.push('/');
-        }, 100);
+        }, 300);
         return () => clearTimeout(timer);
       } else {
         setIsAuthorized(true);
@@ -83,7 +83,7 @@ export default function AdminLayout({
 
   return (
     <div className="min-h-screen flex bg-background">
-      <aside className="w-64 bg-primary text-primary-foreground hidden md:flex flex-col p-6 shadow-2xl transition-all duration-150">
+      <aside className="w-64 bg-primary text-primary-foreground hidden md:flex flex-col p-6 shadow-2xl transition-all duration-300">
         <div className="flex items-center gap-3 mb-10 px-2">
           <Monitor className="w-8 h-8 text-accent" />
           <span className="text-xl font-bold tracking-tight font-headline">NEU LabTrack</span>
@@ -92,7 +92,7 @@ export default function AdminLayout({
         <nav className="flex-1 space-y-2">
           <Link 
             href="/admin" 
-            className={`flex items-center gap-3 p-3 rounded-lg transition-colors duration-150 ${
+            className={`flex items-center gap-3 p-3 rounded-lg transition-colors duration-200 ${
               pathname === '/admin' ? 'bg-white/20' : 'hover:bg-white/10'
             }`}
           >
@@ -101,7 +101,7 @@ export default function AdminLayout({
           </Link>
           <Link 
             href="/admin/professors" 
-            className={`flex items-center gap-3 p-3 rounded-lg transition-colors duration-150 ${
+            className={`flex items-center gap-3 p-3 rounded-lg transition-colors duration-200 ${
               pathname === '/admin/professors' ? 'bg-white/20' : 'hover:bg-white/10'
             }`}
           >
@@ -118,7 +118,7 @@ export default function AdminLayout({
           <Button 
             variant="ghost" 
             onClick={handleSignOut}
-            className="w-full justify-start text-white hover:bg-white/10 gap-3 transition-all duration-150"
+            className="w-full justify-start text-white hover:bg-white/10 gap-3 transition-all duration-200"
           >
             <LogOut className="w-5 h-5" />
             Sign Out

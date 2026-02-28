@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo } from 'react';
@@ -57,7 +56,7 @@ export default function ProfessorManagement() {
   }, [users, searchTerm]);
 
   return (
-    <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-300 pb-12">
+    <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold font-headline text-primary tracking-tight">Professor Directory</h1>
@@ -128,7 +127,7 @@ export default function ProfessorManagement() {
                     <TableRow key={prof.id} className="hover:bg-slate-50/80 transition-colors group">
                       <TableCell className="px-6 py-4">
                         <div className="flex items-center gap-4">
-                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-sm transition-transform duration-200 group-hover:scale-110 ${
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-sm transition-transform duration-300 group-hover:scale-110 ${
                             prof.isBlocked ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'
                           }`}>
                             {(prof.name || prof.displayName || prof.email || 'A')[0].toUpperCase()}
