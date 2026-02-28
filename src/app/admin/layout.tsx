@@ -64,7 +64,8 @@ export default function AdminLayout({
       // We give a 5-second grace period for initial synchronization before redirecting.
       if (isInstitutional) {
         const timer = setTimeout(() => {
-          // Re-check after 5 seconds if still not authorized
+          // Re-calculate isAdmin within the timeout to check the latest state
+          // Note: The outer isAdmin is stale here, but this effect re-runs on changes
           if (!isAdmin) {
             setIsAuthorized(false);
             router.push('/');

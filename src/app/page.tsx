@@ -86,7 +86,7 @@ export default function Home() {
       // Delay redirection slightly to allow background sync to initiate
       setTimeout(() => {
         router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
-      }, 500);
+      }, 800);
 
     } catch (error: any) {
       if (error.code === 'auth/popup-closed-by-user') return;
