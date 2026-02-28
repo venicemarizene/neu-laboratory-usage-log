@@ -4,16 +4,15 @@
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertCircle, LogIn, Monitor, QrCode, Loader2, ShieldCheck, UserCircle, LogOut, Mail, Lock, Info, AlertTriangle } from 'lucide-react';
+import { AlertCircle, LogIn, Monitor, QrCode, Loader2, ShieldCheck, UserCircle, LogOut, Info } from 'lucide-react';
 import { useAuth, useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
-import { GoogleAuthProvider, signInWithPopup, signOut, signInWithEmailAndPassword } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Input } from '@/components/ui/input';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function Home() {
   const router = useRouter();
@@ -26,10 +25,6 @@ export default function Home() {
   const [isScanning, setIsScanning] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-
-  // Email/Password states
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
 
   const syncUserProfile = (userId: string, data: any) => {
     if (!firestore) return;
@@ -96,45 +91,6 @@ export default function Home() {
         variant: 'destructive',
         title: 'Authentication Error',
         description: error.message || 'An unexpected error occurred during institutional sign-in.',
-      });
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  const handleEmailSignIn = async (targetRole: 'admin' | 'professor') => {
-    if (!auth || !firestore || !email || !password) {
-      toast({ variant: 'destructive', title: 'Missing Credentials', description: 'Email and password are required.' });
-      return;
-    }
-    
-    setIsLoggingIn(true);
-    try {
-      const result = await signInWithEmailAndPassword(auth, email, password);
-      
-      syncUserProfile(result.user.uid, {
-        name: result.user.displayName || email.split('@')[0],
-        email: result.user.email,
-        role: targetRole === 'admin' ? 'Admin' : 'Professor'
-      });
-
-      toast({ title: 'Authorized Sign-in', description: 'System credentials verified.' });
-      router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
-    } catch (error: any) {
-      let errorMessage = error.message;
-      if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
-        const isInstitutional = !!email.toLowerCase().match(/@([^@]+\.)?neu\.edu\.ph$/i);
-        if (isInstitutional) {
-          errorMessage = 'Credential mismatch. IMPORTANT: Your University Google password will NOT work here. Please use the "Google SSO" tab instead.';
-        } else {
-          errorMessage = 'Invalid credentials. Please check your email and password.';
-        }
-      }
-      
-      toast({
-        variant: 'destructive',
-        title: 'Sign-in Failed',
-        description: errorMessage
       });
     } finally {
       setIsLoggingIn(false);
@@ -237,52 +193,22 @@ export default function Home() {
             </TabsList>
             
             <TabsContent value="professor" className="p-6 space-y-4 m-0">
-              <Tabs defaultValue="google" className="w-full">
-                <TabsList className="grid grid-cols-2 w-full mb-4 h-9">
-                  <TabsTrigger value="google" className="text-xs">Google SSO</TabsTrigger>
-                  <TabsTrigger value="manual" className="text-xs">Manual Entry</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="google" className="space-y-4">
-                  <Alert variant="default" className="bg-primary/5 border-primary/20 py-3 text-left">
-                    <Info className="h-4 w-4 text-primary" />
-                    <AlertDescription className="text-xs font-medium">
-                      Standard login for all NEU faculty. Use your official Google account.
-                    </AlertDescription>
-                  </Alert>
-                  <Button 
-                    onClick={() => handleGoogleSignIn('professor')}
-                    disabled={isLoggingIn}
-                    className="w-full h-12 text-base font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
-                  >
-                    {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}
-                    Sign in with Google
-                  </Button>
-                </TabsContent>
-
-                <TabsContent value="manual" className="space-y-4">
-                  <Alert variant="destructive" className="py-2 text-left bg-destructive/5 border-destructive/20">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle className="text-xs font-bold">Important Notice</AlertTitle>
-                    <AlertDescription className="text-[10px] font-medium leading-tight">
-                      Your University Google password <strong>will not work here</strong>. Use the "Google SSO" tab if you use your University Google account.
-                    </AlertDescription>
-                  </Alert>
-                  <div className="space-y-2">
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                      <Input placeholder="name@neu.edu.ph" className="pl-9 h-10 text-sm" value={email} onChange={(e) => setEmail(e.target.value)} />
-                    </div>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                      <Input type="password" placeholder="System Password" className="pl-9 h-10 text-sm" value={password} onChange={(e) => setPassword(e.target.value)} />
-                    </div>
-                  </div>
-                  <Button onClick={() => handleEmailSignIn('professor')} disabled={isLoggingIn} className="w-full h-10 font-bold transition-all duration-200">
-                    {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Manual Login'}
-                  </Button>
-                </TabsContent>
-              </Tabs>
+              <div className="space-y-4">
+                <Alert variant="default" className="bg-primary/5 border-primary/20 py-3 text-left">
+                  <Info className="h-4 w-4 text-primary" />
+                  <AlertDescription className="text-xs font-medium">
+                    Institutional Google accounts required for faculty entry.
+                  </AlertDescription>
+                </Alert>
+                <Button 
+                  onClick={() => handleGoogleSignIn('professor')}
+                  disabled={isLoggingIn}
+                  className="w-full h-12 text-base font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
+                >
+                  {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}
+                  Faculty Google Login
+                </Button>
+              </div>
               
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
@@ -306,52 +232,22 @@ export default function Home() {
             </TabsContent>
 
             <TabsContent value="admin" className="p-6 space-y-4 m-0">
-              <Tabs defaultValue="google" className="w-full">
-                <TabsList className="grid grid-cols-2 w-full mb-4 h-9">
-                  <TabsTrigger value="google" className="text-xs">Google SSO</TabsTrigger>
-                  <TabsTrigger value="manual" className="text-xs">Manual Entry</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="google" className="space-y-4">
-                  <Alert variant="default" className="bg-primary/5 border-primary/20 py-3 text-left">
-                    <ShieldCheck className="h-4 w-4 text-primary" />
-                    <AlertDescription className="text-xs font-medium">
-                      Admin privileges are tied to your institutional Google identity.
-                    </AlertDescription>
-                  </Alert>
-                  <Button 
-                    onClick={() => handleGoogleSignIn('admin')}
-                    disabled={isLoggingIn}
-                    className="w-full h-12 text-base font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
-                  >
-                    {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
-                    Admin Google Sign-In
-                  </Button>
-                </TabsContent>
-
-                <TabsContent value="manual" className="space-y-4">
-                  <Alert variant="destructive" className="py-2 text-left bg-destructive/5 border-destructive/20">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle className="text-xs font-bold">Security Notice</AlertTitle>
-                    <AlertDescription className="text-[10px] font-medium leading-tight">
-                      Use the "Google SSO" tab if you use your University Google account.
-                    </AlertDescription>
-                  </Alert>
-                  <div className="space-y-2">
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                      <Input placeholder="admin@neu.edu.ph" className="pl-9 h-10 text-sm" value={email} onChange={(e) => setEmail(e.target.value)} />
-                    </div>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                      <Input type="password" placeholder="Admin Password" className="pl-9 h-10 text-sm" value={password} onChange={(e) => setPassword(e.target.value)} />
-                    </div>
-                  </div>
-                  <Button onClick={() => handleEmailSignIn('admin')} disabled={isLoggingIn} className="w-full h-10 font-bold bg-primary transition-all duration-200">
-                    {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Admin Login'}
-                  </Button>
-                </TabsContent>
-              </Tabs>
+              <div className="space-y-4">
+                <Alert variant="default" className="bg-primary/5 border-primary/20 py-3 text-left">
+                  <ShieldCheck className="h-4 w-4 text-primary" />
+                  <AlertDescription className="text-xs font-medium">
+                    Admin privileges are strictly tied to institutional Google identities.
+                  </AlertDescription>
+                </Alert>
+                <Button 
+                  onClick={() => handleGoogleSignIn('admin')}
+                  disabled={isLoggingIn}
+                  className="w-full h-12 text-base font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
+                >
+                  {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
+                  Admin Google Sign-In
+                </Button>
+              </div>
               
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">

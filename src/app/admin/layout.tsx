@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useUser, useAuth, useDoc, useMemoFirebase, useFirestore } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function AdminLayout({
   children,
@@ -21,7 +21,6 @@ export default function AdminLayout({
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
-  const syncAttemptRef = useRef(0);
 
   // Fetch the role-specific marker for security rules check
   const adminMarkerRef = useMemoFirebase(() => {
@@ -50,24 +49,27 @@ export default function AdminLayout({
 
     if (isMarkerLoading || isProfileLoading) return;
 
-    // A user is an admin if they have the marker OR the profile explicitly says so
     const isAdmin = !!adminMarker || profileData?.role === 'Admin';
     const isInstitutional = !!user.email?.toLowerCase().match(/@([^@]+\.)?neu\.edu\.ph$/i);
     
     if (isAdmin) {
       setIsAuthorized(true);
     } else {
-      // If the user just signed in as Admin but Firestore hasn't updated yet,
-      // we give it a few retries before kicking them out.
-      if (syncAttemptRef.current < 5 && isInstitutional) {
-        syncAttemptRef.current += 1;
-        const timer = setTimeout(() => {
-          setIsAuthorized(null); // Trigger re-evaluation
-        }, 1000);
-        return () => clearTimeout(timer);
-      } else {
+      // If the user just signed in, Firestore might still be syncing in background.
+      // We check if they are institutional first.
+      if (!isInstitutional) {
         setIsAuthorized(false);
         router.push('/');
+      } else {
+        // Institutional users who just signed in as Admin get a grace period
+        // to wait for the background synchronization to complete.
+        const timer = setTimeout(() => {
+          if (!isAdmin) {
+            setIsAuthorized(false);
+            router.push('/');
+          }
+        }, 3000); // 3 second grace period for initial sync
+        return () => clearTimeout(timer);
       }
     }
   }, [user, isUserLoading, isMarkerLoading, isProfileLoading, adminMarker, profileData, router]);
