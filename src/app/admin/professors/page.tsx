@@ -45,9 +45,14 @@ export default function ProfessorManagement() {
     if (!term) return users;
 
     return users.filter(p => {
-      const name = (p.name || p.displayName || '').toLowerCase();
+      // Check multiple potential name fields and email for robust search
+      const name = (p.name || '').toLowerCase();
+      const displayName = (p.displayName || '').toLowerCase();
       const email = (p.email || '').toLowerCase();
-      return name.includes(term) || email.includes(term);
+      
+      return name.includes(term) || 
+             displayName.includes(term) || 
+             email.includes(term);
     });
   }, [users, searchTerm]);
 
@@ -114,7 +119,7 @@ export default function ProfessorManagement() {
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <UserRound className="w-12 h-12 opacity-20" />
                         <p className="font-bold text-lg">No matching records found</p>
-                        <p className="text-sm">Try searching with a different name or check if the user has signed in once.</p>
+                        <p className="text-sm">Try searching with a different name or email.</p>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -160,7 +165,7 @@ export default function ProfessorManagement() {
                           </span>
                           <Switch 
                             checked={!!prof.isBlocked}
-                            onCheckedChange={() => toggleBlocked(prof.id, !!prof.isBlocked, prof.name || prof.email)}
+                            onCheckedChange={() => toggleBlocked(prof.id, !!prof.isBlocked, prof.name || prof.displayName || prof.email)}
                             className="data-[state=checked]:bg-destructive"
                           />
                         </div>

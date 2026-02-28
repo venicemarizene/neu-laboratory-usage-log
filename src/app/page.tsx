@@ -6,13 +6,14 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertCircle, LogIn, Monitor, QrCode, Loader2, ShieldCheck, UserCircle, LogOut, Mail, Lock } from 'lucide-react';
+import { AlertCircle, LogIn, Monitor, QrCode, Loader2, ShieldCheck, UserCircle, LogOut, Mail, Lock, Info } from 'lucide-react';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { GoogleAuthProvider, signInWithPopup, signOut, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function Home() {
   const router = useRouter();
@@ -35,7 +36,7 @@ export default function Home() {
     const userRef = doc(firestore, 'user_profiles', userId);
     await setDoc(userRef, {
       id: userId,
-      name: data.name || 'Anonymous Faculty',
+      name: data.name || data.displayName || 'Anonymous Faculty',
       email: data.email,
       role: data.role || 'Professor',
       isBlocked: false,
@@ -114,12 +115,15 @@ export default function Home() {
       toast({ title: 'Sign-in Successful', description: `Welcome back.` });
       router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
     } catch (error: any) {
+      let errorMessage = error.message;
+      if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+        errorMessage = 'Wrong password. If this is a Google-based institutional email, please use the "Google SSO" tab instead.';
+      }
+      
       toast({
         variant: 'destructive',
         title: 'Sign-in Failed',
-        description: error.code === 'auth/wrong-password' 
-          ? 'Incorrect password. Please verify your credentials or use Google SSO.' 
-          : error.message
+        description: errorMessage
       });
     } finally {
       setIsLoggingIn(false);
@@ -231,6 +235,12 @@ export default function Home() {
                 </TabsList>
                 
                 <TabsContent value="google" className="space-y-4">
+                  <Alert variant="default" className="bg-primary/5 border-primary/20">
+                    <Info className="h-4 w-4 text-primary" />
+                    <AlertDescription className="text-xs font-medium">
+                      Google accounts should use the button below for seamless login.
+                    </AlertDescription>
+                  </Alert>
                   <Button 
                     onClick={() => handleGoogleSignIn('professor')}
                     disabled={isLoggingIn}
@@ -287,6 +297,12 @@ export default function Home() {
                 </TabsList>
 
                 <TabsContent value="google" className="space-y-4">
+                  <Alert variant="default" className="bg-primary/5 border-primary/20">
+                    <Info className="h-4 w-4 text-primary" />
+                    <AlertDescription className="text-xs font-medium">
+                      Admin accounts using Google should sign in here.
+                    </AlertDescription>
+                  </Alert>
                   <Button 
                     onClick={() => handleGoogleSignIn('admin')}
                     disabled={isLoggingIn}
