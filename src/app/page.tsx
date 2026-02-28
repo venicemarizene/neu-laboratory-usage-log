@@ -80,10 +80,13 @@ export default function Home() {
 
       toast({
         title: 'Institutional Access Granted',
-        description: `Authenticated as ${targetRole}. Redirecting...`,
+        description: `Authenticated as ${targetRole}. Redirecting to ${targetRole} dashboard...`,
       });
       
-      router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
+      // Delay redirection slightly to allow background sync to initiate
+      setTimeout(() => {
+        router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
+      }, 500);
 
     } catch (error: any) {
       if (error.code === 'auth/popup-closed-by-user') return;
@@ -113,6 +116,7 @@ export default function Home() {
         videoRef.current.srcObject = stream;
       }
       
+      // Simulated scan for demo purposes
       setTimeout(async () => {
         const mockScannedQR = 'ADMIN_QR_001'; 
         handleQRLogin(mockScannedQR);

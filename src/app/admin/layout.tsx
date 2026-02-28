@@ -61,15 +61,15 @@ export default function AdminLayout({
     } else {
       // If the user just signed in as an institutional user, Firestore might still be 
       // synchronizing the newly created Admin marker in the background.
-      // We give a 3-second grace period for initial synchronization before redirecting.
+      // We give a 5-second grace period for initial synchronization before redirecting.
       if (isInstitutional) {
         const timer = setTimeout(() => {
-          // Re-check after 3 seconds
+          // Re-check after 5 seconds if still not authorized
           if (!isAdmin) {
             setIsAuthorized(false);
             router.push('/');
           }
-        }, 3000);
+        }, 5000);
         return () => clearTimeout(timer);
       } else {
         // Not institutional and not admin? Redirect immediately
