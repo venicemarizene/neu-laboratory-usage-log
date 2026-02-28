@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef } from 'react';
@@ -8,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertCircle, LogIn, Monitor, QrCode, Loader2, ShieldCheck, UserCircle, LogOut, Mail, Lock, Info } from 'lucide-react';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { GoogleAuthProvider, signInWithPopup, signOut, signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -30,32 +31,26 @@ export default function Home() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const syncUserProfile = async (userId: string, data: any) => {
+  const syncUserProfile = (userId: string, data: any) => {
     if (!firestore) return;
     const userRef = doc(firestore, 'user_profiles', userId);
-    const adminRoleRef = doc(firestore, 'roles_admin', userId);
     
-    // Fetch existing profile to preserve sensitive fields
-    const existingDoc = await getDoc(userRef);
-    const existingData = existingDoc.data();
-    
+    // Use non-blocking setDoc with merge to speed up transition
+    // Latency compensation will make this available to the next page immediately
     const profileData: any = {
       id: userId,
-      name: data.name || data.displayName || existingData?.name || 'Anonymous Faculty',
-      email: data.email || existingData?.email,
-      role: data.role || existingData?.role || 'Professor',
-      qrString: existingData?.qrString || (data.role === 'Admin' ? `ADMIN_${userId.slice(0,5)}` : `PROF_${userId.slice(0,5)}`)
+      name: data.name || data.displayName || 'Anonymous Faculty',
+      email: data.email,
+      role: data.role || 'Professor',
+      qrString: data.role === 'Admin' ? `ADMIN_${userId.slice(0,5)}` : `PROF_${userId.slice(0,5)}`
     };
 
-    if (!existingDoc.exists()) {
-      profileData.isBlocked = false;
-    }
+    setDoc(userRef, profileData, { merge: true });
 
-    if (profileData.role === 'Admin') {
-      await setDoc(adminRoleRef, { active: true }, { merge: true });
+    if (data.role === 'Admin') {
+      const adminRoleRef = doc(firestore, 'roles_admin', userId);
+      setDoc(adminRoleRef, { active: true }, { merge: true });
     }
-
-    await setDoc(userRef, profileData, { merge: true });
   };
 
   const handleGoogleSignIn = async (targetRole: 'admin' | 'professor') => {
@@ -80,7 +75,8 @@ export default function Home() {
         return;
       }
 
-      await syncUserProfile(result.user.uid, {
+      // Initiate sync without awaiting it to speed up navigation
+      syncUserProfile(result.user.uid, {
         name: result.user.displayName,
         email: result.user.email,
         role: targetRole === 'admin' ? 'Admin' : 'Professor'
@@ -88,8 +84,10 @@ export default function Home() {
 
       toast({
         title: 'Sign-in Successful',
-        description: `Welcome to the ${targetRole === 'admin' ? 'Admin' : 'Professor'} portal.`,
+        description: `Welcome to the portal.`,
       });
+      
+      // Navigate immediately
       router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
 
     } catch (error: any) {
@@ -120,7 +118,7 @@ export default function Home() {
 
       const result = await signInWithEmailAndPassword(auth, email, password);
       
-      await syncUserProfile(result.user.uid, {
+      syncUserProfile(result.user.uid, {
         name: result.user.displayName || email.split('@')[0],
         email: result.user.email,
         role: targetRole === 'admin' ? 'Admin' : 'Professor'
@@ -131,7 +129,7 @@ export default function Home() {
     } catch (error: any) {
       let errorMessage = error.message;
       if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-        errorMessage = 'Credential mismatch. If you normally use Google for your institutional email, please use the "Google SSO" tab above instead.';
+        errorMessage = 'Credential mismatch. If you use Google for your institutional email, use the "Google SSO" tab above.';
       }
       
       toast({
@@ -160,10 +158,11 @@ export default function Home() {
         videoRef.current.srcObject = stream;
       }
       
+      // Reduced delay for scanning simulation
       setTimeout(async () => {
         const mockScannedQR = 'ADMIN_QR_001'; 
         handleQRLogin(mockScannedQR);
-      }, 1000);
+      }, 300);
 
     } catch (error) {
       setHasCameraPermission(false);
@@ -180,10 +179,8 @@ export default function Home() {
 
   const handleQRLogin = (qrString: string) => {
     if (qrString === 'ADMIN_QR_001') {
-      toast({ title: 'Access Verified', description: 'Entering Administrator Panel.' });
       router.push('/admin');
     } else if (qrString.startsWith('PROF')) {
-      toast({ title: 'Access Verified', description: 'Entering Professor Portal.' });
       router.push('/professor');
     } else {
       toast({ variant: 'destructive', title: 'Invalid Token', description: 'Institutional QR code not recognized.' });
@@ -228,7 +225,7 @@ export default function Home() {
           </div>
         )}
 
-        <Card className="border-none shadow-2xl overflow-hidden rounded-2xl transition-all duration-300">
+        <Card className="border-none shadow-2xl overflow-hidden rounded-2xl">
           <Tabs defaultValue="professor" className="w-full">
             <TabsList className="w-full grid grid-cols-2 rounded-none h-14 bg-muted/30">
               <TabsTrigger value="professor" className="data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-2 text-sm font-semibold transition-all duration-200">
@@ -241,7 +238,7 @@ export default function Home() {
               </TabsTrigger>
             </TabsList>
             
-            <TabsContent value="professor" className="p-6 space-y-4 m-0 animate-in fade-in duration-300">
+            <TabsContent value="professor" className="p-6 space-y-4 m-0">
               <Tabs defaultValue="google" className="w-full">
                 <TabsList className="grid grid-cols-2 w-full mb-4 h-9">
                   <TabsTrigger value="google" className="text-xs">Google SSO</TabsTrigger>
@@ -258,7 +255,7 @@ export default function Home() {
                   <Button 
                     onClick={() => handleGoogleSignIn('professor')}
                     disabled={isLoggingIn}
-                    className="w-full h-12 text-base font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-300 active:scale-95"
+                    className="w-full h-12 text-base font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
                   >
                     {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}
                     Sign in with Google
@@ -303,7 +300,7 @@ export default function Home() {
               } onStop={stopScanning} videoRef={videoRef} hasCameraPermission={hasCameraPermission} isScanning={isScanning} />
             </TabsContent>
 
-            <TabsContent value="admin" className="p-6 space-y-4 m-0 animate-in fade-in duration-300">
+            <TabsContent value="admin" className="p-6 space-y-4 m-0">
               <Tabs defaultValue="google" className="w-full">
                 <TabsList className="grid grid-cols-2 w-full mb-4 h-9">
                   <TabsTrigger value="google" className="text-xs">Google SSO</TabsTrigger>
@@ -320,7 +317,7 @@ export default function Home() {
                   <Button 
                     onClick={() => handleGoogleSignIn('admin')}
                     disabled={isLoggingIn}
-                    className="w-full h-12 text-base font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-300 active:scale-95"
+                    className="w-full h-12 text-base font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
                   >
                     {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
                     Admin Google Sign-In
@@ -389,7 +386,7 @@ function QRScannerDialog({ trigger, onStop, videoRef, hasCameraPermission, isSca
       <DialogTrigger asChild>
         {trigger}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md transition-all duration-300">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">Scan Access Token</DialogTitle>
           <DialogDescription>
@@ -397,7 +394,7 @@ function QRScannerDialog({ trigger, onStop, videoRef, hasCameraPermission, isSca
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col items-center justify-center space-y-4 py-4">
-          <div className="relative w-full aspect-square max-w-[280px] overflow-hidden rounded-2xl border-4 border-dashed border-primary/20 bg-black flex items-center justify-center shadow-2xl transition-all duration-300">
+          <div className="relative w-full aspect-square max-w-[280px] overflow-hidden rounded-2xl border-4 border-dashed border-primary/20 bg-black flex items-center justify-center shadow-2xl">
             <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" autoPlay muted playsInline />
             {hasCameraPermission === false && (
               <div className="z-10 text-white text-center p-6 bg-black/60 backdrop-blur-sm h-full w-full flex flex-col items-center justify-center">

@@ -1,3 +1,4 @@
+
 "use client"
 
 import Link from 'next/link';
@@ -51,11 +52,8 @@ export default function AdminLayout({
       
       if (!hasExplicitAdminRole) {
         setIsAuthorized(false);
-        // Standard delay to ensure routing doesn't conflict
-        const timer = setTimeout(() => {
-          router.push('/');
-        }, 300);
-        return () => clearTimeout(timer);
+        // Immediate redirect without artificial delay
+        router.push('/');
       } else {
         setIsAuthorized(true);
       }
@@ -82,8 +80,8 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen flex bg-background">
-      <aside className="w-64 bg-primary text-primary-foreground hidden md:flex flex-col p-6 shadow-2xl transition-all duration-300">
+    <div className="min-h-screen flex bg-background animate-in fade-in duration-300">
+      <aside className="w-64 bg-primary text-primary-foreground hidden md:flex flex-col p-6 shadow-2xl">
         <div className="flex items-center gap-3 mb-10 px-2">
           <Monitor className="w-8 h-8 text-accent" />
           <span className="text-xl font-bold tracking-tight font-headline">NEU LabTrack</span>
