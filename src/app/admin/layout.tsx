@@ -21,17 +21,17 @@ export default function AdminLayout({
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
-  const checkCount = useRef(0);
+  const syncAttemptRef = useRef(0);
 
-  // Robust check if current user is an admin via roles_admin collection
-  const adminRef = useMemoFirebase(() => {
+  // Fetch the role-specific marker for security rules check
+  const adminMarkerRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'roles_admin', user.uid);
   }, [firestore, user]);
   
-  const { data: adminRoleDoc, isLoading: isAdminCheckLoading } = useDoc(adminRef);
+  const { data: adminMarker, isLoading: isMarkerLoading } = useDoc(adminMarkerRef);
 
-  // Fetch the user's profile to check their recorded role
+  // Fetch the general profile
   const profileRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'user_profiles', user.uid);
@@ -48,30 +48,29 @@ export default function AdminLayout({
       return;
     }
 
-    if (isAdminCheckLoading || isProfileLoading) return;
+    if (isMarkerLoading || isProfileLoading) return;
 
-    // Check both explicit role marker and profile data
-    const hasExplicitAdminRole = !!adminRoleDoc || profileData?.role === 'Admin';
+    // A user is an admin if they have the marker OR the profile explicitly says so
+    const isAdmin = !!adminMarker || profileData?.role === 'Admin';
     const isInstitutional = !!user.email?.toLowerCase().match(/@([^@]+\.)?neu\.edu\.ph$/i);
     
-    if (hasExplicitAdminRole) {
+    if (isAdmin) {
       setIsAuthorized(true);
     } else {
-      // Grace period for first-time synchronization:
-      // If the user is institutional but the admin documents haven't synced yet,
-      // we wait for a few cycles before redirecting.
-      if (checkCount.current < 5 && isInstitutional) {
-        checkCount.current += 1;
+      // If the user just signed in as Admin but Firestore hasn't updated yet,
+      // we give it a few retries before kicking them out.
+      if (syncAttemptRef.current < 5 && isInstitutional) {
+        syncAttemptRef.current += 1;
         const timer = setTimeout(() => {
-          setIsAuthorized(null); // Force re-evaluation
-        }, 800);
+          setIsAuthorized(null); // Trigger re-evaluation
+        }, 1000);
         return () => clearTimeout(timer);
       } else {
         setIsAuthorized(false);
         router.push('/');
       }
     }
-  }, [user, isUserLoading, isAdminCheckLoading, isProfileLoading, adminRoleDoc, profileData, router]);
+  }, [user, isUserLoading, isMarkerLoading, isProfileLoading, adminMarker, profileData, router]);
 
   const handleSignOut = async () => {
     if (auth) {
@@ -81,12 +80,12 @@ export default function AdminLayout({
     }
   };
 
-  if (isUserLoading || isAdminCheckLoading || isProfileLoading || isAuthorized === null || !user) {
+  if (isUserLoading || isMarkerLoading || isProfileLoading || isAuthorized === null || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
           <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
-          <p className="text-muted-foreground font-bold text-sm tracking-tight italic">Verifying Institutional Admin Status...</p>
+          <p className="text-muted-foreground font-bold text-sm tracking-tight italic">Verifying Administrative Access...</p>
         </div>
       </div>
     );

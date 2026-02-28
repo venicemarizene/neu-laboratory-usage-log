@@ -4,7 +4,7 @@
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertCircle, LogIn, Monitor, QrCode, Loader2, ShieldCheck, UserCircle, LogOut, Mail, Lock, Info, AlertTriangle } from 'lucide-react';
 import { useAuth, useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
@@ -104,14 +104,12 @@ export default function Home() {
 
   const handleEmailSignIn = async (targetRole: 'admin' | 'professor') => {
     if (!auth || !firestore || !email || !password) {
-      toast({ variant: 'destructive', title: 'Missing Credentials', description: 'Email and password are required for manual entry.' });
+      toast({ variant: 'destructive', title: 'Missing Credentials', description: 'Email and password are required.' });
       return;
     }
     
     setIsLoggingIn(true);
     try {
-      const isInstitutional = !!email.toLowerCase().match(/@([^@]+\.)?neu\.edu\.ph$/i);
-      
       const result = await signInWithEmailAndPassword(auth, email, password);
       
       syncUserProfile(result.user.uid, {
@@ -124,8 +122,13 @@ export default function Home() {
       router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
     } catch (error: any) {
       let errorMessage = error.message;
-      if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        errorMessage = 'Credential mismatch. NOTE: Your University Google password will NOT work here. Use the "Google SSO" tab instead.';
+      if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
+        const isInstitutional = !!email.toLowerCase().match(/@([^@]+\.)?neu\.edu\.ph$/i);
+        if (isInstitutional) {
+          errorMessage = 'Credential mismatch. IMPORTANT: Your University Google password will NOT work here. Please use the "Google SSO" tab instead.';
+        } else {
+          errorMessage = 'Invalid credentials. Please check your email and password.';
+        }
       }
       
       toast({
