@@ -34,6 +34,7 @@ export default function Home() {
   const syncUserProfile = async (userId: string, data: any) => {
     if (!firestore) return;
     const userRef = doc(firestore, 'user_profiles', userId);
+    const adminRoleRef = doc(firestore, 'roles_admin', userId);
     
     // Fetch existing profile to preserve sensitive fields
     const existingDoc = await getDoc(userRef);
@@ -43,14 +44,19 @@ export default function Home() {
       id: userId,
       name: data.name || data.displayName || existingData?.name || 'Anonymous Faculty',
       email: data.email || existingData?.email,
-      // Only set role if it's a new user; otherwise preserve existing role
-      role: existingData?.role || data.role || 'Professor',
+      // Only set role if it's a new user or if target role is provided; otherwise preserve existing role
+      role: data.role || existingData?.role || 'Professor',
       qrString: existingData?.qrString || (data.role === 'Admin' ? `ADMIN_${userId.slice(0,5)}` : `PROF_${userId.slice(0,5)}`)
     };
 
     // Only set isBlocked to false if it's a brand new user
     if (!existingDoc.exists()) {
       profileData.isBlocked = false;
+    }
+
+    // Ensure Admin status is reflected in both collections
+    if (profileData.role === 'Admin') {
+      await setDoc(adminRoleRef, { active: true }, { merge: true });
     }
 
     await setDoc(userRef, profileData, { merge: true });

@@ -48,8 +48,11 @@ service cloud.firestore {
     }
 
     match /roles_admin/{userId} {
-      allow get: if isOwner(userId) || isInstitutionalUser();
-      allow read, write: if false;
+      // Allow the user to check their own role status and institutional users to check existence
+      allow get: if isOwner(userId) || isAdmin() || isInstitutionalUser();
+      // Only system-level or initial setup should create these; for MVP, allow institutional users to 'create' their own if setting themselves as admin
+      allow create: if isOwner(userId) && isInstitutionalUser();
+      allow list, update, delete: if false;
     }
   }
 }

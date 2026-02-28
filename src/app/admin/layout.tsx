@@ -39,6 +39,7 @@ export default function AdminLayout({
   const { data: profileData, isLoading: isProfileLoading } = useDoc(profileRef);
 
   useEffect(() => {
+    // Only proceed once we've tried to load everything
     if (!isUserLoading && !isAdminCheckLoading && !isProfileLoading) {
       if (!user) {
         setIsAuthorized(false);
@@ -46,12 +47,17 @@ export default function AdminLayout({
         return;
       }
 
-      // Stricter check: must have an explicit admin role or record
+      // Check for authorization: doc in roles_admin collection OR explicit 'Admin' role in profile
+      // This provides a fallback if the roles_admin check is still propagating
       const hasExplicitAdminRole = !!adminRoleDoc || profileData?.role === 'Admin';
       
       if (!hasExplicitAdminRole) {
         setIsAuthorized(false);
-        router.push('/');
+        // Short delay to avoid race conditions with sign-in routing
+        const timer = setTimeout(() => {
+          router.push('/');
+        }, 500);
+        return () => clearTimeout(timer);
       } else {
         setIsAuthorized(true);
       }
