@@ -1,12 +1,44 @@
+
+"use client"
+
 import Link from 'next/link';
-import { LayoutDashboard, Users, ClipboardList, LogOut, Microscope } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { LayoutDashboard, Users, LogOut, Microscope, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useUser, useAuth } from '@/firebase';
+import { signOut } from 'firebase/auth';
+import { useEffect } from 'react';
 
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const router = useRouter();
+  const { auth } = useAuth() ? { auth: useAuth() } : { auth: null };
+  const { user, isUserLoading } = useUser();
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/');
+    }
+  }, [user, isUserLoading, router]);
+
+  const handleSignOut = async () => {
+    if (auth) {
+      await signOut(auth);
+      router.push('/');
+    }
+  };
+
+  if (isUserLoading || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex bg-background">
       {/* Sidebar */}
@@ -28,12 +60,14 @@ export default function AdminLayout({
         </nav>
 
         <div className="pt-6 border-t border-white/10">
-          <Link href="/">
-            <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10 gap-3">
-              <LogOut className="w-5 h-5" />
-              Sign Out
-            </Button>
-          </Link>
+          <Button 
+            variant="ghost" 
+            onClick={handleSignOut}
+            className="w-full justify-start text-white hover:bg-white/10 gap-3"
+          >
+            <LogOut className="w-5 h-5" />
+            Sign Out
+          </Button>
         </div>
       </aside>
 
@@ -42,9 +76,9 @@ export default function AdminLayout({
         <header className="h-16 border-b bg-card px-8 flex items-center justify-between">
           <h2 className="font-semibold text-lg text-primary">Administrator Panel</h2>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">admin@neu.edu</span>
+            <span className="text-sm text-muted-foreground">{user.email}</span>
             <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center font-bold text-primary text-xs">
-              AD
+              {user.displayName?.[0] || 'A'}
             </div>
           </div>
         </header>

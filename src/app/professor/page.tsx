@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -6,25 +7,78 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Microscope, QrCode, LogOut, CheckCircle2, AlertTriangle, Camera } from 'lucide-react';
-import { MOCK_USERS } from '@/lib/mock-data';
+import { Microscope, QrCode, LogOut, CheckCircle2, AlertTriangle, Camera, Loader2 } from 'lucide-react';
+import { useUser, useAuth, useFirestore } from '@/firebase';
+import { signOut } from 'firebase/auth';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ProfessorPortal() {
   const router = useRouter();
-  const [user, setUser] = useState(MOCK_USERS.find(u => u.uid === 'prof-1')!);
+  const { auth, firestore } = useAuth() ? { auth: useAuth(), firestore: useFirestore() } : { auth: null, firestore: null };
+  const { user, isUserLoading } = useUser();
+  const { toast } = useToast();
+
   const [room, setRoom] = useState('');
   const [scanning, setScanning] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'blocked'>('idle');
+  const [profileData, setProfileData] = useState<any>(null);
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/');
+    }
+  }, [user, isUserLoading, router]);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (user && firestore) {
+        const q = query(collection(firestore, 'user_profiles'), where('id', '==', user.uid), limit(1));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          setProfileData(snap.docs[0].data());
+        }
+      }
+    };
+    fetchProfile();
+  }, [user, firestore]);
+
+  const handleSignOut = async () => {
+    if (auth) {
+      await signOut(auth);
+      router.push('/');
+    }
+  };
 
   const handleScan = () => {
+    if (!room) return;
     setScanning(true);
-    // Simulate QR scan delay
-    setTimeout(() => {
+    
+    // Simulate real database check
+    setTimeout(async () => {
       setScanning(false);
-      if (user.blocked) {
+      if (profileData?.isBlocked) {
         setStatus('blocked');
       } else {
-        setStatus('success');
+        try {
+          if (firestore && user) {
+            await addDoc(collection(firestore, 'room_logs'), {
+              professorId: user.uid,
+              professorName: user.displayName || profileData?.name || 'Professor',
+              roomNumber: room,
+              timestamp: new Date().toISOString(),
+              status: 'Active'
+            });
+          }
+          setStatus('success');
+        } catch (error) {
+          console.error('Logging error:', error);
+          toast({
+            variant: 'destructive',
+            title: 'Logging Failed',
+            description: 'Could not record room entry. Please check your connection.',
+          });
+        }
       }
     }, 2000);
   };
@@ -34,6 +88,14 @@ export default function ProfessorPortal() {
     setRoom('');
   };
 
+  if (isUserLoading || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background p-4 md:p-8 flex flex-col items-center">
       <header className="w-full max-w-xl flex items-center justify-between mb-8">
@@ -41,7 +103,7 @@ export default function ProfessorPortal() {
           <Microscope className="w-6 h-6 text-primary" />
           <h1 className="text-xl font-bold text-primary font-headline">NEU Lab Log</h1>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => router.push('/')} className="gap-2">
+        <Button variant="ghost" size="sm" onClick={handleSignOut} className="gap-2">
           <LogOut className="w-4 h-4" />
           Sign Out
         </Button>
@@ -111,35 +173,16 @@ export default function ProfessorPortal() {
           <h4 className="font-semibold text-primary">Your Profile</h4>
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-full bg-accent text-primary flex items-center justify-center font-bold">
-              JS
+              {user.displayName?.[0] || user.email?.[0]?.toUpperCase() || 'P'}
             </div>
             <div className="flex-1">
-              <p className="font-medium">{user.name}</p>
+              <p className="font-medium">{user.displayName || profileData?.name || 'Professor'}</p>
               <p className="text-xs text-muted-foreground">{user.email}</p>
             </div>
-            <Badge variant="outline">Professor</Badge>
+            <Badge variant="outline">{profileData?.role || 'Professor'}</Badge>
           </div>
         </div>
       </main>
     </div>
-  );
-}
-
-function Loader2({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-    </svg>
   );
 }
