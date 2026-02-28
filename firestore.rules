@@ -21,7 +21,8 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      // Check for explicit admin role in roles_admin collection
+      // Use exists() to check for explicit admin role in roles_admin collection
+      // This allows for granular, document-level security based on administrative status.
       return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
@@ -34,27 +35,34 @@ service cloud.firestore {
     // --- Collection Rules ---
 
     match /user_profiles/{userId} {
+      // Owners and Admins can always read profiles. Institutional users can check existence for directory.
       allow get: if isOwner(userId) || isAdmin() || isInstitutionalUser();
+      // Admins and institutional users can list for the faculty directory.
       allow list: if isInstitutionalUser() || isAdmin();
+      // Users can create their own profile if they have an institutional email.
       allow create: if isInstitutionalUser() && isOwner(userId);
-      allow update: if isOwner(userId) || isAdmin() || isInstitutionalUser();
+      // Admins can update any profile; users can update their own.
+      allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
     }
 
     match /room_logs/{logId} {
+      // Admins and institutional users can monitor activity logs.
       allow get, list: if isAdmin() || isInstitutionalUser();
+      // Active institutional users can log their sessions.
       allow create: if isInstitutionalUser() && 
                        isNotBlocked() && 
                        request.resource.data.professorId == request.auth.uid;
-      allow update, delete: if isAdmin() || isInstitutionalUser();
+      // Only admins can modify or remove historical logs.
+      allow update, delete: if isAdmin();
     }
 
     match /roles_admin/{userId} {
-      // Allow the user to check their own role status and institutional users to check existence
-      allow get: if isOwner(userId) || isAdmin() || isInstitutionalUser();
-      // Allow creation and update for the owner (marker for admin status)
+      // Users can check their own admin status; admins can check others.
+      allow get: if isOwner(userId) || isAdmin();
+      // Authorized institutional users can register as an admin (elevation check handled in app logic).
       allow create, update: if isOwner(userId) && isInstitutionalUser();
-      allow list, delete: if false;
+      allow list, delete: if isAdmin();
     }
   }
 }

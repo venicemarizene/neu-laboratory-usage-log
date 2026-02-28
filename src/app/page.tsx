@@ -35,7 +35,6 @@ export default function Home() {
     if (!firestore) return;
     const userRef = doc(firestore, 'user_profiles', userId);
     
-    // Use non-blocking utilities to avoid permission error crashes and handle them gracefully
     const profileData: any = {
       id: userId,
       name: data.name || data.displayName || 'Anonymous Faculty',
@@ -45,6 +44,7 @@ export default function Home() {
       qrString: data.role === 'Admin' ? `ADMIN_${userId.slice(0,5)}` : `PROF_${userId.slice(0,5)}`
     };
 
+    // Use non-blocking utilities to update profile in background
     setDocumentNonBlocking(userRef, profileData, { merge: true });
 
     if (data.role === 'Admin') {
@@ -75,7 +75,7 @@ export default function Home() {
         return;
       }
 
-      // Initiate sync without awaiting it to speed up navigation
+      // Sync and immediately transition to the dashboard
       syncUserProfile(result.user.uid, {
         name: result.user.displayName,
         email: result.user.email,
@@ -83,11 +83,10 @@ export default function Home() {
       });
 
       toast({
-        title: 'Sign-in Successful',
-        description: `Welcome to the portal.`,
+        title: 'Authentication Successful',
+        description: `Welcome to the ${targetRole} portal.`,
       });
       
-      // Navigate immediately
       router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
 
     } catch (error: any) {
@@ -104,7 +103,7 @@ export default function Home() {
 
   const handleEmailSignIn = async (targetRole: 'admin' | 'professor') => {
     if (!auth || !firestore || !email || !password) {
-      toast({ variant: 'destructive', title: 'Input Required', description: 'Please enter your institutional email and password.' });
+      toast({ variant: 'destructive', title: 'Input Required', description: 'Please enter your credentials.' });
       return;
     }
     
@@ -128,8 +127,8 @@ export default function Home() {
       router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
     } catch (error: any) {
       let errorMessage = error.message;
-      if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-        errorMessage = 'Credential mismatch. If you use Google for your institutional email, use the "Google SSO" tab above.';
+      if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        errorMessage = 'Credential mismatch. Use "Google SSO" if you use Google for your work email.';
       }
       
       toast({
@@ -158,11 +157,10 @@ export default function Home() {
         videoRef.current.srcObject = stream;
       }
       
-      // Reduced delay for scanning simulation
       setTimeout(async () => {
         const mockScannedQR = 'ADMIN_QR_001'; 
         handleQRLogin(mockScannedQR);
-      }, 300);
+      }, 500);
 
     } catch (error) {
       setHasCameraPermission(false);
@@ -204,7 +202,7 @@ export default function Home() {
             <Monitor className="w-10 h-10 text-primary-foreground" />
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-primary font-headline">NEU LabTrack</h1>
-          <p className="text-muted-foreground font-medium uppercase tracking-wider text-[10px]">NEU Computer Laboratory Usage Log</p>
+          <p className="text-muted-foreground font-medium uppercase tracking-wider text-[10px]">Institutional Laboratory Management</p>
         </div>
 
         {user && (
@@ -249,7 +247,7 @@ export default function Home() {
                   <Alert variant="default" className="bg-primary/5 border-primary/20 py-2">
                     <Info className="h-3 w-3 text-primary" />
                     <AlertDescription className="text-[10px] font-medium text-left">
-                      Recommended: Sign in with your institutional Google account.
+                      Sign in with your institutional Google account for easy access.
                     </AlertDescription>
                   </Alert>
                   <Button 
@@ -311,7 +309,7 @@ export default function Home() {
                   <Alert variant="default" className="bg-primary/5 border-primary/20 py-2">
                     <Info className="h-3 w-3 text-primary" />
                     <AlertDescription className="text-[10px] font-medium text-left">
-                      Use your admin institutional Google account.
+                      Administrators should use their institutional Google login.
                     </AlertDescription>
                   </Alert>
                   <Button 
@@ -365,7 +363,7 @@ export default function Home() {
         </Card>
 
         <p className="text-[10px] font-medium text-muted-foreground">
-          Verified institutional access for <span className="text-primary font-bold">@neu.edu.ph</span> accounts.
+          Secure laboratory tracking for verified <span className="text-primary font-bold">@neu.edu.ph</span> accounts.
         </p>
       </div>
     </div>
@@ -390,7 +388,7 @@ function QRScannerDialog({ trigger, onStop, videoRef, hasCameraPermission, isSca
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">Scan Access Token</DialogTitle>
           <DialogDescription>
-            Point your camera at your institutional QR code.
+            Point your camera at your institutional QR code for instant entry.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col items-center justify-center space-y-4 py-4">
@@ -408,7 +406,7 @@ function QRScannerDialog({ trigger, onStop, videoRef, hasCameraPermission, isSca
           </div>
           <div className="flex items-center gap-3 text-[10px] font-bold text-muted-foreground">
             <Loader2 className="w-3 h-3 animate-spin text-primary" />
-            Waiting for token detection...
+            Waiting for institutional token...
           </div>
         </div>
       </DialogContent>

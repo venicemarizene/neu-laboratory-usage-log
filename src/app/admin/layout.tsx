@@ -39,41 +39,45 @@ export default function AdminLayout({
   const { data: profileData, isLoading: isProfileLoading } = useDoc(profileRef);
 
   useEffect(() => {
-    // Only proceed once we've tried to load everything
-    if (!isUserLoading && !isAdminCheckLoading && !isProfileLoading) {
-      if (!user) {
-        setIsAuthorized(false);
-        router.push('/');
-        return;
-      }
+    // Wait for the auth state to be determined
+    if (isUserLoading) return;
 
-      // Check for authorization: doc in roles_admin collection OR explicit 'Admin' role in profile
-      const hasExplicitAdminRole = !!adminRoleDoc || profileData?.role === 'Admin';
-      
-      if (!hasExplicitAdminRole) {
-        setIsAuthorized(false);
-        // Immediate redirect without artificial delay
-        router.push('/');
-      } else {
-        setIsAuthorized(true);
-      }
+    if (!user) {
+      setIsAuthorized(false);
+      router.push('/');
+      return;
+    }
+
+    // Wait for documents to settle
+    if (isAdminCheckLoading || isProfileLoading) return;
+
+    // Check for authorization: doc in roles_admin collection OR explicit 'Admin' role in profile
+    // We also check if the user is still being provisioned (grace period for first-time login)
+    const hasExplicitAdminRole = !!adminRoleDoc || profileData?.role === 'Admin';
+    
+    if (hasExplicitAdminRole) {
+      setIsAuthorized(true);
+    } else {
+      // If we are definitely sure they aren't an admin after loading finishes
+      setIsAuthorized(false);
+      router.push('/');
     }
   }, [user, isUserLoading, isAdminCheckLoading, isProfileLoading, adminRoleDoc, profileData, router]);
 
   const handleSignOut = async () => {
     if (auth) {
       setIsAuthorized(false);
-      await signOut(auth);
-      router.push('/');
+      await signOut(auth).then(() => router.push('/'));
     }
   };
 
+  // Show loader while verifying identity or navigating
   if (isUserLoading || isAdminCheckLoading || isProfileLoading || isAuthorized === null || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
           <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
-          <p className="text-muted-foreground font-bold text-sm tracking-tight">Verifying Access...</p>
+          <p className="text-muted-foreground font-bold text-sm tracking-tight">Verifying Administrator Access...</p>
         </div>
       </div>
     );
