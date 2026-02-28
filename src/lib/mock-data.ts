@@ -7,7 +7,7 @@ export const MOCK_USERS: UserProfile[] = [
   {
     uid: 'admin-1',
     name: 'Admin User',
-    email: 'admin@neu.edu',
+    email: 'admin@neu.edu.ph',
     role: 'Admin',
     blocked: false,
     qrString: 'ADMIN_QR_001',
@@ -16,7 +16,7 @@ export const MOCK_USERS: UserProfile[] = [
   {
     uid: 'prof-1',
     name: 'Dr. Jane Smith',
-    email: 'j.smith@neu.edu',
+    email: 'j.smith@neu.edu.ph',
     role: 'Professor',
     blocked: false,
     qrString: 'PROF_QR_101',
@@ -25,7 +25,7 @@ export const MOCK_USERS: UserProfile[] = [
   {
     uid: 'prof-2',
     name: 'Prof. Alan Turing',
-    email: 'a.turing@neu.edu',
+    email: 'a.turing@neu.edu.ph',
     role: 'Professor',
     blocked: true,
     qrString: 'PROF_QR_102',
@@ -34,7 +34,7 @@ export const MOCK_USERS: UserProfile[] = [
   {
     uid: 'prof-3',
     name: 'Dr. Grace Hopper',
-    email: 'g.hopper@neu.edu',
+    email: 'g.hopper@neu.edu.ph',
     role: 'Professor',
     blocked: false,
     qrString: 'PROF_QR_103',

@@ -10,10 +10,6 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-/**
- * Defines the input schema for the admin usage report summary flow.
- * It expects a start date, end date, and an array of weekly log entries.
- */
 const AdminUsageReportSummaryInputSchema = z.object({
   startDate: z.string().describe('The start date of the weekly report in YYYY-MM-DD format.'),
   endDate: z.string().describe('The end date of the weekly report in YYYY-MM-DD format.'),
@@ -28,10 +24,6 @@ export type AdminUsageReportSummaryInput = z.infer<
   typeof AdminUsageReportSummaryInputSchema
 >;
 
-/**
- * Defines the output schema for the admin usage report summary flow.
- * It provides an overall summary, key trends, high usage periods, and potential anomalies.
- */
 const AdminUsageReportSummaryOutputSchema = z.object({
   overallSummary: z
     .string()
@@ -55,13 +47,9 @@ export type AdminUsageReportSummaryOutput = z.infer<
   typeof AdminUsageReportSummaryOutputSchema
 >;
 
-/**
- * The AI prompt definition for generating the weekly lab usage report summary.
- * It instructs the LLM to act as a data analyst and summarize the provided logs.
- */
 const adminUsageReportSummaryPrompt = ai.definePrompt({
   name: 'adminUsageReportSummaryPrompt',
-  input: {schema: AdminUsageReportReportSummaryInputSchema},
+  input: {schema: AdminUsageReportSummaryInputSchema},
   output: {schema: AdminUsageReportSummaryOutputSchema},
   prompt: `You are an expert lab administrator and data analyst. Your task is to analyze weekly lab usage data and provide a concise summary, highlighting key trends, high-usage periods, and potential anomalies.
 
@@ -75,10 +63,6 @@ Here are the lab usage logs for the week:
 Please provide your analysis in the following structured JSON format. Be thorough but concise.`,
 });
 
-/**
- * Defines the Genkit flow for generating an admin usage report summary.
- * It takes weekly lab usage logs and returns a structured summary.
- */
 const adminUsageReportSummaryFlow = ai.defineFlow(
   {
     name: 'adminUsageReportSummaryFlow',
@@ -91,11 +75,6 @@ const adminUsageReportSummaryFlow = ai.defineFlow(
   }
 );
 
-/**
- * Wrapper function to call the adminUsageReportSummaryFlow.
- * @param input The input containing start date, end date, and weekly log entries.
- * @returns A promise that resolves to the structured usage report summary.
- */
 export async function adminUsageReportSummary(
   input: AdminUsageReportSummaryInput
 ): Promise<AdminUsageReportSummaryOutput> {
