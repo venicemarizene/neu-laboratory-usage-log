@@ -7,11 +7,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Search, UserRound, Mail, QrCode, Loader2, ShieldAlert, UserX, UserCheck } from 'lucide-react';
+import { Search, UserRound, Mail, Loader2, ShieldAlert, UserX, UserCheck, X } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
 
 export default function ProfessorManagement() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -40,16 +41,16 @@ export default function ProfessorManagement() {
   };
 
   const filtered = useMemo(() => {
-    return (users || []).filter(p => {
-      const name = p.name || '';
-      const email = p.email || '';
-      const term = searchTerm.toLowerCase();
+    if (!users) return [];
+    const term = searchTerm.toLowerCase().trim();
+    if (!term) return users;
+
+    return users.filter(p => {
+      // Check multiple potential name fields for robustness
+      const name = (p.name || p.displayName || '').toLowerCase();
+      const email = (p.email || '').toLowerCase();
       
-      const matchesSearch = name.toLowerCase().includes(term) || email.toLowerCase().includes(term);
-      
-      // Show all institutional users so admin can find and manage them, 
-      // but prioritize displaying those with the Professor role or who have logged usage.
-      return matchesSearch;
+      return name.includes(term) || email.includes(term);
     });
   }, [users, searchTerm]);
 
@@ -63,11 +64,19 @@ export default function ProfessorManagement() {
         <div className="relative w-full md:w-96">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input 
-            placeholder="Search by professor name or email..." 
-            className="pl-10 border-2 h-12 rounded-xl bg-card"
+            placeholder="Search by name or email..." 
+            className="pl-10 pr-10 border-2 h-12 rounded-xl bg-card focus-visible:ring-primary"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+          {searchTerm && (
+            <button 
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-slate-100 rounded-full transition-colors"
+            >
+              <X className="w-4 h-4 text-muted-foreground" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -94,7 +103,7 @@ export default function ProfessorManagement() {
           ) : (
             <Table>
               <TableHeader className="bg-slate-50/50">
-                <TableRow className="hover:bg-transparent">
+                <TableRow className="hover:bg-transparent border-none">
                   <TableHead className="font-bold py-5 px-6">Faculty Member</TableHead>
                   <TableHead className="font-bold py-5">Institutional Email</TableHead>
                   <TableHead className="font-bold py-5">Current Status</TableHead>
@@ -108,7 +117,7 @@ export default function ProfessorManagement() {
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <UserRound className="w-12 h-12 opacity-20" />
                         <p className="font-bold text-lg">No matching records found</p>
-                        <p className="text-sm">Try searching with a different name or email address.</p>
+                        <p className="text-sm">Try searching with a different name or check if the user has signed in once.</p>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -120,10 +129,10 @@ export default function ProfessorManagement() {
                           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-sm transition-transform group-hover:scale-110 ${
                             prof.isBlocked ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'
                           }`}>
-                            {prof.name?.[0] || prof.email?.[0]?.toUpperCase()}
+                            {(prof.name || prof.displayName || prof.email || 'A')[0].toUpperCase()}
                           </div>
                           <div>
-                            <span className="font-bold text-slate-800 block leading-none mb-1">{prof.name || 'Anonymous Faculty'}</span>
+                            <span className="font-bold text-slate-800 block leading-none mb-1">{prof.name || prof.displayName || 'Anonymous Faculty'}</span>
                             <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{prof.role || 'User'}</span>
                           </div>
                         </div>
@@ -149,7 +158,7 @@ export default function ProfessorManagement() {
                       </TableCell>
                       <TableCell className="text-right px-6">
                         <div className="flex items-center justify-end gap-3">
-                          <span className={`text-xs font-bold uppercase ${prof.isBlocked ? 'text-destructive' : 'text-muted-foreground'}`}>
+                          <span className={`text-xs font-bold uppercase hidden sm:inline ${prof.isBlocked ? 'text-destructive' : 'text-muted-foreground'}`}>
                             {prof.isBlocked ? 'Blocked' : 'Active'}
                           </span>
                           <Switch 

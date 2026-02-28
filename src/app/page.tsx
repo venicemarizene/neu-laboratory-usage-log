@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef } from 'react';
@@ -6,14 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertCircle, LogIn, Monitor, QrCode, Loader2, ShieldCheck, UserCircle, LogOut } from 'lucide-react';
-import { useAuth, useUser } from '@/firebase';
+import { useAuth, useUser, useFirestore } from '@/firebase';
 import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function Home() {
   const router = useRouter();
   const { auth } = useAuth() ? { auth: useAuth() } : { auth: null };
+  const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
   
@@ -23,7 +26,7 @@ export default function Home() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const handleGoogleSignIn = async (targetRole: 'admin' | 'professor') => {
-    if (!auth) return;
+    if (!auth || !firestore) return;
     setIsLoggingIn(true);
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ 
@@ -44,6 +47,17 @@ export default function Home() {
         });
         return;
       }
+
+      // Sync User Profile to Firestore to ensure they appear in the Directory
+      const userRef = doc(firestore, 'user_profiles', result.user.uid);
+      await setDoc(userRef, {
+        id: result.user.uid,
+        name: result.user.displayName || 'Anonymous Faculty',
+        email: result.user.email,
+        role: targetRole === 'admin' ? 'Admin' : 'Professor',
+        isBlocked: false,
+        qrString: targetRole === 'admin' ? `ADMIN_${result.user.uid.slice(0,5)}` : `PROF_${result.user.uid.slice(0,5)}`
+      }, { merge: true });
 
       toast({
         title: 'Access Granted',
@@ -125,7 +139,7 @@ export default function Home() {
             <Monitor className="w-12 h-12 text-primary-foreground" />
           </div>
           <h1 className="text-4xl font-extrabold tracking-tight text-primary font-headline">NEU LabTrack</h1>
-          <p className="text-muted-foreground font-medium uppercase tracking-wider">NEU Computer Laboratory Usage Log</p>
+          <p className="text-muted-foreground font-medium uppercase tracking-wider text-xs">NEU Computer Laboratory Usage Log</p>
         </div>
 
         {user && (
