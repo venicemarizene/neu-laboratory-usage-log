@@ -39,7 +39,6 @@ export default function Home() {
       qrString: data.role === 'Admin' ? `ADMIN_${userId.slice(0,5)}` : `PROF_${userId.slice(0,5)}`
     };
 
-    // Use non-blocking utilities to update profile in background
     setDocumentNonBlocking(userRef, profileData, { merge: true });
 
     if (data.role === 'Admin') {
@@ -80,20 +79,19 @@ export default function Home() {
 
       toast({
         title: 'Institutional Access Granted',
-        description: `Authenticated as ${targetRole}. Redirecting to ${targetRole} dashboard...`,
+        description: `Authenticated as ${targetRole}. Redirecting to dashboard...`,
       });
       
-      // Delay redirection slightly to allow background sync to initiate
       setTimeout(() => {
         router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
-      }, 800);
+      }, 1000);
 
     } catch (error: any) {
       if (error.code === 'auth/popup-closed-by-user') return;
       toast({
         variant: 'destructive',
         title: 'Authentication Error',
-        description: error.message || 'An unexpected error occurred during institutional sign-in.',
+        description: error.message || 'An unexpected error occurred during sign-in.',
       });
     } finally {
       setIsLoggingIn(false);
@@ -116,11 +114,10 @@ export default function Home() {
         videoRef.current.srcObject = stream;
       }
       
-      // Simulated scan for demo purposes
       setTimeout(async () => {
         const mockScannedQR = 'ADMIN_QR_001'; 
         handleQRLogin(mockScannedQR);
-      }, 1500);
+      }, 2000);
 
     } catch (error) {
       setHasCameraPermission(false);
