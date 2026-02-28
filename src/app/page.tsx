@@ -38,7 +38,6 @@ export default function Home() {
       const result = await signInWithPopup(auth, provider);
       const email = result.user.email;
 
-      // Inclusive check for any institutional domain (e.g. @neu.edu.ph, @student.neu.edu.ph)
       if (!email?.match(/@(.+\.)?neu\.edu\.ph$/)) {
         await signOut(auth);
         toast({
@@ -49,7 +48,6 @@ export default function Home() {
         return;
       }
 
-      // Sync User Profile to Firestore to ensure they appear in the Directory immediately
       const userRef = doc(firestore, 'user_profiles', result.user.uid);
       await setDoc(userRef, {
         id: result.user.uid,
@@ -67,16 +65,13 @@ export default function Home() {
       router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
 
     } catch (error: any) {
-      // Handle the case where user closes the popup
       if (error.code === 'auth/popup-closed-by-user') {
         return;
       }
-      
-      console.error('Sign-in error:', error);
       toast({
         variant: 'destructive',
         title: 'Authentication Failed',
-        description: error.message || 'Could not complete sign-in. Please ensure you use your institutional Google account.',
+        description: error.message || 'Could not complete sign-in.',
       });
     } finally {
       setIsLoggingIn(false);
@@ -99,10 +94,11 @@ export default function Home() {
         videoRef.current.srcObject = stream;
       }
       
+      // Snappier mock scan delay (800ms instead of 3000ms)
       setTimeout(async () => {
         const mockScannedQR = 'ADMIN_QR_001'; 
         handleQRLogin(mockScannedQR);
-      }, 3000);
+      }, 800);
 
     } catch (error) {
       setHasCameraPermission(false);
@@ -142,7 +138,7 @@ export default function Home() {
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
       <div className="max-w-md w-full space-y-8 text-center">
         <div className="space-y-2">
-          <div className="mx-auto w-20 h-20 bg-primary rounded-3xl flex items-center justify-center shadow-2xl transform transition hover:scale-110">
+          <div className="mx-auto w-20 h-20 bg-primary rounded-3xl flex items-center justify-center shadow-2xl transform transition-transform duration-200 hover:scale-110">
             <Monitor className="w-12 h-12 text-primary-foreground" />
           </div>
           <h1 className="text-4xl font-extrabold tracking-tight text-primary font-headline">NEU LabTrack</h1>
@@ -150,7 +146,7 @@ export default function Home() {
         </div>
 
         {user && (
-          <div className="p-4 bg-card border rounded-xl shadow-sm flex items-center justify-between animate-in fade-in slide-in-from-top-4">
+          <div className="p-4 bg-card border rounded-xl shadow-sm flex items-center justify-between animate-in fade-in slide-in-from-top-4 duration-200">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center font-bold text-primary shadow-inner">
                 {user.email?.[0].toUpperCase()}
@@ -180,7 +176,7 @@ export default function Home() {
               </TabsTrigger>
             </TabsList>
             
-            <TabsContent value="professor" className="p-8 space-y-6 m-0 animate-in fade-in duration-300">
+            <TabsContent value="professor" className="p-8 space-y-6 m-0 animate-in fade-in duration-200">
               <div className="text-center space-y-2">
                 <CardTitle className="text-2xl font-bold">Staff Portal</CardTitle>
                 <CardDescription>Register your laboratory usage via Google or QR scanner.</CardDescription>
@@ -189,7 +185,7 @@ export default function Home() {
               <Button 
                 onClick={() => handleGoogleSignIn('professor')}
                 disabled={isLoggingIn}
-                className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-lg flex items-center justify-center gap-3 transition-all active:scale-95"
+                className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-lg flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
               >
                 {isLoggingIn ? <Loader2 className="animate-spin" /> : <LogIn className="w-6 h-6" />}
                 Sign in with Google
@@ -208,7 +204,7 @@ export default function Home() {
                 <Button 
                   variant="outline" 
                   onClick={startScanning}
-                  className="w-full h-14 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all active:scale-95"
+                  className="w-full h-14 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
                 >
                   <QrCode className="w-6 h-6" />
                   Scan Professor QR
@@ -216,7 +212,7 @@ export default function Home() {
               } onStop={stopScanning} videoRef={videoRef} hasCameraPermission={hasCameraPermission} isScanning={isScanning} />
             </TabsContent>
 
-            <TabsContent value="admin" className="p-8 space-y-6 m-0 animate-in fade-in duration-300">
+            <TabsContent value="admin" className="p-8 space-y-6 m-0 animate-in fade-in duration-200">
               <div className="text-center space-y-2">
                 <CardTitle className="text-2xl font-bold">Admin Portal</CardTitle>
                 <CardDescription>Oversight and laboratory management for authorized personnel.</CardDescription>
@@ -225,7 +221,7 @@ export default function Home() {
               <Button 
                 onClick={() => handleGoogleSignIn('admin')}
                 disabled={isLoggingIn}
-                className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-lg flex items-center justify-center gap-3 transition-all active:scale-95"
+                className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-lg flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
               >
                 {isLoggingIn ? <Loader2 className="animate-spin" /> : <ShieldCheck className="w-6 h-6" />}
                 Admin Google Sign-In
@@ -244,7 +240,7 @@ export default function Home() {
                 <Button 
                   variant="outline" 
                   onClick={startScanning}
-                  className="w-full h-14 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all active:scale-95"
+                  className="w-full h-14 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
                 >
                   <QrCode className="w-6 h-6" />
                   Scan Admin Access QR
@@ -280,7 +276,7 @@ function QRScannerDialog({ trigger, onStop, videoRef, hasCameraPermission, isSca
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">Scan Access Token</DialogTitle>
           <DialogDescription>
-            Point your camera at your institutional QR code to authenticate.
+            Point your camera at your institutional QR code.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col items-center justify-center space-y-6 py-6">
@@ -290,7 +286,7 @@ function QRScannerDialog({ trigger, onStop, videoRef, hasCameraPermission, isSca
               <div className="z-10 text-white text-center p-6 bg-black/60 backdrop-blur-sm h-full w-full flex flex-col items-center justify-center">
                 <AlertCircle className="w-14 h-14 mx-auto mb-4 text-destructive" />
                 <p className="text-lg font-bold mb-2">Camera Access Required</p>
-                <p className="text-sm opacity-90">Please enable camera permissions in your browser settings to continue.</p>
+                <p className="text-sm opacity-90">Please enable camera permissions.</p>
               </div>
             )}
             {isScanning && hasCameraPermission && (

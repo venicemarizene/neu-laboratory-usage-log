@@ -77,7 +77,6 @@ export default function AdminDashboard() {
   }, [logs, searchTerm, dateFilter]);
 
   const chartData = useMemo(() => {
-    // Generate data based on filtered logs to show distribution for the selected period/search
     return roomList.map(room => ({
       room,
       count: filteredLogs.filter(l => l.roomNumber === room).length
@@ -97,7 +96,7 @@ export default function AdminDashboard() {
   if (!mounted) return null;
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-700 pb-12">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black font-headline text-primary tracking-tight">Laboratory Analytics</h1>
@@ -113,7 +112,7 @@ export default function AdminDashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl bg-gradient-to-br from-primary to-primary/90 text-primary-foreground">
+        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-200 rounded-2xl bg-gradient-to-br from-primary to-primary/90 text-primary-foreground">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-[0.2em] opacity-80">Active Logs Today</CardTitle>
             <Activity className="h-5 w-5 opacity-80" />
@@ -124,7 +123,7 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
         
-        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl bg-card">
+        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-200 rounded-2xl bg-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Unique Faculty</CardTitle>
             <Users className="h-5 w-5 text-accent" />
@@ -135,7 +134,7 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
         
-        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl bg-card">
+        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-200 rounded-2xl bg-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Blocked Accounts</CardTitle>
             <Ban className="h-5 w-5 text-destructive" />
