@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,11 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
 
-export default function ProfessorPortal() {
+export default function ProfessorPortal(props: { params: Promise<any>; searchParams: Promise<any> }) {
+  // Next.js 15: unwrap params
+  const params = use(props.params);
+  const searchParams = use(props.searchParams);
+  
   const router = useRouter();
   const { auth, firestore } = useAuth() ? { auth: useAuth(), firestore: useFirestore() } : { auth: null, firestore: null };
   const { user, isUserLoading } = useUser();

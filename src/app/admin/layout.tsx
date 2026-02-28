@@ -1,4 +1,3 @@
-
 "use client"
 
 import Link from 'next/link';
@@ -8,13 +7,15 @@ import { Button } from '@/components/ui/button';
 import { useUser, useAuth, useDoc, useMemoFirebase, useFirestore } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 
-export default function AdminLayout({
-  children,
-}: {
+export default function AdminLayout(props: {
   children: React.ReactNode;
+  params: Promise<any>;
 }) {
+  // Next.js 15: unwrap params
+  const params = use(props.params);
+  
   const router = useRouter();
   const pathname = usePathname();
   const auth = useAuth();
@@ -22,7 +23,6 @@ export default function AdminLayout({
   const { user, isUserLoading } = useUser();
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
 
-  // Fetch the role-specific marker for security rules check
   const adminMarkerRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'roles_admin', user.uid);
@@ -30,7 +30,6 @@ export default function AdminLayout({
   
   const { data: adminMarker, isLoading: isMarkerLoading } = useDoc(adminMarkerRef);
 
-  // Fetch the general profile
   const profileRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'user_profiles', user.uid);
@@ -47,7 +46,6 @@ export default function AdminLayout({
       return;
     }
 
-    // Secondary domain check for security
     const isInstitutional = user.email?.toLowerCase().endsWith('@neu.edu.ph');
     if (!isInstitutional) {
       signOut(auth).then(() => router.push('/'));
@@ -57,14 +55,11 @@ export default function AdminLayout({
 
     if (isMarkerLoading || isProfileLoading) return;
 
-    // Admin is authorized if they have the marker OR the profile indicates Admin role
     const isAdmin = !!adminMarker || profileData?.role === 'Admin';
     
     if (isAdmin) {
       setIsAuthorized(true);
     } else {
-      // Extended grace period for synchronization before redirection
-      // This allows the syncUserProfile logic from page.tsx to complete
       const timer = setTimeout(() => {
         if (!isAdmin) {
           setIsAuthorized(false);
@@ -152,7 +147,7 @@ export default function AdminLayout({
           </div>
         </header>
         <div className="flex-1 p-8 overflow-y-auto bg-slate-50/50">
-          {children}
+          {props.children}
         </div>
       </main>
     </div>

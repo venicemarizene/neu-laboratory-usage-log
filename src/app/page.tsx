@@ -1,20 +1,23 @@
-
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertCircle, LogIn, Monitor, QrCode, Loader2, ShieldCheck, UserCircle, LogOut, Info } from 'lucide-react';
+import { AlertCircle, Monitor, QrCode, Loader2, ShieldCheck, UserCircle, LogOut, Info } from 'lucide-react';
 import { useAuth, useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
-import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
-export default function Home() {
+export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
+  // Next.js 15: unwrap params and searchParams using React.use()
+  const params = use(props.params);
+  const searchParams = use(props.searchParams);
+  
   const router = useRouter();
   const auth = useAuth();
   const firestore = useFirestore();
@@ -26,15 +29,10 @@ export default function Home() {
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  /**
-   * Idempotent user profile synchronization.
-   * Ensures institutional users have a profile and relevant roles.
-   */
+  // Idempotent user profile synchronization
   const syncUserProfile = async (userId: string, data: any) => {
     if (!firestore) return;
     const userRef = doc(firestore, 'user_profiles', userId);
-    
-    // Check if profile exists to avoid overwriting roles or block status
     const docSnap = await getDoc(userRef);
     
     if (!docSnap.exists()) {
@@ -49,7 +47,6 @@ export default function Home() {
 
       setDocumentNonBlocking(userRef, profileData, { merge: true });
 
-      // provision admin role marker if applicable
       if (data.role === 'Admin') {
         const adminRoleRef = doc(firestore, 'roles_admin', userId);
         setDocumentNonBlocking(adminRoleRef, { active: true }, { merge: true });
@@ -57,60 +54,57 @@ export default function Home() {
     }
   };
 
-  /**
-   * Handles Google SSO using the specific code snippet logic provided.
-   */
-  const handleGoogleSignIn = (targetRole: 'admin' | 'professor') => {
+  // Handle redirect result on component mount
+  useEffect(() => {
     if (!auth || !firestore) return;
-    setIsLoggingIn(true);
-    
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ 
-      prompt: 'select_account'
-    });
 
-    signInWithPopup(auth, provider)
-      .then(async (result) => {
+    getRedirectResult(auth).then(async (result) => {
+      if (result) {
         const signedInUser = result.user;
         const userEmail = signedInUser.email?.toLowerCase() || '';
 
-        // Strict NEU email restriction as requested
+        // Domain restriction check
         if (!userEmail.endsWith("@neu.edu.ph")) {
           alert("Unauthorized access.");
           await signOut(auth);
-          setIsLoggingIn(false);
           return;
         }
 
-        // Sync the user profile for role-based dashboard access
+        // Retrieve target role from storage (set before redirect)
+        const targetRole = sessionStorage.getItem('auth_target_role') || 'professor';
+        
         await syncUserProfile(signedInUser.uid, {
           name: signedInUser.displayName,
           email: signedInUser.email,
           role: targetRole === 'admin' ? 'Admin' : 'Professor'
         });
 
-        console.log("Signed in:", userEmail);
-        
         toast({
           title: 'Authentication Successful',
           description: `Welcome, ${signedInUser.displayName}.`,
         });
         
         router.push(`/${targetRole}`);
-      })
-      .catch((error) => {
-        if (error.code !== 'auth/popup-closed-by-user') {
-          console.error(error);
-          toast({
-            variant: 'destructive',
-            title: 'Authentication Error',
-            description: 'Connection failed.',
-          });
-        }
-      })
-      .finally(() => {
-        setIsLoggingIn(false);
-      });
+      }
+    }).catch((error) => {
+      console.error(error);
+    });
+  }, [auth, firestore, router, toast]);
+
+  const handleGoogleSignIn = (targetRole: 'admin' | 'professor') => {
+    if (!auth) return;
+    setIsLoggingIn(true);
+    
+    // Store target role in sessionStorage to persist through the redirect
+    sessionStorage.setItem('auth_target_role', targetRole);
+
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ 
+      prompt: 'select_account'
+    });
+
+    // Use specific code structure requested: signInWithRedirect
+    signInWithRedirect(auth, provider);
   };
 
   const handleSignOut = async () => {
@@ -128,12 +122,9 @@ export default function Home() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
-      
-      // Simulation: detection logic
       setTimeout(() => {
         handleQRDetected('PROF_MOCK_TOKEN');
       }, 3000);
-
     } catch (error) {
       setHasCameraPermission(false);
     }
@@ -211,7 +202,7 @@ export default function Home() {
                 <Alert variant="default" className="bg-primary/5 border-primary/20 py-4 text-left">
                   <Info className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
-                    Please use your official @neu.edu.ph Google account to sign in.
+                    Please use your official @neu.edu.ph Google account to sign in via Redirect.
                   </AlertDescription>
                 </Alert>
                 <Button 
@@ -219,8 +210,8 @@ export default function Home() {
                   disabled={isLoggingIn}
                   className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
                 >
-                  {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}
-                  Sign In with Google
+                  {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <Monitor className="w-5 h-5" />}
+                  Institutional Google Sign-In
                 </Button>
               </div>
               
@@ -250,7 +241,7 @@ export default function Home() {
                 <Alert variant="default" className="bg-primary/5 border-primary/20 py-4 text-left">
                   <ShieldCheck className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
-                    Admin access restricted to verified institutional identities.
+                    Admin access restricted to verified institutional identities via Redirect.
                   </AlertDescription>
                 </Alert>
                 <Button 
@@ -259,7 +250,7 @@ export default function Home() {
                   className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
                 >
                   {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
-                  Admin Google Sign-In
+                  Admin Institutional Sign-In
                 </Button>
               </div>
               

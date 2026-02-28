@@ -8,11 +8,13 @@ export const metadata: Metadata = {
   description: 'Secure computer laboratory usage logging and administrative monitoring system for NEU.',
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
+export default async function RootLayout(props: {
   children: React.ReactNode;
-}>) {
+  params: Promise<any>;
+}) {
+  // Explicitly await params to satisfy Next.js 15 async requirement
+  await props.params;
+  
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -22,7 +24,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased bg-background text-foreground" suppressHydrationWarning>
         <FirebaseClientProvider>
-          {children}
+          {props.children}
           <Toaster />
         </FirebaseClientProvider>
       </body>

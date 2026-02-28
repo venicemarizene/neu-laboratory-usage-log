@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, use } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
@@ -13,7 +13,11 @@ import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 
-export default function ProfessorManagement() {
+export default function ProfessorManagement(props: { params: Promise<any>; searchParams: Promise<any> }) {
+  // Next.js 15: unwrap params
+  const params = use(props.params);
+  const searchParams = use(props.searchParams);
+  
   const [searchTerm, setSearchTerm] = useState('');
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -44,7 +48,6 @@ export default function ProfessorManagement() {
     if (!term) return users;
 
     return users.filter(p => {
-      // Check multiple potential name fields and email for robust search
       const name = (p.name || '').toLowerCase();
       const displayName = (p.displayName || '').toLowerCase();
       const email = (p.email || '').toLowerCase();

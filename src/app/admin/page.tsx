@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, use } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -22,13 +22,16 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-export default function AdminDashboard() {
+export default function AdminDashboard(props: { params: Promise<any>; searchParams: Promise<any> }) {
+  // Next.js 15: unwrap params
+  const params = use(props.params);
+  const searchParams = use(props.searchParams);
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'weekly' | 'monthly'>('all');
   const [mounted, setMounted] = useState(false);
   const firestore = useFirestore();
 
-  // Fetch real-time logs
   const logsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collection(firestore, 'room_logs'), orderBy('timestamp', 'desc'), limit(1000));
@@ -36,7 +39,6 @@ export default function AdminDashboard() {
 
   const { data: logs, isLoading: isLogsLoading } = useCollection(logsQuery);
 
-  // Fetch all user profiles for metrics
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'user_profiles');
@@ -109,7 +111,6 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl bg-gradient-to-br from-primary to-primary/90 text-primary-foreground">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -145,7 +146,6 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Usage Chart Section */}
       <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-card transition-all duration-300">
         <CardHeader className="border-b pb-6">
           <CardTitle className="text-xl font-bold">Computer Laboratory Distribution</CardTitle>
@@ -183,7 +183,6 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
-      {/* Logs Table */}
       <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-card transition-all duration-300">
         <CardHeader className="bg-card border-b pb-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
