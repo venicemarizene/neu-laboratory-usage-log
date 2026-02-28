@@ -5,138 +5,47 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "UserProfile",
       "type": "object",
-      "description": "Represents a user profile within the NEU Lab Log system, storing essential information and access control data. This entity links to Firebase Authentication via the 'id' field.",
+      "description": "Represents a user profile within the NEU Lab Log system.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the UserProfile entity, typically the Firebase Authentication User ID (UID)."
-        },
-        "name": {
-          "type": "string",
-          "description": "The full name of the user as provided by their Google account or manual registration."
-        },
-        "email": {
-          "type": "string",
-          "description": "The institutional email address of the user.",
-          "format": "email"
-        },
-        "role": {
-          "type": "string",
-          "description": "The role of the user within the system, which can be 'Professor' or 'Admin'."
-        },
-        "isBlocked": {
-          "type": "boolean",
-          "description": "Indicates whether the user's access to the system is currently blocked by an administrator. True means blocked, False means active."
-        },
-        "qrString": {
-          "type": "string",
-          "description": "A unique string associated with the user, used for QR code based validation and access to rooms."
-        }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["Professor", "Admin"] },
+        "isBlocked": { "type": "boolean" },
+        "qrString": { "type": "string" }
       },
-      "required": [
-        "id",
-        "name",
-        "email",
-        "role",
-        "isBlocked",
-        "qrString"
-      ]
+      "required": ["id", "name", "email", "role", "isBlocked", "qrString"]
     },
     "RoomLog": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "RoomLog",
       "type": "object",
-      "description": "Records an instance of a laboratory room usage event, detailing who used it, which room, and when.",
+      "description": "Records an instance of a laboratory room usage event.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the RoomLog entity."
-        },
-        "professorId": {
-          "type": "string",
-          "description": "Reference to the UserProfile of the professor who initiated the room usage log. (Relationship: UserProfile 1:N RoomLog)"
-        },
-        "roomNumber": {
-          "type": "string",
-          "description": "The specific identifier or name of the laboratory room being used."
-        },
-        "timestamp": {
-          "type": "string",
-          "description": "The exact date and time when the room usage was logged.",
-          "format": "date-time"
-        },
-        "status": {
-          "type": "string",
-          "description": "The current status of the room usage log (e.g., 'Active'). This allows for potential future statuses like 'Completed' or 'Cancelled'."
-        }
+        "id": { "type": "string" },
+        "professorId": { "type": "string" },
+        "roomNumber": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "status": { "type": "string" }
       },
-      "required": [
-        "id",
-        "professorId",
-        "roomNumber",
-        "timestamp",
-        "status"
-      ]
+      "required": ["id", "professorId", "roomNumber", "timestamp", "status"]
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "google.com",
-      "anonymous"
-    ]
+    "providers": ["google.com"]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/user_profiles/{userId}",
-        "definition": {
-          "entityName": "UserProfile",
-          "schema": {
-            "$ref": "#/backend/entities/UserProfile"
-          },
-          "description": "Stores individual user profiles, including their role, blocked status, and a unique QR string. The `id` field matches the Firebase Authentication UID. Includes denormalized 'role' and 'isBlocked' fields for authorization independence. The 'qrString' is primarily for internal validation or secure Cloud Function-based login.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique Firebase Authentication User ID (UID) corresponding to the user."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/room_logs/{logId}",
-        "definition": {
-          "entityName": "RoomLog",
-          "schema": {
-            "$ref": "#/backend/entities/RoomLog"
-          },
-          "description": "Records instances of laboratory room usage. Each document includes `professorId` to link to the initiating user, `roomNumber`, `timestamp`, and `status`. The `professorId` is denormalized for authorization independence and efficient rule checks.",
-          "params": [
-            {
-              "name": "logId",
-              "description": "The unique identifier for a specific room usage log entry."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/roles_admin/{userId}",
-        "definition": {
-          "entityName": "AdminRole",
-          "schema": {
-            "$ref": "#/backend/entities/UserProfile"
-          },
-          "description": "A collection used for Database Access Control (DBAC). The mere existence of a document at this path (`/roles_admin/{uid}`) signifies that the corresponding user is an 'Admin'. Used by security rules for efficient role checks (e.g., `get(/roles_admin/$(request.auth.uid)).exists()`). Documents typically contain minimal or no data.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique Firebase Authentication User ID (UID) of an administrator."
-            }
-          ]
-        }
-      }
-    ],
-    "reasoning": "The Firestore structure is designed following the core principles of Authorization Independence, Structural Segregation, and consistent Access Modeling to ensure security, scalability, and debuggability. User profiles are stored in `/user_profiles/{userId}`, room usage logs in `/room_logs/{logId}`, and administrative roles in `/roles_admin/{userId}` for efficient DBAC (Database Access Control).\n\n**Authorization Independence:**\n*   Each `UserProfile` document at `/user_profiles/{userId}` is self-contained with authorization-relevant fields such as `id`, `role`, and `isBlocked`. Security rules can directly check `request.auth.uid` against `userId` for ownership, or query the `/roles_admin/{userId}` collection for administrator status using an `exists()` call. This avoids hierarchical `get()` calls to parent documents within security rules, enabling atomic operations and simplifying rule logic.\n*   `RoomLog` documents at `/room_logs/{logId}` denormalize the `professorId` within each log entry. This allows security rules to validate the creator (`request.auth.uid == request.resource.data.professorId`) or check for admin access (`get(/roles_admin/$(request.auth.uid)).exists()`) without needing to fetch the associated `UserProfile` document for *authorization* purposes (though a `get()` to validate the *creating user's* role/blocked status is a single, isolated check on their *own* profile).\n\n**QAPs (Secure Queryability for List Operations):**\n*   **`/user_profiles`:** This collection supports secure `list` operations for administrators. Rules will allow `list` if `request.auth.uid` corresponds to an admin (checked via `get(/roles_admin/$(request.auth.uid)).exists()`), enabling the Admin Usage Dashboard to view and manage all users. Regular users can only `get` their own profile. For the QR code login feature: directly querying for arbitrary `qrString` values from the client is a QAP anti-pattern as it risks exposing sensitive information or enabling enumeration. Therefore, it is recommended that the actual \"QR login\" validation (where a user logs in by scanning a QR code *instead of manual sign-in*) be handled via a secure **Cloud Function**. The client app sends the scanned `qrString` to the Cloud Function, which then securely performs the Firestore lookup and `isBlocked` check, and if valid, issues a custom Firebase Auth token. This keeps the `qrString` private and adheres strictly to QAPs. If a user is already logged in via Google and uses a QR code for *in-app validation* (e.g., confirming their identity for a room entry), they would securely retrieve *their own* `qrString` from their `/user_profiles/{request.auth.uid}` document.\n*   **`/room_logs`:** This collection is designed for secure `list` operations for administrators. Security rules will strictly enforce that only users with an entry in `/roles_admin` can `list` or `read` room logs. This enables the Admin Usage Dashboard to display, filter, and monitor all laboratory usage data without exposing it to unauthorized users. Professors can only `create` logs, not list others'.\n*   **`/roles_admin`:** This collection is used purely for `exists()` checks within security rules. Client-side `list` or `get` operations on this collection are explicitly disallowed, making it a highly secure mechanism for role-based access control."
+    "user_profiles/{userId}": {
+      "schema": "UserProfile",
+      "description": "Stores individual user profiles."
+    },
+    "room_logs/{logId}": {
+      "schema": "RoomLog",
+      "description": "Records instances of laboratory room usage."
+    },
+    "roles_admin/{userId}": {
+      "schema": "UserProfile",
+      "description": "Administrative role marker."
+    }
   }
 }

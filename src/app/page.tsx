@@ -9,14 +9,14 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertCircle, LogIn, Monitor, QrCode, Loader2, ShieldCheck, UserCircle, LogOut, Info } from 'lucide-react';
 import { useAuth, useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { doc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function Home() {
   const router = useRouter();
-  const { auth } = useAuth() ? { auth: useAuth() } : { auth: null };
+  const auth = useAuth();
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
@@ -26,24 +26,29 @@ export default function Home() {
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  const syncUserProfile = (userId: string, data: any) => {
+  const syncUserProfile = async (userId: string, data: any) => {
     if (!firestore) return;
     const userRef = doc(firestore, 'user_profiles', userId);
     
-    const profileData: any = {
-      id: userId,
-      name: data.name || data.displayName || 'Anonymous Faculty',
-      email: data.email,
-      role: data.role || 'Professor',
-      isBlocked: false,
-      qrString: data.role === 'Admin' ? `ADMIN_${userId.slice(0,5)}` : `PROF_${userId.slice(0,5)}`
-    };
+    // Check if profile already exists to preserve roles/status
+    const docSnap = await getDoc(userRef);
+    
+    if (!docSnap.exists()) {
+      const profileData: any = {
+        id: userId,
+        name: data.name || data.displayName || 'Faculty Member',
+        email: data.email,
+        role: data.role || 'Professor',
+        isBlocked: false,
+        qrString: data.role === 'Admin' ? `ADMIN_${userId.slice(0,5)}` : `PROF_${userId.slice(0,5)}`
+      };
 
-    setDocumentNonBlocking(userRef, profileData, { merge: true });
+      setDocumentNonBlocking(userRef, profileData, { merge: true });
 
-    if (data.role === 'Admin') {
-      const adminRoleRef = doc(firestore, 'roles_admin', userId);
-      setDocumentNonBlocking(adminRoleRef, { active: true }, { merge: true });
+      if (data.role === 'Admin') {
+        const adminRoleRef = doc(firestore, 'roles_admin', userId);
+        setDocumentNonBlocking(adminRoleRef, { active: true }, { merge: true });
+      }
     }
   };
 
@@ -71,27 +76,25 @@ export default function Home() {
         return;
       }
 
-      syncUserProfile(result.user.uid, {
+      await syncUserProfile(result.user.uid, {
         name: result.user.displayName,
         email: result.user.email,
         role: targetRole === 'admin' ? 'Admin' : 'Professor'
       });
 
       toast({
-        title: 'Institutional Access Granted',
-        description: `Authenticated as ${targetRole}. Redirecting to dashboard...`,
+        title: 'Authentication Successful',
+        description: `Redirecting to ${targetRole} portal...`,
       });
       
-      setTimeout(() => {
-        router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
-      }, 1000);
+      router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
 
     } catch (error: any) {
       if (error.code === 'auth/popup-closed-by-user') return;
       toast({
         variant: 'destructive',
         title: 'Authentication Error',
-        description: error.message || 'An unexpected error occurred during sign-in.',
+        description: 'Failed to connect to Google. Please try again.',
       });
     } finally {
       setIsLoggingIn(false);
@@ -114,10 +117,10 @@ export default function Home() {
         videoRef.current.srcObject = stream;
       }
       
+      // Simulating a QR detection
       setTimeout(async () => {
-        const mockScannedQR = 'ADMIN_QR_001'; 
-        handleQRLogin(mockScannedQR);
-      }, 2000);
+        handleQRDetected('PROF_MOCK_TOKEN');
+      }, 3000);
 
     } catch (error) {
       setHasCameraPermission(false);
@@ -132,13 +135,11 @@ export default function Home() {
     }
   };
 
-  const handleQRLogin = (qrString: string) => {
-    if (qrString === 'ADMIN_QR_001') {
+  const handleQRDetected = (qrString: string) => {
+    if (qrString.startsWith('ADMIN')) {
       router.push('/admin');
     } else if (qrString.startsWith('PROF')) {
       router.push('/professor');
-    } else {
-      toast({ variant: 'destructive', title: 'Invalid Token', description: 'Institutional QR code not recognized.' });
     }
     stopScanning();
   };
@@ -198,7 +199,7 @@ export default function Home() {
                 <Alert variant="default" className="bg-primary/5 border-primary/20 py-4 text-left">
                   <Info className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
-                    Institutional Google accounts required for faculty entry.
+                    Please use your official @neu.edu.ph Google account to sign in.
                   </AlertDescription>
                 </Alert>
                 <Button 
@@ -237,7 +238,7 @@ export default function Home() {
                 <Alert variant="default" className="bg-primary/5 border-primary/20 py-4 text-left">
                   <ShieldCheck className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
-                    Admin privileges are tied to verified institutional identities.
+                    Admin access is restricted to verified institutional identities.
                   </AlertDescription>
                 </Alert>
                 <Button 
@@ -274,7 +275,7 @@ export default function Home() {
         </Card>
 
         <p className="text-xs font-medium text-muted-foreground">
-          Verified <span className="text-primary font-bold">@neu.edu.ph</span> Google accounts are required.
+          Verified <span className="text-primary font-bold">@neu.edu.ph</span> Google accounts only.
         </p>
       </div>
     </div>
@@ -317,7 +318,7 @@ function QRScannerDialog({ trigger, onStop, videoRef, hasCameraPermission, isSca
           </div>
           <div className="flex items-center gap-3 text-[10px] font-bold text-muted-foreground">
             <Loader2 className="w-3 h-3 animate-spin text-primary" />
-            Waiting for institutional token...
+            Waiting for token...
           </div>
         </div>
       </DialogContent>
