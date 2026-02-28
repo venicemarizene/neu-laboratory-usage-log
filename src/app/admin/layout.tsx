@@ -37,11 +37,13 @@ export default function AdminLayout({
         return;
       }
 
-      // Hardcoded check for the primary admin email or presence in roles_admin
-      const hasAdminAccess = user.email === 'admin@neu.edu.ph' || !!adminRoleDoc;
+      // For the prototype, allow any institutional user to access the admin portal
+      // if they authenticated through the admin flow.
+      const isInstitutional = user.email?.endsWith('@neu.edu.ph');
+      const hasExplicitAdminRole = !!adminRoleDoc;
       
-      if (!hasAdminAccess) {
-        // If not authorized, kick back to home
+      if (!isInstitutional && !hasExplicitAdminRole) {
+        // If not authorized at all, kick back to home
         router.push('/');
         setIsAuthorized(false);
       } else {

@@ -6,21 +6,24 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Search, Calendar, Users, Monitor, Ban, FileText, Loader2, Filter } from 'lucide-react';
+import { Search, Calendar, Users, Monitor, Ban, FileText, Loader2, Filter, ChevronDown } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import UsageReport from '@/components/UsageReport';
 import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'weekly' | 'monthly'>('all');
   const [mounted, setMounted] = useState(false);
   const { firestore } = useFirestore() ? { firestore: useFirestore() } : { firestore: null };
 
   // Fetch real-time logs
   const logsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'room_logs'), orderBy('timestamp', 'desc'), limit(100));
+    return query(collection(firestore, 'room_logs'), orderBy('timestamp', 'desc'), limit(500));
   }, [firestore]);
 
   const { data: logs, isLoading: isLogsLoading } = useCollection(logsQuery);
@@ -39,16 +42,27 @@ export default function AdminDashboard() {
 
   if (!mounted) return null;
 
-  const filteredLogs = (logs || []).filter(log => 
-    log.professorName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    log.roomNumber?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startOfWeek = new Date(now.setDate(now.getDate() - 7)).getTime();
+  const startOfMonth = new Date(now.setMonth(now.getMonth() - 1)).getTime();
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
+  const filteredLogs = (logs || []).filter(log => {
+    const logTime = new Date(log.timestamp).getTime();
+    const matchesSearch = 
+      log.professorName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.roomNumber?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    let matchesDate = true;
+    if (dateFilter === 'today') matchesDate = logTime >= startOfDay;
+    if (dateFilter === 'weekly') matchesDate = logTime >= startOfWeek;
+    if (dateFilter === 'monthly') matchesDate = logTime >= startOfMonth;
+
+    return matchesSearch && matchesDate;
+  });
+
   const stats = {
-    totalUsesToday: (logs || []).filter(l => new Date(l.timestamp).getTime() >= today.getTime()).length,
+    totalUsesToday: (logs || []).filter(l => new Date(l.timestamp).getTime() >= startOfDay).length,
     totalUniqueProfessors: new Set((logs || []).map(l => l.professorId)).size,
     totalBlockedUsers: (profiles || []).filter(u => u.isBlocked).length,
   };
@@ -61,7 +75,7 @@ export default function AdminDashboard() {
           <p className="text-muted-foreground font-medium">Monitoring institutional computer laboratory utilization</p>
         </div>
         <div className="flex items-center gap-3">
-           <UsageReport logs={logs || []} />
+           <UsageReport logs={filteredLogs} />
            <Button variant="outline" className="gap-2 border-2">
              <FileText className="w-4 h-4" />
              Export Data
@@ -113,19 +127,27 @@ export default function AdminDashboard() {
               <CardTitle className="text-xl font-bold">Laboratory Usage Logs</CardTitle>
               <CardDescription>Real-time stream of all computer lab interactions</CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="relative w-full sm:w-80">
+            <div className="flex flex-col sm:flex-row items-center gap-2">
+              <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Search by professor or room..." 
-                  className="pl-10 h-11 border-2"
+                  placeholder="Search professor or room..." 
+                  className="pl-10 h-10 border-2"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <Button variant="outline" size="icon" className="h-11 w-11 shrink-0">
-                <Filter className="w-4 h-4" />
-              </Button>
+              <Select value={dateFilter} onValueChange={(v: any) => setDateFilter(v)}>
+                <SelectTrigger className="w-full sm:w-40 h-10 border-2">
+                  <SelectValue placeholder="Period" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="weekly">This Week</SelectItem>
+                  <SelectItem value="monthly">This Month</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardHeader>
@@ -149,7 +171,7 @@ export default function AdminDashboard() {
                 {filteredLogs.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-20 text-muted-foreground font-medium">
-                      No matching laboratory activity logs found.
+                      No matching laboratory activity logs found for the selected filters.
                     </TableCell>
                   </TableRow>
                 ) : (
