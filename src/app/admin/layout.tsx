@@ -33,6 +33,7 @@ export default function AdminLayout({
   useEffect(() => {
     if (!isUserLoading && !isAdminCheckLoading) {
       if (!user) {
+        setIsAuthorized(false);
         router.push('/');
         return;
       }
@@ -42,8 +43,8 @@ export default function AdminLayout({
       const hasExplicitAdminRole = !!adminRoleDoc;
       
       if (!isInstitutional && !hasExplicitAdminRole) {
-        router.push('/');
         setIsAuthorized(false);
+        router.push('/');
       } else {
         setIsAuthorized(true);
       }
@@ -52,6 +53,7 @@ export default function AdminLayout({
 
   const handleSignOut = async () => {
     if (auth) {
+      setIsAuthorized(false); // Reset authorization immediately on sign-out
       await signOut(auth);
       router.push('/');
     }
@@ -121,11 +123,11 @@ export default function AdminLayout({
           <h2 className="font-bold text-lg text-primary">Admin Dashboard</h2>
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold leading-none">{user.displayName || 'Administrator'}</p>
-              <p className="text-xs text-muted-foreground">{user.email}</p>
+              <p className="text-sm font-bold leading-none">{user?.displayName || 'Administrator'}</p>
+              <p className="text-xs text-muted-foreground">{user?.email}</p>
             </div>
             <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center font-bold text-primary shadow-inner">
-              {user.email?.[0].toUpperCase() || 'A'}
+              {user?.email?.[0].toUpperCase() || 'A'}
             </div>
           </div>
         </header>

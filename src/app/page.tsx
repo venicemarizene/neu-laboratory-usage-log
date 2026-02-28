@@ -67,6 +67,11 @@ export default function Home() {
       router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
 
     } catch (error: any) {
+      // Handle the case where user closes the popup
+      if (error.code === 'auth/popup-closed-by-user') {
+        return;
+      }
+      
       console.error('Sign-in error:', error);
       toast({
         variant: 'destructive',
