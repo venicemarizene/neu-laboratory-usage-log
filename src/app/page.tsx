@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LogIn, Monitor, QrCode, Camera, Loader2, AlertCircle, ShieldCheck, UserCircle } from 'lucide-react';
@@ -26,13 +25,14 @@ export default function Home() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-  const [adminId, setAdminId] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Redirect if already logged in
   useEffect(() => {
     if (!isUserLoading && user) {
       if (user.email?.endsWith('@neu.edu.ph')) {
+        // In a real app, we would check a 'roles_admin' collection or custom claim
+        // For this prototype, we'll route based on email or a mock role check
         if (user.email === 'admin@neu.edu.ph') {
           router.push('/admin');
         } else {
@@ -80,7 +80,7 @@ export default function Home() {
         videoRef.current.srcObject = stream;
       }
       
-      // Simulate scanning a QR code after 3 seconds
+      // Simulate scanning a QR code after 3 seconds for demonstration
       setTimeout(async () => {
         const mockScannedQR = 'PROF_QR_101'; 
         handleQRLogin(mockScannedQR);
@@ -177,7 +177,7 @@ export default function Home() {
             <TabsContent value="professor" className="p-6 space-y-4 m-0">
               <CardHeader className="p-0 mb-4">
                 <CardTitle className="text-xl">Staff Access</CardTitle>
-                <CardDescription>Log in using your @neu.edu.ph Google account or Faculty QR code.</CardDescription>
+                <CardDescription>Log in using your @neu.edu.ph institutional account or QR code.</CardDescription>
               </CardHeader>
               
               <Button 
@@ -216,27 +216,14 @@ export default function Home() {
                 <CardDescription>Secure entry for lab administrators and authorized personnel.</CardDescription>
               </CardHeader>
 
-              <div className="space-y-4 text-left">
-                <div className="space-y-2">
-                  <Label htmlFor="admin-id">Admin System ID</Label>
-                  <Input 
-                    id="admin-id" 
-                    placeholder="Enter your system identifier..." 
-                    value={adminId}
-                    onChange={(e) => setAdminId(e.target.value)}
-                    className="h-11"
-                  />
-                </div>
-                
-                <Button 
-                  onClick={handleGoogleSignIn}
-                  disabled={isLoggingIn || !adminId}
-                  className="w-full h-12 text-lg font-medium bg-primary hover:bg-primary/90 transition-all flex items-center justify-center gap-3"
-                >
-                  {isLoggingIn ? <Loader2 className="animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
-                  Verify & Sign in
-                </Button>
-              </div>
+              <Button 
+                onClick={handleGoogleSignIn}
+                disabled={isLoggingIn}
+                className="w-full h-12 text-lg font-medium bg-primary hover:bg-primary/90 transition-all flex items-center justify-center gap-3"
+              >
+                {isLoggingIn ? <Loader2 className="animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
+                Sign in with Google
+              </Button>
               
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
