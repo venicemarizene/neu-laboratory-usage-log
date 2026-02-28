@@ -39,26 +39,29 @@ export default function AdminLayout({
   const { data: profileData, isLoading: isProfileLoading } = useDoc(profileRef);
 
   useEffect(() => {
-    // Wait for the auth state to be determined
+    // 1. Wait for the Firebase Auth state to be determined
     if (isUserLoading) return;
 
+    // 2. If no user is authenticated, redirect to home immediately
     if (!user) {
       setIsAuthorized(false);
       router.push('/');
       return;
     }
 
-    // Wait for documents to settle
+    // 3. Wait for Firestore documents to be fetched
     if (isAdminCheckLoading || isProfileLoading) return;
 
-    // Check for authorization: doc in roles_admin collection OR explicit 'Admin' role in profile
-    // We also check if the user is still being provisioned (grace period for first-time login)
+    // 4. Determine authorization: 
+    // - Check the explicit admin role document
+    // - OR check the profile data field
+    // We add a tiny safety check: if both are null, it means the documents don't exist yet.
     const hasExplicitAdminRole = !!adminRoleDoc || profileData?.role === 'Admin';
     
     if (hasExplicitAdminRole) {
       setIsAuthorized(true);
     } else {
-      // If we are definitely sure they aren't an admin after loading finishes
+      // If we are definitely sure they aren't an admin after loading finishes, redirect
       setIsAuthorized(false);
       router.push('/');
     }
@@ -67,7 +70,8 @@ export default function AdminLayout({
   const handleSignOut = async () => {
     if (auth) {
       setIsAuthorized(false);
-      await signOut(auth).then(() => router.push('/'));
+      await signOut(auth);
+      router.push('/');
     }
   };
 

@@ -22,7 +22,6 @@ service cloud.firestore {
 
     function isAdmin() {
       // Use exists() to check for explicit admin role in roles_admin collection
-      // This allows for granular, document-level security based on administrative status.
       return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
@@ -58,11 +57,12 @@ service cloud.firestore {
     }
 
     match /roles_admin/{userId} {
-      // Users can check their own admin status; admins can check others.
-      allow get: if isOwner(userId) || isAdmin();
-      // Authorized institutional users can register as an admin (elevation check handled in app logic).
+      // Explicitly allow owners to read their own admin status without calling a recursive isAdmin()
+      allow get: if isOwner(userId) || (isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid)));
+      // Authorized institutional users can register as an admin marker for themselves.
       allow create, update: if isOwner(userId) && isInstitutionalUser();
-      allow list, delete: if isAdmin();
+      // Only existing admins can list or delete admin markers.
+      allow list, delete: if isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
   }
 }
