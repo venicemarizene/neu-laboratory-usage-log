@@ -37,13 +37,12 @@ export default function AdminLayout({
         return;
       }
 
-      // For the prototype, allow any institutional user to access the admin portal
-      // if they authenticated through the admin flow.
+      // For the prototype, allow any institutional user to access the admin portal.
+      // In production, you would strictly check for hasExplicitAdminRole.
       const isInstitutional = user.email?.endsWith('@neu.edu.ph');
       const hasExplicitAdminRole = !!adminRoleDoc;
       
       if (!isInstitutional && !hasExplicitAdminRole) {
-        // If not authorized at all, kick back to home
         router.push('/');
         setIsAuthorized(false);
       } else {
@@ -65,7 +64,7 @@ export default function AdminLayout({
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
           <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
-          <p className="text-muted-foreground font-medium">Verifying Administrative Credentials...</p>
+          <p className="text-muted-foreground font-medium">Verifying Administrative Access...</p>
         </div>
       </div>
     );
