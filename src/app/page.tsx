@@ -26,18 +26,21 @@ export default function Home() {
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Profile sync logic to ensure user existence in Firestore
+  /**
+   * Idempotent user profile synchronization.
+   * Ensures institutional users have a profile and relevant roles.
+   */
   const syncUserProfile = async (userId: string, data: any) => {
     if (!firestore) return;
     const userRef = doc(firestore, 'user_profiles', userId);
     
-    // Check if profile already exists to preserve roles/status
+    // Check if profile exists to avoid overwriting roles or block status
     const docSnap = await getDoc(userRef);
     
     if (!docSnap.exists()) {
-      const profileData: any = {
+      const profileData = {
         id: userId,
-        name: data.name || data.displayName || 'Faculty Member',
+        name: data.name || 'Faculty Member',
         email: data.email,
         role: data.role || 'Professor',
         isBlocked: false,
@@ -46,6 +49,7 @@ export default function Home() {
 
       setDocumentNonBlocking(userRef, profileData, { merge: true });
 
+      // provision admin role marker if applicable
       if (data.role === 'Admin') {
         const adminRoleRef = doc(firestore, 'roles_admin', userId);
         setDocumentNonBlocking(adminRoleRef, { active: true }, { merge: true });
@@ -53,12 +57,15 @@ export default function Home() {
     }
   };
 
+  /**
+   * Handles Google SSO with institutional domain enforcement.
+   */
   const handleGoogleSignIn = async (targetRole: 'admin' | 'professor') => {
     if (!auth || !firestore) return;
     setIsLoggingIn(true);
     
     const provider = new GoogleAuthProvider();
-    // Force account selection to allow multiple institutional emails
+    // Forces account selection to allow switching between institutional emails
     provider.setCustomParameters({ 
       prompt: 'select_account'
     });
@@ -67,7 +74,7 @@ export default function Home() {
       const result = await signInWithPopup(auth, provider);
       const userEmail = result.user.email?.toLowerCase() || '';
       
-      // Strict domain restriction check
+      // Strict institutional domain restriction
       const isInstitutional = userEmail.endsWith('@neu.edu.ph');
 
       if (!isInstitutional) {
@@ -91,14 +98,17 @@ export default function Home() {
         description: `Welcome, ${result.user.displayName}. Access granted.`,
       });
       
-      router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
+      // Redirect after a short delay for data propagation
+      setTimeout(() => {
+        router.push(`/${targetRole}`);
+      }, 500);
 
     } catch (error: any) {
       if (error.code === 'auth/popup-closed-by-user') return;
       toast({
         variant: 'destructive',
         title: 'Authentication Error',
-        description: 'Failed to connect to Google. Please try again.',
+        description: error.message || 'Failed to connect to Google.',
       });
     } finally {
       setIsLoggingIn(false);
@@ -121,8 +131,8 @@ export default function Home() {
         videoRef.current.srcObject = stream;
       }
       
-      // Simulating a QR detection for entry logic
-      setTimeout(async () => {
+      // Simulation: detection logic
+      setTimeout(() => {
         handleQRDetected('PROF_MOCK_TOKEN');
       }, 3000);
 
@@ -175,7 +185,7 @@ export default function Home() {
               </div>
               <div className="text-left">
                 <p className="text-xs font-semibold leading-none">{user.displayName || 'Faculty'}</p>
-                <p className="text-[10px] text-muted-foreground">{user.email}</p>
+                <p className="text-[10px] text-muted-foreground font-medium">{user.email}</p>
               </div>
             </div>
             <Button variant="ghost" size="sm" onClick={handleSignOut} className="h-8 text-[10px] text-destructive hover:bg-destructive/10 transition-all duration-200">
@@ -203,7 +213,7 @@ export default function Home() {
                 <Alert variant="default" className="bg-primary/5 border-primary/20 py-4 text-left">
                   <Info className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
-                    Please use your official @neu.edu.ph Google account to sign in.
+                    Please use your official @neu.edu.ph Google account to sign in as a professor.
                   </AlertDescription>
                 </Alert>
                 <Button 
@@ -212,7 +222,7 @@ export default function Home() {
                   className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
                 >
                   {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}
-                  Sign In with Google
+                  Sign In with Institutional Google
                 </Button>
               </div>
               

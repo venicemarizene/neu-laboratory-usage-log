@@ -57,19 +57,19 @@ export default function AdminLayout({
 
     if (isMarkerLoading || isProfileLoading) return;
 
-    // Admin is authorized if they have the marker or the profile indicates Admin role
+    // Admin is authorized if they have the marker OR the profile indicates Admin role
     const isAdmin = !!adminMarker || profileData?.role === 'Admin';
     
     if (isAdmin) {
       setIsAuthorized(true);
     } else {
-      // Grace period for sync before redirection
+      // Extended grace period for synchronization before redirection
       const timer = setTimeout(() => {
         if (!isAdmin) {
           setIsAuthorized(false);
           router.push('/');
         }
-      }, 3000);
+      }, 5000); 
       return () => clearTimeout(timer);
     }
   }, [user, isUserLoading, isMarkerLoading, isProfileLoading, adminMarker, profileData, router, auth]);
@@ -143,7 +143,7 @@ export default function AdminLayout({
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold leading-none">{user?.displayName || 'Administrator'}</p>
-              <p className="text-xs text-muted-foreground">{user?.email}</p>
+              <p className="text-xs text-muted-foreground font-medium">{user?.email}</p>
             </div>
             <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center font-bold text-primary shadow-inner">
               {user?.email?.[0].toUpperCase() || 'A'}
