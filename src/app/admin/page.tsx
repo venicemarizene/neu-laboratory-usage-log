@@ -1,17 +1,23 @@
 "use client"
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Search, Calendar, Users, Microscope, Ban, Sparkles, Download } from 'lucide-react';
+import { Search, Calendar, Users, Microscope, Ban, Download } from 'lucide-react';
 import { MOCK_LOGS, getStats } from '@/lib/mock-data';
 import UsageReport from '@/components/UsageReport';
+import { UsageStats } from '@/lib/types';
 
 export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
-  const stats = getStats();
+  const [stats, setStats] = useState<UsageStats | null>(null);
+
+  useEffect(() => {
+    // Defer dynamic calculations until after hydration
+    setStats(getStats());
+  }, []);
 
   const filteredLogs = MOCK_LOGS.filter(log => 
     log.professorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -42,7 +48,7 @@ export default function AdminDashboard() {
             <Microscope className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalUsesToday}</div>
+            <div className="text-2xl font-bold">{stats?.totalUsesToday ?? 0}</div>
             <p className="text-xs text-muted-foreground">+12% from yesterday</p>
           </CardContent>
         </Card>
@@ -52,7 +58,7 @@ export default function AdminDashboard() {
             <Users className="h-4 w-4 text-accent" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalUniqueProfessors}</div>
+            <div className="text-2xl font-bold">{stats?.totalUniqueProfessors ?? 0}</div>
             <p className="text-xs text-muted-foreground">Active this semester</p>
           </CardContent>
         </Card>
@@ -62,7 +68,7 @@ export default function AdminDashboard() {
             <Ban className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalBlockedUsers}</div>
+            <div className="text-2xl font-bold">{stats?.totalBlockedUsers ?? 0}</div>
             <p className="text-xs text-muted-foreground">Access currently revoked</p>
           </CardContent>
         </Card>

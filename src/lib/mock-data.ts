@@ -1,5 +1,8 @@
 import type { UserProfile, RoomLog, UsageStats } from './types';
 
+// Using static timestamps to prevent hydration mismatches during development
+const BASE_TIME = 1740000000000; // Fixed timestamp for consistency
+
 export const MOCK_USERS: UserProfile[] = [
   {
     uid: 'admin-1',
@@ -8,7 +11,7 @@ export const MOCK_USERS: UserProfile[] = [
     role: 'Admin',
     blocked: false,
     qrString: 'ADMIN_QR_001',
-    createdAt: Date.now() - 86400000 * 30,
+    createdAt: BASE_TIME - 86400000 * 30,
   },
   {
     uid: 'prof-1',
@@ -17,7 +20,7 @@ export const MOCK_USERS: UserProfile[] = [
     role: 'Professor',
     blocked: false,
     qrString: 'PROF_QR_101',
-    createdAt: Date.now() - 86400000 * 10,
+    createdAt: BASE_TIME - 86400000 * 10,
   },
   {
     uid: 'prof-2',
@@ -26,7 +29,7 @@ export const MOCK_USERS: UserProfile[] = [
     role: 'Professor',
     blocked: true,
     qrString: 'PROF_QR_102',
-    createdAt: Date.now() - 86400000 * 5,
+    createdAt: BASE_TIME - 86400000 * 5,
   },
   {
     uid: 'prof-3',
@@ -35,15 +38,15 @@ export const MOCK_USERS: UserProfile[] = [
     role: 'Professor',
     blocked: false,
     qrString: 'PROF_QR_103',
-    createdAt: Date.now() - 86400000 * 2,
+    createdAt: BASE_TIME - 86400000 * 2,
   },
 ];
 
 export const MOCK_LOGS: RoomLog[] = [
-  { id: '1', professorName: 'Dr. Jane Smith', roomNumber: 'Lab 101', timestamp: Date.now() - 3600000, status: 'Active' },
-  { id: '2', professorName: 'Dr. Grace Hopper', roomNumber: 'Lab 204', timestamp: Date.now() - 7200000, status: 'Active' },
-  { id: '3', professorName: 'Dr. Jane Smith', roomNumber: 'Lab 101', timestamp: Date.now() - 86400000, status: 'Active' },
-  { id: '4', professorName: 'Dr. Grace Hopper', roomNumber: 'Lab 305', timestamp: Date.now() - 86400000 * 2, status: 'Active' },
+  { id: '1', professorName: 'Dr. Jane Smith', roomNumber: 'Lab 101', timestamp: BASE_TIME - 3600000, status: 'Active' },
+  { id: '2', professorName: 'Dr. Grace Hopper', roomNumber: 'Lab 204', timestamp: BASE_TIME - 7200000, status: 'Active' },
+  { id: '3', professorName: 'Dr. Jane Smith', roomNumber: 'Lab 101', timestamp: BASE_TIME - 86400000, status: 'Active' },
+  { id: '4', professorName: 'Dr. Grace Hopper', roomNumber: 'Lab 305', timestamp: BASE_TIME - 86400000 * 2, status: 'Active' },
 ];
 
 export function getStats(): UsageStats {
