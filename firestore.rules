@@ -10,9 +10,10 @@ service cloud.firestore {
     }
 
     function isInstitutionalUser() {
+      // Allows main domain and subdomains (e.g. student.neu.edu.ph)
       return isSignedIn() && 
              request.auth.token.firebase.sign_in_provider == 'google.com' &&
-             request.auth.token.email.matches('.*@neu\\.edu\\.ph$');
+             request.auth.token.email.matches('.*@(.+\\.)?neu\\.edu\\.ph$');
     }
 
     function isOwner(userId) {

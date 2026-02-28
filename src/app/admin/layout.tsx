@@ -37,9 +37,8 @@ export default function AdminLayout({
         return;
       }
 
-      // For the prototype, allow any institutional user to access the admin portal.
-      // In production, you would strictly check for hasExplicitAdminRole.
-      const isInstitutional = user.email?.endsWith('@neu.edu.ph');
+      // Inclusive check for institutional users (e.g. @neu.edu.ph, @student.neu.edu.ph)
+      const isInstitutional = !!user.email?.match(/@(.+\.)?neu\.edu\.ph$/);
       const hasExplicitAdminRole = !!adminRoleDoc;
       
       if (!isInstitutional && !hasExplicitAdminRole) {

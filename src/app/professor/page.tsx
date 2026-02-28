@@ -8,11 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectScrollUpButton, SelectScrollDownButton } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Monitor, LogOut, CheckCircle2, AlertTriangle, Loader2, ArrowRight, QrCode, Camera, AlertCircle } from 'lucide-react';
-import { useUser, useAuth, useFirestore } from '@/firebase';
+import { Monitor, LogOut, CheckCircle2, AlertTriangle, Loader2, ArrowRight, QrCode, AlertCircle } from 'lucide-react';
+import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, doc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
@@ -26,7 +25,14 @@ export default function ProfessorPortal() {
   const [room, setRoom] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'blocked'>('idle');
-  const [profileData, setProfileData] = useState<any>(null);
+  
+  // Real-time listener for the user's profile to catch "isBlocked" changes instantly
+  const profileRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'user_profiles', user.uid);
+  }, [firestore, user]);
+  
+  const { data: profileData, isLoading: isProfileLoading } = useDoc(profileRef);
   
   // QR Scanning State
   const [isScanning, setIsScanning] = useState(false);
@@ -41,27 +47,14 @@ export default function ProfessorPortal() {
     }
   }, [user, isUserLoading, router]);
 
+  // Update status if blocking occurs in real-time
   useEffect(() => {
-    const fetchProfile = async () => {
-      if (user && firestore) {
-        const docRef = doc(firestore, 'user_profiles', user.uid);
-        getDoc(docRef)
-          .then((snap) => {
-            if (snap.exists()) {
-              setProfileData(snap.data());
-            }
-          })
-          .catch((err) => {
-            const permissionError = new FirestorePermissionError({
-              path: docRef.path,
-              operation: 'get',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-          });
-      }
-    };
-    fetchProfile();
-  }, [user, firestore]);
+    if (profileData?.isBlocked && status !== 'blocked') {
+      setStatus('blocked');
+    } else if (!profileData?.isBlocked && status === 'blocked') {
+      setStatus('idle');
+    }
+  }, [profileData?.isBlocked, status]);
 
   const startScanning = async () => {
     setIsScanning(true);
@@ -130,39 +123,37 @@ export default function ProfessorPortal() {
     if (!selectedRoom) return;
     setIsProcessing(true);
     
-    // Artificial delay to simulate processing/verification
-    setTimeout(() => {
-      if (profileData?.isBlocked) {
-        setStatus('blocked');
-        setIsProcessing(false);
-        return;
-      }
+    // Safety check for blocked status
+    if (profileData?.isBlocked) {
+      setStatus('blocked');
+      setIsProcessing(false);
+      return;
+    }
 
-      if (firestore && user) {
-        const logData = {
-          professorId: user.uid,
-          professorName: user.displayName || profileData?.name || 'Professor',
-          roomNumber: selectedRoom,
-          timestamp: new Date().toISOString(),
-          status: 'Active'
-        };
-        
-        addDoc(collection(firestore, 'room_logs'), logData)
-          .then(() => {
-            setStatus('success');
-            setIsProcessing(false);
-          })
-          .catch(async (serverError) => {
-            const permissionError = new FirestorePermissionError({
-              path: 'room_logs',
-              operation: 'create',
-              requestResourceData: logData,
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            setIsProcessing(false);
+    if (firestore && user) {
+      const logData = {
+        professorId: user.uid,
+        professorName: user.displayName || profileData?.name || 'Professor',
+        roomNumber: selectedRoom,
+        timestamp: new Date().toISOString(),
+        status: 'Active'
+      };
+      
+      addDoc(collection(firestore, 'room_logs'), logData)
+        .then(() => {
+          setStatus('success');
+          setIsProcessing(false);
+        })
+        .catch(async (serverError) => {
+          const permissionError = new FirestorePermissionError({
+            path: 'room_logs',
+            operation: 'create',
+            requestResourceData: logData,
           });
-      }
-    }, 1200);
+          errorEmitter.emit('permission-error', permissionError);
+          setIsProcessing(false);
+        });
+    }
   };
 
   const handleManualEntry = () => {
@@ -174,7 +165,7 @@ export default function ProfessorPortal() {
     setRoom('');
   };
 
-  if (isUserLoading || !user) {
+  if (isUserLoading || isProfileLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />

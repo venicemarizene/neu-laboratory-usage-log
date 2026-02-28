@@ -38,7 +38,8 @@ export default function Home() {
       const result = await signInWithPopup(auth, provider);
       const email = result.user.email;
 
-      if (!email?.endsWith('@neu.edu.ph')) {
+      // Inclusive check for any institutional domain (e.g. @neu.edu.ph, @student.neu.edu.ph)
+      if (!email?.match(/@(.+\.)?neu\.edu\.ph$/)) {
         await signOut(auth);
         toast({
           variant: 'destructive',
@@ -48,7 +49,7 @@ export default function Home() {
         return;
       }
 
-      // Sync User Profile to Firestore to ensure they appear in the Directory
+      // Sync User Profile to Firestore to ensure they appear in the Directory immediately
       const userRef = doc(firestore, 'user_profiles', result.user.uid);
       await setDoc(userRef, {
         id: result.user.uid,
@@ -66,10 +67,11 @@ export default function Home() {
       router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
 
     } catch (error: any) {
+      console.error('Sign-in error:', error);
       toast({
         variant: 'destructive',
         title: 'Authentication Failed',
-        description: error.message || 'Could not complete sign-in.',
+        description: error.message || 'Could not complete sign-in. Please ensure you use your institutional Google account.',
       });
     } finally {
       setIsLoggingIn(false);
@@ -169,7 +171,7 @@ export default function Home() {
               </TabsTrigger>
               <TabsTrigger value="admin" className="data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-2 text-base font-semibold">
                 <ShieldCheck className="w-5 h-5" />
-                Administrator
+                Admin Portal
               </TabsTrigger>
             </TabsList>
             
