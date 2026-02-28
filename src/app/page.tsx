@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertCircle, LogIn, Monitor, QrCode, Loader2, ShieldCheck, UserCircle, LogOut, Mail, Lock, Info } from 'lucide-react';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { GoogleAuthProvider, signInWithPopup, signOut, signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -34,14 +34,24 @@ export default function Home() {
   const syncUserProfile = async (userId: string, data: any) => {
     if (!firestore) return;
     const userRef = doc(firestore, 'user_profiles', userId);
-    await setDoc(userRef, {
+    
+    // Check if profile exists to avoid overwriting the block status
+    const existingDoc = await getDoc(userRef);
+    
+    const profileData: any = {
       id: userId,
       name: data.name || data.displayName || 'Anonymous Faculty',
       email: data.email,
       role: data.role || 'Professor',
-      isBlocked: false,
       qrString: data.role === 'Admin' ? `ADMIN_${userId.slice(0,5)}` : `PROF_${userId.slice(0,5)}`
-    }, { merge: true });
+    };
+
+    // Only set isBlocked to false if it's a brand new user
+    if (!existingDoc.exists()) {
+      profileData.isBlocked = false;
+    }
+
+    await setDoc(userRef, profileData, { merge: true });
   };
 
   const handleGoogleSignIn = async (targetRole: 'admin' | 'professor') => {
@@ -54,7 +64,8 @@ export default function Home() {
     try {
       const result = await signInWithPopup(auth, provider);
       const userEmail = result.user.email?.toLowerCase();
-      const isInstitutional = !!userEmail?.match(/@(.+\.)?neu\.edu\.ph$/);
+      // Robust institutional domain check (case-insensitive)
+      const isInstitutional = !!userEmail?.match(/@([^@]+\.)?neu\.edu\.ph$/i);
 
       if (!isInstitutional) {
         await signOut(auth);
@@ -98,7 +109,7 @@ export default function Home() {
     
     setIsLoggingIn(true);
     try {
-      const isInstitutional = !!email.toLowerCase().match(/@(.+\.)?neu\.edu\.ph$/);
+      const isInstitutional = !!email.toLowerCase().match(/@([^@]+\.)?neu\.edu\.ph$/i);
       if (!isInstitutional) {
         toast({ variant: 'destructive', title: 'Invalid Domain', description: 'Please use your @neu.edu.ph email.' });
         return;
@@ -116,8 +127,8 @@ export default function Home() {
       router.push(`/${targetRole === 'admin' ? 'admin' : 'professor'}`);
     } catch (error: any) {
       let errorMessage = error.message;
-      if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
-        errorMessage = 'Wrong password. If this is a Google-based institutional email, please use the "Google SSO" tab instead.';
+      if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        errorMessage = 'Credential mismatch. If this is a Google-based institutional email, please use the "Google SSO" tab instead.';
       }
       
       toast({
@@ -237,8 +248,8 @@ export default function Home() {
                 <TabsContent value="google" className="space-y-4">
                   <Alert variant="default" className="bg-primary/5 border-primary/20">
                     <Info className="h-4 w-4 text-primary" />
-                    <AlertDescription className="text-xs font-medium">
-                      Google accounts should use the button below for seamless login.
+                    <AlertDescription className="text-xs font-medium text-left">
+                      Recommended: Sign in with your institutional Google account.
                     </AlertDescription>
                   </Alert>
                   <Button 
@@ -252,6 +263,11 @@ export default function Home() {
                 </TabsContent>
 
                 <TabsContent value="manual" className="space-y-4">
+                  <Alert variant="destructive" className="bg-destructive/5 text-left py-2 border-destructive/20">
+                    <AlertDescription className="text-[10px] leading-tight font-bold">
+                      Note: Institutional Google passwords will not work here. Use Google SSO unless you have a direct system password.
+                    </AlertDescription>
+                  </Alert>
                   <div className="space-y-3">
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -259,11 +275,11 @@ export default function Home() {
                     </div>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input type="password" placeholder="Password" className="pl-10" value={password} onChange={(e) => setPassword(e.target.value)} />
+                      <Input type="password" placeholder="System Password" className="pl-10" value={password} onChange={(e) => setPassword(e.target.value)} />
                     </div>
                   </div>
                   <Button onClick={() => handleEmailSignIn('professor')} disabled={isLoggingIn} className="w-full h-12 font-bold">
-                    {isLoggingIn ? <Loader2 className="animate-spin" /> : 'Sign In Now'}
+                    {isLoggingIn ? <Loader2 className="animate-spin" /> : 'Manual Login'}
                   </Button>
                 </TabsContent>
               </Tabs>
@@ -299,8 +315,8 @@ export default function Home() {
                 <TabsContent value="google" className="space-y-4">
                   <Alert variant="default" className="bg-primary/5 border-primary/20">
                     <Info className="h-4 w-4 text-primary" />
-                    <AlertDescription className="text-xs font-medium">
-                      Admin accounts using Google should sign in here.
+                    <AlertDescription className="text-xs font-medium text-left">
+                      Use your admin institutional Google account to sign in.
                     </AlertDescription>
                   </Alert>
                   <Button 
@@ -354,7 +370,7 @@ export default function Home() {
         </Card>
 
         <p className="text-sm font-medium text-muted-foreground">
-          Institutional access for verified <span className="text-primary">@neu.edu.ph</span> accounts.
+          Verified institutional access for <span className="text-primary">@neu.edu.ph</span> accounts.
         </p>
       </div>
     </div>

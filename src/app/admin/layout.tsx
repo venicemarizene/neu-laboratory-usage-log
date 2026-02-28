@@ -30,8 +30,16 @@ export default function AdminLayout({
   
   const { data: adminRoleDoc, isLoading: isAdminCheckLoading } = useDoc(adminRef);
 
+  // Fetch the user's profile to check their recorded role
+  const profileRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'user_profiles', user.uid);
+  }, [firestore, user]);
+
+  const { data: profileData, isLoading: isProfileLoading } = useDoc(profileRef);
+
   useEffect(() => {
-    if (!isUserLoading && !isAdminCheckLoading) {
+    if (!isUserLoading && !isAdminCheckLoading && !isProfileLoading) {
       if (!user) {
         setIsAuthorized(false);
         router.push('/');
@@ -39,9 +47,10 @@ export default function AdminLayout({
       }
 
       // Inclusive check for institutional users (e.g. @neu.edu.ph, @student.neu.edu.ph)
-      const isInstitutional = !!user.email?.match(/@(.+\.)?neu\.edu\.ph$/);
-      const hasExplicitAdminRole = !!adminRoleDoc;
+      const isInstitutional = !!user.email?.toLowerCase().match(/@([^@]+\.)?neu\.edu\.ph$/i);
+      const hasExplicitAdminRole = !!adminRoleDoc || profileData?.role === 'Admin';
       
+      // Admins MUST be institutional users OR have an explicit admin role entry
       if (!isInstitutional && !hasExplicitAdminRole) {
         setIsAuthorized(false);
         router.push('/');
@@ -49,7 +58,7 @@ export default function AdminLayout({
         setIsAuthorized(true);
       }
     }
-  }, [user, isUserLoading, isAdminCheckLoading, adminRoleDoc, router]);
+  }, [user, isUserLoading, isAdminCheckLoading, isProfileLoading, adminRoleDoc, profileData, router]);
 
   const handleSignOut = async () => {
     if (auth) {
@@ -60,7 +69,7 @@ export default function AdminLayout({
   };
 
   // Guard against null user or loading states
-  if (isUserLoading || isAdminCheckLoading || isAuthorized === null || !user) {
+  if (isUserLoading || isAdminCheckLoading || isProfileLoading || isAuthorized === null || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">

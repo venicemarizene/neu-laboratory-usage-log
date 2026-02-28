@@ -10,10 +10,9 @@ service cloud.firestore {
     }
 
     function isInstitutionalUser() {
-      // Allows main domain and any institutional subdomains (e.g. student.neu.edu.ph)
-      // We check for verified email domain match.
+      // Robust check for main domain and institutional subdomains
       return isSignedIn() && 
-             request.auth.token.email.matches('.*@(.+\\.)?neu\\.edu\\.ph$');
+             request.auth.token.email.matches('(?i).*@([^@]+\\.)?neu\\.edu\\.ph$');
     }
 
     function isOwner(userId) {
@@ -21,6 +20,7 @@ service cloud.firestore {
     }
 
     function isAdmin() {
+      // Check for explicit admin role in roles_admin collection
       return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
@@ -33,7 +33,6 @@ service cloud.firestore {
 
     match /user_profiles/{userId} {
       allow get: if isOwner(userId) || isAdmin() || isInstitutionalUser();
-      // Allow authenticated institutional users to perform lookup and directory viewing
       allow list: if isInstitutionalUser() || isAdmin();
       allow create: if isInstitutionalUser() && isOwner(userId);
       allow update: if isOwner(userId) || isAdmin() || isInstitutionalUser();
@@ -41,7 +40,6 @@ service cloud.firestore {
     }
 
     match /room_logs/{logId} {
-      // Allow institutional users and admins to view activity logs
       allow get, list: if isAdmin() || isInstitutionalUser();
       allow create: if isInstitutionalUser() && 
                        isNotBlocked() && 
@@ -50,7 +48,6 @@ service cloud.firestore {
     }
 
     match /roles_admin/{userId} {
-      // Allow the owner to check if they have an admin role
       allow get: if isOwner(userId) || isInstitutionalUser();
       allow read, write: if false;
     }
