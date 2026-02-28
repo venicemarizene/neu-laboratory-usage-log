@@ -1,28 +1,37 @@
 
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectScrollUpButton, SelectScrollDownButton } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Monitor, LogOut, CheckCircle2, AlertTriangle, Loader2, ArrowRight } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Monitor, LogOut, CheckCircle2, AlertTriangle, Loader2, ArrowRight, QrCode, Camera, AlertCircle } from 'lucide-react';
 import { useUser, useAuth, useFirestore } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ProfessorPortal() {
   const router = useRouter();
   const { auth, firestore } = useAuth() ? { auth: useAuth(), firestore: useFirestore() } : { auth: null, firestore: null };
   const { user, isUserLoading } = useUser();
+  const { toast } = useToast();
 
   const [room, setRoom] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'blocked'>('idle');
   const [profileData, setProfileData] = useState<any>(null);
+  
+  // QR Scanning State
+  const [isScanning, setIsScanning] = useState(false);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const roomList = Array.from({ length: 11 }, (_, i) => `M${101 + i}`);
 
@@ -54,6 +63,62 @@ export default function ProfessorPortal() {
     fetchProfile();
   }, [user, firestore]);
 
+  const startScanning = async () => {
+    setIsScanning(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      setHasCameraPermission(true);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      
+      // Simulate scanning a QR code for a room (e.g., M105) after 2.5 seconds
+      setTimeout(() => {
+        const mockScannedRoom = 'M105'; 
+        handleQRDetected(mockScannedRoom);
+      }, 2500);
+
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      setHasCameraPermission(false);
+      toast({
+        variant: 'destructive',
+        title: 'Camera Access Denied',
+        description: 'Please enable camera permissions to scan lab codes.',
+      });
+    }
+  };
+
+  const stopScanning = () => {
+    setIsScanning(false);
+    if (videoRef.current && videoRef.current.srcObject) {
+      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
+      tracks.forEach(track => track.stop());
+    }
+  };
+
+  const handleQRDetected = (detectedRoom: string) => {
+    if (roomList.includes(detectedRoom)) {
+      setRoom(detectedRoom);
+      toast({
+        title: 'Lab Detected',
+        description: `Laboratory ${detectedRoom} identified via QR scan.`,
+      });
+      // Automatically trigger entry after a small delay
+      setTimeout(() => {
+        setIsScanning(false);
+        stopScanning();
+        performEntry(detectedRoom);
+      }, 500);
+    } else {
+      toast({
+        variant: 'destructive',
+        title: 'Invalid Code',
+        description: 'The scanned QR code does not correspond to a valid computer lab.',
+      });
+    }
+  };
+
   const handleSignOut = async () => {
     if (auth) {
       await signOut(auth);
@@ -61,8 +126,8 @@ export default function ProfessorPortal() {
     }
   };
 
-  const handleEnterLab = () => {
-    if (!room) return;
+  const performEntry = (selectedRoom: string) => {
+    if (!selectedRoom) return;
     setIsProcessing(true);
     
     // Artificial delay to simulate processing/verification
@@ -77,7 +142,7 @@ export default function ProfessorPortal() {
         const logData = {
           professorId: user.uid,
           professorName: user.displayName || profileData?.name || 'Professor',
-          roomNumber: room,
+          roomNumber: selectedRoom,
           timestamp: new Date().toISOString(),
           status: 'Active'
         };
@@ -97,7 +162,11 @@ export default function ProfessorPortal() {
             setIsProcessing(false);
           });
       }
-    }, 1500);
+    }, 1200);
+  };
+
+  const handleManualEntry = () => {
+    performEntry(room);
   };
 
   const handleReset = () => {
@@ -132,74 +201,136 @@ export default function ProfessorPortal() {
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-2">
               <Monitor className="w-8 h-8 text-primary" />
             </div>
-            <CardTitle className="text-2xl">Computer Lab Entry</CardTitle>
-            <CardDescription>Select a laboratory and register your session</CardDescription>
+            <CardTitle className="text-2xl font-bold">Lab Entry System</CardTitle>
+            <CardDescription>Select your laboratory manually or use a QR scan.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-3">
-              <label className="text-sm font-bold text-slate-600 uppercase tracking-wider">Choose Computer Laboratory</label>
-              <Select value={room} onValueChange={setRoom}>
-                <SelectTrigger className="h-14 text-lg border-2 border-primary/20 hover:border-primary/40 transition-colors">
-                  <SelectValue placeholder="Select Lab (M101 - M111)" />
-                </SelectTrigger>
-                <SelectContent className="max-h-72">
-                  {roomList.map((roomNum) => (
-                    <SelectItem key={roomNum} value={roomNum} className="text-lg py-3 cursor-pointer">
-                      Computer Laboratory {roomNum}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             {status === 'idle' && (
-              <Button 
-                onClick={handleEnterLab} 
-                disabled={!room || isProcessing}
-                className="w-full h-16 text-xl font-bold bg-primary hover:bg-primary/90 shadow-lg gap-3 transition-all active:scale-95"
-              >
-                {isProcessing ? (
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                ) : (
-                  <ArrowRight className="w-6 h-6" />
-                )}
-                {isProcessing ? 'Processing Entry...' : room ? `Enter Lab ${room}` : 'Select a Lab to Enter'}
-              </Button>
+              <>
+                <div className="space-y-3">
+                  <label className="text-xs font-black text-muted-foreground uppercase tracking-widest">Manual Selection</label>
+                  <Select value={room} onValueChange={setRoom}>
+                    <SelectTrigger className="h-14 text-lg border-2 border-primary/20 hover:border-primary/40 transition-colors shadow-sm">
+                      <SelectValue placeholder="Select Lab (M101 - M111)" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      <SelectScrollUpButton />
+                      {roomList.map((roomNum) => (
+                        <SelectItem key={roomNum} value={roomNum} className="text-lg py-3 cursor-pointer">
+                          Computer Laboratory {roomNum}
+                        </SelectItem>
+                      ))}
+                      <SelectScrollDownButton />
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs font-bold uppercase">
+                    <span className="bg-card px-3 text-muted-foreground">OR</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                  <Dialog onOpenChange={(open) => !open && stopScanning()}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        onClick={startScanning}
+                        className="h-14 border-2 border-primary/20 hover:border-primary hover:bg-primary/5 font-bold gap-3 shadow-sm transition-all active:scale-95"
+                      >
+                        <QrCode className="w-5 h-5 text-primary" />
+                        Scan Lab QR Code
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle className="text-xl font-bold">Laboratory QR Scanner</DialogTitle>
+                        <DialogDescription>
+                          Scan the QR code located at the lab entrance to automatically register your session.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="flex flex-col items-center justify-center space-y-6 py-6">
+                        <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black flex items-center justify-center border-4 border-primary/20 shadow-2xl">
+                          <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" autoPlay muted playsInline />
+                          {hasCameraPermission === false && (
+                            <div className="z-10 text-white text-center p-6 bg-black/60 backdrop-blur-sm h-full w-full flex flex-col items-center justify-center">
+                              <AlertCircle className="w-12 h-12 mx-auto mb-4 text-destructive" />
+                              <p className="text-lg font-bold">Camera Access Required</p>
+                              <p className="text-sm opacity-90">Please enable camera permissions in your browser settings to scan QR codes.</p>
+                            </div>
+                          )}
+                          {isScanning && hasCameraPermission && (
+                            <div className="absolute inset-0 z-20 pointer-events-none border-2 border-accent/40 animate-pulse m-8 rounded-lg">
+                              <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-accent" />
+                              <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-accent" />
+                              <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-accent" />
+                              <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-accent" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-sm font-bold text-muted-foreground">
+                          <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                          Waiting for laboratory code...
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+
+                  <Button 
+                    onClick={handleManualEntry} 
+                    disabled={!room || isProcessing}
+                    className="h-16 text-xl font-black bg-primary hover:bg-primary/90 shadow-xl gap-3 transition-all active:scale-95 group"
+                  >
+                    {isProcessing ? (
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    ) : (
+                      <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+                    )}
+                    {isProcessing ? 'Verifying...' : room ? `Enter Lab ${room}` : 'Select a Lab to Begin'}
+                  </Button>
+                </div>
+              </>
             )}
 
             {status === 'success' && (
               <div className="text-center space-y-6 animate-in zoom-in-95 duration-500">
-                <div className="p-8 bg-green-50 rounded-2xl border-2 border-green-200 space-y-4 shadow-inner">
-                  <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto shadow-lg">
-                    <CheckCircle2 className="w-10 h-10 text-white" />
+                <div className="p-10 bg-green-50 rounded-3xl border-2 border-green-200 space-y-6 shadow-inner">
+                  <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto shadow-lg ring-8 ring-green-100">
+                    <CheckCircle2 className="w-12 h-12 text-white" />
                   </div>
-                  <div className="space-y-2">
-                    <h3 className="text-2xl font-black text-green-700">Access Granted</h3>
-                    <p className="text-green-600 font-bold text-xl">
-                      Thank you for using room {room}.
+                  <div className="space-y-3">
+                    <h3 className="text-3xl font-black text-green-800 tracking-tight">Access Logged</h3>
+                    <p className="text-green-700 font-bold text-xl leading-relaxed">
+                      Thank you for using room <span className="underline decoration-green-400 decoration-4 underline-offset-4">{room}</span>.
                     </p>
                   </div>
                 </div>
                 <Button 
                   variant="outline" 
                   onClick={handleReset} 
-                  className="w-full h-14 text-lg font-bold border-2 hover:bg-slate-50 transition-colors"
+                  className="w-full h-14 text-lg font-bold border-2 hover:bg-slate-50 transition-all rounded-xl"
                 >
-                  Register New Session
+                  Register Another Session
                 </Button>
               </div>
             )}
 
             {status === 'blocked' && (
               <div className="text-center space-y-6 animate-in zoom-in-95 duration-500">
-                <div className="p-8 bg-destructive/5 rounded-2xl border-2 border-destructive/20 space-y-4">
-                  <AlertTriangle className="w-16 h-16 text-destructive mx-auto" />
+                <div className="p-8 bg-destructive/5 rounded-3xl border-2 border-destructive/20 space-y-4">
+                  <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <AlertTriangle className="w-10 h-10 text-destructive" />
+                  </div>
                   <div className="space-y-2">
-                    <h3 className="text-2xl font-bold text-destructive">Account Restricted</h3>
-                    <p className="text-muted-foreground font-medium">Your faculty account has been blocked from registering sessions. Please contact the Lab Administrator for assistance.</p>
+                    <h3 className="text-2xl font-black text-destructive tracking-tight">Account Restricted</h3>
+                    <p className="text-muted-foreground font-medium text-lg px-4">Your faculty access has been temporarily suspended. Please visit the Laboratory Administrator's office for resolution.</p>
                   </div>
                 </div>
-                <Button variant="outline" onClick={handleReset} className="w-full h-14 text-lg font-bold border-2">
+                <Button variant="outline" onClick={handleReset} className="w-full h-14 text-lg font-bold border-2 rounded-xl">
                   Try Again
                 </Button>
               </div>
@@ -207,15 +338,15 @@ export default function ProfessorPortal() {
           </CardContent>
         </Card>
 
-        <div className="bg-card p-6 rounded-2xl shadow-lg border border-slate-100 flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-accent text-primary flex items-center justify-center font-black text-xl shadow-inner">
+        <div className="bg-card p-6 rounded-3xl shadow-lg border border-slate-100 flex items-center gap-5 transition-all hover:shadow-xl">
+          <div className="w-14 h-14 rounded-2xl bg-accent text-primary flex items-center justify-center font-black text-2xl shadow-inner transform rotate-3">
             {user.displayName?.[0] || user.email?.[0]?.toUpperCase() || 'P'}
           </div>
-          <div className="flex-1">
-            <p className="font-bold text-slate-800 text-lg">{user.displayName || profileData?.name || 'Professor'}</p>
-            <p className="text-sm text-muted-foreground font-medium">{user.email}</p>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-slate-800 text-lg truncate">{user.displayName || profileData?.name || 'Faculty Member'}</p>
+            <p className="text-sm text-muted-foreground font-medium truncate">{user.email}</p>
           </div>
-          <Badge className="px-3 py-1 font-bold bg-primary/10 text-primary border-primary/20">
+          <Badge className="px-4 py-1.5 font-bold bg-primary/10 text-primary border-primary/20 rounded-lg">
             {profileData?.role || 'Professor'}
           </Badge>
         </div>
