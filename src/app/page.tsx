@@ -1,24 +1,22 @@
 "use client";
 
-import { useState, useRef, useEffect, use } from 'react';
+import { useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertCircle, Monitor, QrCode, Loader2, ShieldCheck, UserCircle, LogOut, Info } from 'lucide-react';
-import { useAuth, useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
-import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info } from 'lucide-react';
+import { useAuth, useUser, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AuthService } from '@/lib/services/auth-service';
+import { UserService } from '@/lib/services/user-service';
 
 /**
  * Main Landing and Authentication Page.
- * Strictly uses Google Pop-up SSO for institutional accounts.
+ * Uses Service Layers for Auth and User management.
  */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
-  // Next.js 15: unwrap params and searchParams using React.use()
   const params = use(props.params);
   const searchParams = use(props.searchParams);
   
@@ -29,82 +27,54 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const { toast } = useToast();
   
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Sync user profile with Firestore after successful Google login
-  const syncUserProfile = async (userId: string, data: any) => {
-    if (!firestore) return;
-    const userRef = doc(firestore, 'user_profiles', userId);
-    const docSnap = await getDoc(userRef);
-    
-    if (!docSnap.exists()) {
-      const profileData = {
-        id: userId,
-        name: data.name || 'Faculty Member',
-        email: data.email,
-        role: data.role || 'Professor',
-        isBlocked: false,
-        qrString: data.role === 'Admin' ? `ADMIN_${userId.slice(0,5)}` : `PROF_${userId.slice(0,5)}`
-      };
-
-      setDocumentNonBlocking(userRef, profileData, { merge: true });
-
-      if (data.role === 'Admin') {
-        const adminRoleRef = doc(firestore, 'roles_admin', userId);
-        setDocumentNonBlocking(adminRoleRef, { active: true }, { merge: true });
-      }
-    }
-  };
-
-  const handleGoogleSignIn = async (targetRole: 'admin' | 'professor') => {
-    if (!auth) return;
+  const handleSignIn = async (targetRole: 'admin' | 'professor') => {
+    if (!auth || !firestore) return;
     setIsLoggingIn(true);
-    
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ 
-      prompt: 'select_account'
-    });
 
     try {
-      const result = await signInWithPopup(auth, provider);
-      const signedInUser = result.user;
-      const userEmail = signedInUser.email?.toLowerCase() || '';
+      const signedInUser = await AuthService.signInWithGoogle(auth);
+      if (!signedInUser) throw new Error("Sign in failed");
 
-      // Restriction: NEU Institutional accounts only
-      if (!userEmail.endsWith("@neu.edu.ph")) {
-        alert("Unauthorized access.");
-        await signOut(auth);
+      const email = signedInUser.email?.toLowerCase() || '';
+
+      // Domain Restriction Logic
+      if (!email.endsWith("@neu.edu.ph")) {
+        alert("Only NEU emails are allowed!");
+        await AuthService.logout(auth);
         setIsLoggingIn(false);
         return;
       }
 
-      await syncUserProfile(signedInUser.uid, {
-        name: signedInUser.displayName,
-        email: signedInUser.email,
-        role: targetRole === 'admin' ? 'Admin' : 'Professor'
-      });
+      // Sync Profile & Role Check
+      const profile = await UserService.syncProfile(
+        firestore, 
+        signedInUser, 
+        targetRole === 'admin' ? 'Admin' : 'Professor'
+      );
+
+      // Account Blocking Check
+      if (profile.isBlocked) {
+        alert("Your account has been blocked. Please contact the administrator.");
+        await AuthService.logout(auth);
+        setIsLoggingIn(false);
+        return;
+      }
 
       toast({
         title: 'Authentication Successful',
         description: `Welcome, ${signedInUser.displayName}.`,
       });
       
-      router.push(`/${targetRole}`);
+      router.push(profile.role === 'Admin' ? '/admin' : '/professor');
     } catch (error: any) {
-      // Gracefully handle user-initiated cancellation
-      if (error.code === 'auth/popup-closed-by-user') {
-        setIsLoggingIn(false);
-        return;
+      if (error.code !== 'auth/popup-closed-by-user') {
+        toast({
+          variant: 'destructive',
+          title: 'Sign In Error',
+          description: error.message || 'An unexpected error occurred.',
+        });
       }
-      
-      console.error(error);
-      toast({
-        variant: 'destructive',
-        title: 'Sign In Failed',
-        description: 'An error occurred during authentication.',
-      });
     } finally {
       setIsLoggingIn(false);
     }
@@ -112,43 +82,9 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
   const handleSignOut = async () => {
     if (auth) {
-      await signOut(auth);
+      await AuthService.logout(auth);
       toast({ title: 'Signed out', description: 'Institutional session ended.' });
     }
-  };
-
-  const startScanning = async () => {
-    setIsScanning(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      setHasCameraPermission(true);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      // Mock detection for demo
-      setTimeout(() => {
-        handleQRDetected('PROF_MOCK_TOKEN');
-      }, 3000);
-    } catch (error) {
-      setHasCameraPermission(false);
-    }
-  };
-
-  const stopScanning = () => {
-    setIsScanning(false);
-    if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-      tracks.forEach(track => track.stop());
-    }
-  };
-
-  const handleQRDetected = (qrString: string) => {
-    if (qrString.startsWith('ADMIN')) {
-      router.push('/admin');
-    } else if (qrString.startsWith('PROF')) {
-      router.push('/professor');
-    }
-    stopScanning();
   };
 
   if (isUserLoading) {
@@ -191,11 +127,11 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         <Card className="border-none shadow-2xl overflow-hidden rounded-2xl">
           <Tabs defaultValue="professor" className="w-full">
             <TabsList className="w-full grid grid-cols-2 rounded-none h-14 bg-muted/30">
-              <TabsTrigger value="professor" className="data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-2 text-sm font-semibold transition-all duration-200">
+              <TabsTrigger value="professor" className="data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-2 text-sm font-semibold">
                 <UserCircle className="w-4 h-4" />
                 Professor
               </TabsTrigger>
-              <TabsTrigger value="admin" className="data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-2 text-sm font-semibold transition-all duration-200">
+              <TabsTrigger value="admin" className="data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-2 text-sm font-semibold">
                 <ShieldCheck className="w-4 h-4" />
                 Admin Portal
               </TabsTrigger>
@@ -203,80 +139,40 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
             
             <TabsContent value="professor" className="p-6 space-y-6 m-0">
               <div className="space-y-4">
-                <Alert variant="default" className="bg-primary/5 border-primary/20 py-4 text-left">
+                <Alert className="bg-primary/5 border-primary/20 text-left">
                   <Info className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
-                    Please use your official @neu.edu.ph Google account to sign in via Popup.
+                    Redirection: Session Logging Portal only.
                   </AlertDescription>
                 </Alert>
                 <Button 
-                  onClick={() => handleGoogleSignIn('professor')}
+                  onClick={() => handleSignIn('professor')}
                   disabled={isLoggingIn}
-                  className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
+                  className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3"
                 >
                   {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <Monitor className="w-5 h-5" />}
-                  Institutional Google Sign-In
+                  Professor Sign-In
                 </Button>
               </div>
-              
-              <div className="relative py-2">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-[10px] font-bold uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">Quick Access</span>
-                </div>
-              </div>
-
-              <QRScannerDialog trigger={
-                <Button 
-                  variant="outline" 
-                  onClick={startScanning}
-                  className="w-full h-14 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
-                >
-                  <QrCode className="w-5 h-5" />
-                  Scan Professor QR
-                </Button>
-              } onStop={stopScanning} videoRef={videoRef} hasCameraPermission={hasCameraPermission} isScanning={isScanning} />
             </TabsContent>
 
             <TabsContent value="admin" className="p-6 space-y-6 m-0">
               <div className="space-y-4">
-                <Alert variant="default" className="bg-primary/5 border-primary/20 py-4 text-left">
+                <Alert className="bg-primary/5 border-primary/20 text-left">
                   <ShieldCheck className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
-                    Admin access restricted to verified institutional identities via Popup.
+                    Redirection: Admin Analytics Dashboard.
                   </AlertDescription>
                 </Alert>
                 <Button 
-                  onClick={() => handleGoogleSignIn('admin')}
+                  onClick={() => handleSignIn('admin')}
                   disabled={isLoggingIn}
-                  className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
+                  className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3"
                 >
                   {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
-                  Admin Institutional Sign-In
+                  Admin Sign-In
                 </Button>
               </div>
-              
-              <div className="relative py-2">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-[10px] font-bold uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">Admin QR Entry</span>
-                </div>
-              </div>
-
-              <QRScannerDialog trigger={
-                <Button 
-                  variant="outline" 
-                  onClick={startScanning}
-                  className="w-full h-14 border-2 hover:bg-accent hover:text-accent-foreground font-bold flex items-center justify-center gap-3 transition-all duration-200 active:scale-95"
-                >
-                  <QrCode className="w-5 h-5" />
-                  Scan Admin Access QR
-                </Button>
-              } onStop={stopScanning} videoRef={videoRef} hasCameraPermission={hasCameraPermission} isScanning={isScanning} />
             </TabsContent>
           </Tabs>
         </Card>
@@ -286,49 +182,5 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         </p>
       </div>
     </div>
-  );
-}
-
-interface QRScannerProps {
-  trigger: React.ReactNode;
-  onStop: () => void;
-  videoRef: React.RefObject<HTMLVideoElement>;
-  hasCameraPermission: boolean | null;
-  isScanning: boolean;
-}
-
-function QRScannerDialog({ trigger, onStop, videoRef, hasCameraPermission, isScanning }: QRScannerProps) {
-  return (
-    <Dialog onOpenChange={(open) => !open && onStop()}>
-      <DialogTrigger asChild>
-        {trigger}
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-bold">Scan Access Token</DialogTitle>
-          <DialogDescription>
-            Point your camera at your institutional QR code for instant entry.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col items-center justify-center space-y-4 py-4">
-          <div className="relative w-full aspect-square max-w-[280px] overflow-hidden rounded-2xl border-4 border-dashed border-primary/20 bg-black flex items-center justify-center shadow-2xl">
-            <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" autoPlay muted playsInline />
-            {hasCameraPermission === false && (
-              <div className="z-10 text-white text-center p-6 bg-black/60 backdrop-blur-sm h-full w-full flex flex-col items-center justify-center">
-                <AlertCircle className="w-10 h-10 mx-auto mb-4 text-destructive" />
-                <p className="text-base font-bold mb-2">Camera Access Required</p>
-              </div>
-            )}
-            {isScanning && hasCameraPermission && (
-              <div className="absolute inset-0 z-20 pointer-events-none border-[4px] border-accent/60 animate-pulse m-8 rounded-xl" />
-            )}
-          </div>
-          <div className="flex items-center gap-3 text-[10px] font-bold text-muted-foreground">
-            <Loader2 className="w-3 h-3 animate-spin text-primary" />
-            Waiting for token...
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }

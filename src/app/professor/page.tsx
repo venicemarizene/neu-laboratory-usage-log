@@ -2,25 +2,24 @@
 
 import { useState, useEffect, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectScrollUpButton, SelectScrollDownButton } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Monitor, LogOut, CheckCircle2, AlertTriangle, Loader2, ArrowRight, QrCode, AlertCircle } from 'lucide-react';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { signOut } from 'firebase/auth';
 import { collection, addDoc, doc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
+import { AuthService } from '@/lib/services/auth-service';
 
 /**
  * Professor Portal for Laboratory Entry.
- * Unwraps Next.js 15 params using use().
+ * Strictly focused on session logging with no analytical dashboard.
  */
 export default function ProfessorPortal(props: { params: Promise<any>; searchParams: Promise<any> }) {
-  // Next.js 15: unwrap params explicitly
   const params = use(props.params);
   const searchParams = use(props.searchParams);
   
@@ -48,81 +47,28 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   const roomList = Array.from({ length: 11 }, (_, i) => `M${101 + i}`);
 
   useEffect(() => {
-    if (!isUserLoading && !user) {
+    if (isUserLoading) return;
+    if (!user) {
       router.push('/');
+      return;
     }
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
-    if (profileData?.isBlocked && status !== 'blocked') {
+    if (profileData?.isBlocked) {
       setStatus('blocked');
-    } else if (!profileData?.isBlocked && status === 'blocked') {
-      setStatus('idle');
     }
-  }, [profileData?.isBlocked, status]);
-
-  const startScanning = async () => {
-    setIsScanning(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      setHasCameraPermission(true);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      
-      setTimeout(() => {
-        const mockScannedRoom = 'M105'; 
-        handleQRDetected(mockScannedRoom);
-      }, 1000);
-
-    } catch (error) {
-      setHasCameraPermission(false);
-      toast({
-        variant: 'destructive',
-        title: 'Camera Access Denied',
-        description: 'Please enable camera permissions.',
-      });
-    }
-  };
-
-  const stopScanning = () => {
-    setIsScanning(false);
-    if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-      tracks.forEach(track => track.stop());
-    }
-  };
-
-  const handleQRDetected = (detectedRoom: string) => {
-    if (roomList.includes(detectedRoom)) {
-      setRoom(detectedRoom);
-      toast({
-        title: 'Lab Detected',
-        description: `Laboratory ${detectedRoom} identified.`,
-      });
-      setTimeout(() => {
-        setIsScanning(false);
-        stopScanning();
-        performEntry(detectedRoom);
-      }, 500);
-    } else {
-      toast({
-        variant: 'destructive',
-        title: 'Invalid Code',
-        description: 'Laboratory code not recognized.',
-      });
-    }
-  };
+  }, [profileData?.isBlocked]);
 
   const handleSignOut = async () => {
     if (auth) {
-      await signOut(auth);
+      await AuthService.logout(auth);
       router.push('/');
     }
   };
 
   const performEntry = (selectedRoom: string) => {
-    if (!selectedRoom) return;
+    if (!selectedRoom || !firestore || !user) return;
     setIsProcessing(true);
     
     if (profileData?.isBlocked) {
@@ -131,39 +77,57 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       return;
     }
 
-    if (firestore && user) {
-      const logData = {
-        professorId: user.uid,
-        professorName: user.displayName || profileData?.name || 'Professor',
-        roomNumber: selectedRoom,
-        timestamp: new Date().toISOString(),
-        status: 'Active'
-      };
-      
-      addDoc(collection(firestore, 'room_logs'), logData)
-        .then(() => {
-          setStatus('success');
-          setIsProcessing(false);
-        })
-        .catch(async () => {
-          const permissionError = new FirestorePermissionError({
-            path: 'room_logs',
-            operation: 'create',
-            requestResourceData: logData,
-          });
-          errorEmitter.emit('permission-error', permissionError);
-          setIsProcessing(false);
+    const logData = {
+      professorId: user.uid,
+      professorName: user.displayName || profileData?.name || 'Professor',
+      roomNumber: selectedRoom,
+      timestamp: new Date().toISOString(),
+      status: 'Active'
+    };
+    
+    addDoc(collection(firestore, 'room_logs'), logData)
+      .then(() => {
+        setStatus('success');
+        setIsProcessing(false);
+      })
+      .catch(async () => {
+        const permissionError = new FirestorePermissionError({
+          path: 'room_logs',
+          operation: 'create',
+          requestResourceData: logData,
         });
+        errorEmitter.emit('permission-error', permissionError);
+        setIsProcessing(false);
+      });
+  };
+
+  const startScanning = async () => {
+    setIsScanning(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      setHasCameraPermission(true);
+      if (videoRef.current) videoRef.current.srcObject = stream;
+      
+      // Mock detection
+      setTimeout(() => handleQRDetected('M105'), 2000);
+    } catch (error) {
+      setHasCameraPermission(false);
     }
   };
 
-  const handleManualEntry = () => {
-    performEntry(room);
+  const stopScanning = () => {
+    setIsScanning(false);
+    if (videoRef.current?.srcObject) {
+      (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+    }
   };
 
-  const handleReset = () => {
-    setStatus('idle');
-    setRoom('');
+  const handleQRDetected = (detectedRoom: string) => {
+    if (roomList.includes(detectedRoom)) {
+      setRoom(detectedRoom);
+      stopScanning();
+      performEntry(detectedRoom);
+    }
   };
 
   if (isUserLoading || isProfileLoading || !user) {
@@ -181,94 +145,71 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
           <Monitor className="w-6 h-6 text-primary" />
           <h1 className="text-xl font-bold text-primary font-headline">NEU LabTrack</h1>
         </div>
-        <Button variant="ghost" size="sm" onClick={handleSignOut} className="gap-2 transition-all duration-200">
+        <Button variant="ghost" size="sm" onClick={handleSignOut} className="gap-2">
           <LogOut className="w-4 h-4" />
           Sign Out
         </Button>
       </header>
 
       <main className="w-full max-w-xl space-y-6">
-        <Card className="border-none shadow-xl animate-in fade-in zoom-in-95 duration-300">
-          <CardHeader className="text-center">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-2 transition-all duration-200">
+        <Card className="border-none shadow-xl">
+          <CardHeader className="text-center pb-2">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-2">
               <Monitor className="w-8 h-8 text-primary" />
             </div>
-            <CardTitle className="text-2xl font-bold">Lab Entry System</CardTitle(description="Select your laboratory or use a QR scan.")
+            <CardTitle className="text-2xl font-bold">Lab Entry System</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             {status === 'idle' && (
-              <div className="space-y-6 animate-in fade-in duration-300">
+              <div className="space-y-6">
                 <div className="space-y-3">
-                  <label className="text-xs font-black text-muted-foreground uppercase tracking-widest">Manual Selection</label>
+                  <label className="text-xs font-black text-muted-foreground uppercase tracking-widest">Laboratory Selection</label>
                   <Select value={room} onValueChange={setRoom}>
-                    <SelectTrigger className="h-14 text-lg border-2 border-primary/20 hover:border-primary/40 transition-all duration-200 shadow-sm">
-                      <SelectValue placeholder="Select Lab (M101 - M111)" />
+                    <SelectTrigger className="h-14 text-lg border-2">
+                      <SelectValue placeholder="Select Computer Lab" />
                     </SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      <SelectScrollUpButton />
-                      {roomList.map((roomNum) => (
-                        <SelectItem key={roomNum} value={roomNum} className="text-lg py-3 cursor-pointer">
-                          Computer Laboratory {roomNum}
-                        </SelectItem>
+                    <SelectContent>
+                      {roomList.map((num) => (
+                        <SelectItem key={num} value={num} className="text-lg">Lab {num}</SelectItem>
                       ))}
-                      <SelectScrollDownButton />
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs font-bold uppercase">
-                    <span className="bg-card px-3 text-muted-foreground">OR</span>
-                  </div>
-                </div>
-
                 <div className="grid grid-cols-1 gap-4">
-                  <Dialog onOpenChange={(open) => !open && stopScanning()}>
+                  <Dialog onOpenChange={(o) => !o && stopScanning()}>
                     <DialogTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        onClick={startScanning}
-                        className="h-14 border-2 border-primary/20 hover:border-primary hover:bg-primary/5 font-bold gap-3 shadow-sm transition-all duration-200 active:scale-95"
-                      >
+                      <Button variant="outline" onClick={startScanning} className="h-14 border-2 font-bold gap-3">
                         <QrCode className="w-5 h-5 text-primary" />
                         Scan Lab QR Code
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent>
                       <DialogHeader>
-                        <DialogTitle className="text-xl font-bold">Laboratory QR Scanner</DialogTitle>
-                        <DialogDescription>
-                          Scan the entry code at the lab door.
-                        </DialogDescription>
+                        <DialogTitle>Lab QR Scanner</DialogTitle>
+                        <DialogDescription>Scan the code at the lab entrance.</DialogDescription>
                       </DialogHeader>
-                      <div className="flex flex-col items-center justify-center space-y-6 py-6">
-                        <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black flex items-center justify-center border-4 border-primary/20 shadow-2xl transition-all duration-200">
-                          <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" autoPlay muted playsInline />
-                          {hasCameraPermission === false && (
-                            <div className="z-10 text-white text-center p-6 bg-black/60 backdrop-blur-sm h-full w-full flex flex-col items-center justify-center">
-                              <AlertCircle className="w-12 h-12 mx-auto mb-4 text-destructive" />
-                              <p className="text-lg font-bold">Camera Access Required</p>
+                      <div className="aspect-video relative rounded-xl bg-black overflow-hidden">
+                        <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" autoPlay muted playsInline />
+                        {hasCameraPermission === false && (
+                          <div className="absolute inset-0 bg-black/80 flex items-center justify-center text-white p-6 text-center">
+                            <div>
+                              <AlertCircle className="w-10 h-10 mx-auto mb-2 text-destructive" />
+                              <p>Camera access required for scanning.</p>
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     </DialogContent>
                   </Dialog>
 
                   <Button 
-                    onClick={handleManualEntry} 
+                    onClick={() => performEntry(room)} 
                     disabled={!room || isProcessing}
-                    className="h-16 text-xl font-black bg-primary hover:bg-primary/90 shadow-xl gap-3 transition-all duration-200 active:scale-95 group"
+                    className="h-16 text-xl font-black bg-primary hover:bg-primary/90 shadow-xl gap-3"
                   >
-                    {isProcessing ? (
-                      <Loader2 className="w-6 h-6 animate-spin" />
-                    ) : (
-                      <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform duration-200" />
-                    )}
-                    {isProcessing ? 'Verifying...' : room ? `Enter Lab ${room}` : 'Select a Lab to Begin'}
+                    {isProcessing ? <Loader2 className="w-6 h-6 animate-spin" /> : <ArrowRight className="w-6 h-6" />}
+                    {isProcessing ? 'Verifying...' : `Enter Lab ${room || ''}`}
                   </Button>
                 </div>
               </div>
@@ -276,55 +217,42 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
 
             {status === 'success' && (
               <div className="text-center space-y-6 animate-in zoom-in-95 duration-300">
-                <div className="p-10 bg-green-50 rounded-3xl border-2 border-green-200 space-y-6 shadow-inner">
-                  <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto shadow-lg ring-8 ring-green-100 transition-all duration-200">
-                    <CheckCircle2 className="w-12 h-12 text-white" />
-                  </div>
-                  <div className="space-y-3">
-                    <h3 className="text-3xl font-black text-green-800 tracking-tight">Access Logged</h3>
-                    <p className="text-green-700 font-bold text-xl leading-relaxed">
-                      Thank you for using room <span className="underline decoration-green-400 decoration-4 underline-offset-4">{room}</span>.
-                    </p>
+                <div className="p-10 bg-green-50 rounded-3xl border-2 border-green-200 space-y-6">
+                  <CheckCircle2 className="w-20 h-20 text-green-500 mx-auto" />
+                  <div className="space-y-2">
+                    <h3 className="text-3xl font-black text-green-800">Access Logged</h3>
+                    <p className="text-green-700 font-bold">Session started in Lab {room}.</p>
                   </div>
                 </div>
-                <Button 
-                  variant="outline" 
-                  onClick={handleReset} 
-                  className="w-full h-14 text-lg font-bold border-2 hover:bg-slate-50 transition-all duration-200 rounded-xl"
-                >
-                  Register Another Session
+                <Button variant="outline" onClick={() => setStatus('idle')} className="w-full h-14 font-bold">
+                  New Session
                 </Button>
               </div>
             )}
 
             {status === 'blocked' && (
-              <div className="text-center space-y-6 animate-in zoom-in-95 duration-300">
-                <div className="p-8 bg-destructive/5 rounded-3xl border-2 border-destructive/20 space-y-4">
-                  <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <AlertTriangle className="w-10 h-10 text-destructive" />
-                  </div>
+              <div className="text-center space-y-6">
+                <div className="p-10 bg-destructive/5 rounded-3xl border-2 border-destructive/20 space-y-4">
+                  <AlertTriangle className="w-16 h-16 text-destructive mx-auto" />
                   <div className="space-y-2">
-                    <h3 className="text-2xl font-black text-destructive tracking-tight">Account Restricted</h3>
-                    <p className="text-muted-foreground font-medium text-lg px-4">Access suspended. Visit Admin office for resolution.</p>
+                    <h3 className="text-2xl font-black text-destructive">Access Denied</h3>
+                    <p className="text-muted-foreground font-medium">Your account is restricted. Contact support.</p>
                   </div>
                 </div>
-                <Button variant="outline" onClick={handleReset} className="w-full h-14 text-lg font-bold border-2 rounded-xl transition-all duration-200">
-                  Try Again
-                </Button>
               </div>
             )}
           </CardContent>
         </Card>
 
-        <div className="bg-card p-6 rounded-3xl shadow-lg border border-slate-100 flex items-center gap-5 transition-all duration-200 hover:shadow-xl">
-          <div className="w-14 h-14 rounded-2xl bg-accent text-primary flex items-center justify-center font-black text-2xl shadow-inner transform rotate-3 transition-transform duration-200">
+        <div className="bg-card p-6 rounded-3xl shadow-lg border flex items-center gap-5">
+          <div className="w-14 h-14 rounded-2xl bg-accent text-primary flex items-center justify-center font-black text-2xl shadow-inner">
             {user.displayName?.[0] || 'P'}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-bold text-slate-800 text-lg truncate">{user.displayName || 'Faculty Member'}</p>
+            <p className="font-bold text-slate-800 text-lg truncate">{user.displayName}</p>
             <p className="text-sm text-muted-foreground font-medium truncate">{user.email}</p>
           </div>
-          <Badge className="px-4 py-1.5 font-bold bg-primary/10 text-primary border-primary/20 rounded-lg">
+          <Badge className="font-bold bg-primary/10 text-primary border-primary/20">
             {profileData?.role || 'Professor'}
           </Badge>
         </div>

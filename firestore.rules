@@ -1,4 +1,3 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -10,7 +9,6 @@ service cloud.firestore {
     }
 
     function isInstitutionalUser() {
-      // Check for institutional domain
       return isSignedIn() && 
              'email' in request.auth.token &&
              request.auth.token.email.matches('(?i).*@([^@]+\\.)?neu\\.edu\\.ph$');
@@ -21,7 +19,6 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      // Standard administrative check
       return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
@@ -33,24 +30,24 @@ service cloud.firestore {
     // --- Collection Rules ---
 
     match /user_profiles/{userId} {
-      // Users can always read their own profile. Admins can read all. 
-      // Institutional users can check existence of profiles for logging purposes.
-      allow get: if isOwner(userId) || isAdmin() || isInstitutionalUser();
-      allow list: if isAdmin() || isInstitutionalUser();
+      // Access: Owners read/write own. Admins read all.
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
       
       // Institutional users can initialize their own profile.
       allow create: if isInstitutionalUser() && isOwner(userId);
       
-      // Owners can update their details, admins have full control.
-      allow update: if isOwner(userId) || isAdmin();
+      // Update: Owner can update own. Admins full control.
+      allow update: if (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isBlocked'])) || isAdmin();
+      
       allow delete: if isAdmin();
     }
 
     match /room_logs/{logId} {
-      // Admins and staff can view logs.
-      allow get, list: if isAdmin() || isInstitutionalUser();
+      // Admins view all logs. Professors see nothing except creation.
+      allow get, list: if isAdmin();
       
-      // Active institutional users can create logs.
+      // Creation: Active institutional users only.
       allow create: if isInstitutionalUser() && 
                        isNotBlocked() && 
                        request.resource.data.professorId == request.auth.uid;
@@ -59,15 +56,8 @@ service cloud.firestore {
     }
 
     match /roles_admin/{userId} {
-      // Self-read for layout checks, admin-read for auditing.
       allow get: if isOwner(userId) || isAdmin();
-      
-      // Institutional users can register themselves as admin if they signed in through the admin portal.
-      // In a real production app, this would be restricted further or handled by an Admin SDK.
-      allow create, update: if isOwner(userId) && isInstitutionalUser();
-      
-      allow list: if isAdmin();
-      allow delete: if isAdmin();
+      allow list, create, update, delete: if isAdmin();
     }
   }
 }
