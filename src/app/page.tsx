@@ -16,6 +16,7 @@ import { AuthService } from '@/lib/services/auth-service';
 import { UserService } from '@/lib/services/user-service';
 
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
+  // Unwrap Next.js 15 parameters
   const params = use(props.params);
   const searchParams = use(props.searchParams);
   
@@ -34,11 +35,13 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     setIsLoggingIn(true);
 
     try {
+      // Step 1: Authenticate via Google
       const signedInUser = await AuthService.signInWithGoogle(auth);
       if (!signedInUser) throw new Error("Sign in failed");
 
       const email = signedInUser.email?.toLowerCase() || '';
 
+      // Step 2: Enforce institutional domain restriction
       if (!email.endsWith("@neu.edu.ph")) {
         alert("Only NEU emails are allowed!");
         await AuthService.logout(auth);
@@ -46,8 +49,10 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
+      // Step 3: Automatically sync user profile to database
       const profile = await UserService.syncProfile(firestore, signedInUser, 'professor');
 
+      // Step 4: Enforce account blocking
       if (profile.status === 'blocked') {
         alert("Your account has been blocked. Please contact the administrator.");
         await AuthService.logout(auth);
@@ -76,11 +81,14 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     setIsLoggingIn(true);
 
     try {
+      // Step 1: Authenticate via Email/Password
       const signedInUser = await AuthService.signInWithEmail(auth, adminEmail, adminPassword);
       if (!signedInUser) throw new Error("Admin authentication failed");
 
+      // Step 2: Automatically sync user profile to database
       const profile = await UserService.syncProfile(firestore, signedInUser, 'admin');
 
+      // Step 3: Enforce account blocking
       if (profile.status === 'blocked') {
         alert("Administrative access revoked. This account is blocked.");
         await AuthService.logout(auth);
@@ -167,12 +175,13 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                   </AlertDescription>
                 </Alert>
                 <Button 
+                  id="googleLogin"
                   onClick={handleProfessorLogin}
                   disabled={isLoggingIn}
                   className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3"
                 >
                   {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <Monitor className="w-5 h-5" />}
-                  Professor Sign-In
+                  Sign in with NEU Google Account
                 </Button>
               </div>
             </TabsContent>
