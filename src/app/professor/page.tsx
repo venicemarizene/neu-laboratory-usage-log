@@ -45,16 +45,16 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   useEffect(() => {
     if (isUserLoading || isUserDataLoading) return;
 
-    // Requirement: Ensure user is logged in
     if (!user) {
       router.push('/');
       return;
     }
     
-    // Requirement: Enforce blocked status
+    // Status guard
     if (userData?.status === 'blocked') {
       setStatus('blocked');
-      alert("Your account is restricted. Redirection to home.");
+      console.log("Professor access denied: account blocked.");
+      alert("Your account is restricted. Please contact the administrator.");
       AuthService.logout(auth!).then(() => router.push('/'));
     }
   }, [user, userData, isUserLoading, isUserDataLoading, router, auth]);

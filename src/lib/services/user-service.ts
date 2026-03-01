@@ -32,26 +32,39 @@ export const UserService = {
 
   /**
    * Synchronizes user metadata. Automatically creates a record if it doesn't exist.
+   * Includes debug logs for tracking execution flow.
    */
-  async syncProfile(db: Firestore, user: FirebaseUser, role: 'professor' | 'admin'): Promise<UserMetadata> {
-    const existing = await this.getProfile(db, user.uid);
-    
-    // If user exists, return existing profile to respect their database role and status
-    if (existing) return existing;
-
-    // For new users, create the profile with initial metadata
-    const newProfile: UserMetadata = {
-      id: user.uid,
-      email: (user.email || '').toLowerCase().trim(),
-      role: role,
-      status: 'active',
-      createdAt: serverTimestamp()
-    };
-
+  async syncProfile(db: Firestore, user: FirebaseUser, requestedRole: 'professor' | 'admin'): Promise<UserMetadata> {
+    console.log("Checking Firestore document existence for UID:", user.uid);
     const docRef = doc(db, 'users', user.uid);
-    await setDoc(docRef, newProfile, { merge: true });
+    
+    try {
+      const userSnap = await getDoc(docRef);
+      console.log("Firestore userSnap exists?", userSnap.exists());
 
-    return newProfile;
+      if (userSnap.exists()) {
+        const data = userSnap.data() as UserMetadata;
+        console.log("User data retrieved:", data);
+        return data;
+      }
+
+      // If user does not exist, create new record
+      console.log("Creating new user document for:", user.email);
+      const newProfile: UserMetadata = {
+        id: user.uid,
+        email: (user.email || '').toLowerCase().trim(),
+        role: requestedRole,
+        status: 'active',
+        createdAt: serverTimestamp()
+      };
+
+      await setDoc(docRef, newProfile);
+      console.log("User document created successfully.");
+      return newProfile;
+    } catch (error) {
+      console.error("Error in syncProfile:", error);
+      throw error;
+    }
   },
 
   /**
