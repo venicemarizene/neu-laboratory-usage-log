@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertCircle, Monitor, QrCode, Loader2, ShieldCheck, UserCircle, LogOut, Info } from 'lucide-react';
 import { useAuth, useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
-import { GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,7 +15,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 
 /**
  * Main Landing and Authentication Page.
- * Strictly uses Google Redirect SSO for institutional accounts.
+ * Strictly uses Google Pop-up SSO for institutional accounts.
  */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   // Next.js 15: unwrap params and searchParams using React.use()
@@ -33,7 +33,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Sync user profile with Firestore after Google Redirect login
+  // Sync user profile with Firestore after successful Google login
   const syncUserProfile = async (userId: string, data: any) => {
     if (!firestore) return;
     const userRef = doc(firestore, 'user_profiles', userId);
@@ -58,56 +58,51 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     }
   };
 
-  // Handle redirect result on component mount (Standard Google SSO Flow)
-  useEffect(() => {
-    if (!auth || !firestore) return;
-
-    getRedirectResult(auth).then(async (result) => {
-      if (result) {
-        const signedInUser = result.user;
-        const userEmail = signedInUser.email?.toLowerCase() || '';
-
-        // Restriction: NEU Institutional accounts only
-        if (!userEmail.endsWith("@neu.edu.ph")) {
-          alert("Unauthorized access.");
-          await signOut(auth);
-          return;
-        }
-
-        const targetRole = sessionStorage.getItem('auth_target_role') || 'professor';
-        
-        await syncUserProfile(signedInUser.uid, {
-          name: signedInUser.displayName,
-          email: signedInUser.email,
-          role: targetRole === 'admin' ? 'Admin' : 'Professor'
-        });
-
-        toast({
-          title: 'Authentication Successful',
-          description: `Welcome, ${signedInUser.displayName}.`,
-        });
-        
-        router.push(`/${targetRole}`);
-      }
-    }).catch((error) => {
-      console.error(error);
-    });
-  }, [auth, firestore, router, toast]);
-
-  const handleGoogleSignIn = (targetRole: 'admin' | 'professor') => {
+  const handleGoogleSignIn = async (targetRole: 'admin' | 'professor') => {
     if (!auth) return;
     setIsLoggingIn(true);
     
-    // Persist target role through redirect
-    sessionStorage.setItem('auth_target_role', targetRole);
-
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ 
       prompt: 'select_account'
     });
 
-    // Requested: Use signInWithRedirect for Google auth
-    signInWithRedirect(auth, provider);
+    try {
+      // Use signInWithPopup instead of redirect for smoother flow
+      const result = await signInWithPopup(auth, provider);
+      const signedInUser = result.user;
+      const userEmail = signedInUser.email?.toLowerCase() || '';
+
+      // Restriction: NEU Institutional accounts only
+      if (!userEmail.endsWith("@neu.edu.ph")) {
+        alert("Unauthorized access.");
+        await signOut(auth);
+        setIsLoggingIn(false);
+        return;
+      }
+
+      await syncUserProfile(signedInUser.uid, {
+        name: signedInUser.displayName,
+        email: signedInUser.email,
+        role: targetRole === 'admin' ? 'Admin' : 'Professor'
+      });
+
+      toast({
+        title: 'Authentication Successful',
+        description: `Welcome, ${signedInUser.displayName}.`,
+      });
+      
+      router.push(`/${targetRole}`);
+    } catch (error) {
+      console.error(error);
+      toast({
+        variant: 'destructive',
+        title: 'Sign In Failed',
+        description: 'An error occurred during authentication.',
+      });
+    } finally {
+      setIsLoggingIn(false);
+    }
   };
 
   const handleSignOut = async () => {
@@ -206,7 +201,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                 <Alert variant="default" className="bg-primary/5 border-primary/20 py-4 text-left">
                   <Info className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
-                    Please use your official @neu.edu.ph Google account to sign in via Redirect.
+                    Please use your official @neu.edu.ph Google account to sign in via Popup.
                   </AlertDescription>
                 </Alert>
                 <Button 
@@ -245,7 +240,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                 <Alert variant="default" className="bg-primary/5 border-primary/20 py-4 text-left">
                   <ShieldCheck className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
-                    Admin access restricted to verified institutional identities via Redirect.
+                    Admin access restricted to verified institutional identities via Popup.
                   </AlertDescription>
                 </Alert>
                 <Button 

@@ -17,7 +17,7 @@ export default function AdminLayout(props: {
   children: React.ReactNode;
   params: Promise<any>;
 }) {
-  // Next.js 15: unwrap params explicitly
+  // Next.js 15: unwrap params explicitly to avoid enumeration errors
   const params = use(props.params);
   
   const router = useRouter();
