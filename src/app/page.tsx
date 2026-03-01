@@ -52,7 +52,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
   /**
    * Handles the Professor Login flow via Google Sign-In with Popup.
-   * Includes requested debug logs and domain validation.
+   * Includes specific handling for user cancellation (popup-closed-by-user).
    */
   const handleProfessorLogin = async () => {
     if (!auth || !firestore) return;
@@ -99,8 +99,11 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         router.push('/professor');
       }
     } catch (error: any) {
-      console.error("Sign-in error:", error);
-      if (error.code !== 'auth/popup-closed-by-user') {
+      // Gracefully handle the popup closed by user error
+      if (error.code === 'auth/popup-closed-by-user') {
+        console.log("Google Sign-In popup was closed by the user.");
+      } else {
+        console.error("Sign-in error:", error);
         toast({
           variant: 'destructive',
           title: 'Authentication Error',
