@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Firestore, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -36,13 +37,13 @@ export const UserService = {
   async syncProfile(db: Firestore, user: FirebaseUser, role: 'professor' | 'admin'): Promise<UserMetadata> {
     const existing = await this.getProfile(db, user.uid);
     
-    // If user exists, return existing profile to prevent role/status overwriting
+    // If user exists, return existing profile to respect their database role and status
     if (existing) return existing;
 
     // For new users, create the profile with initial metadata
     const newProfile: UserMetadata = {
       id: user.uid,
-      email: user.email || '',
+      email: (user.email || '').toLowerCase().trim(),
       role: role,
       status: 'active',
       createdAt: serverTimestamp()

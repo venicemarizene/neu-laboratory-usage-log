@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, use } from 'react';
+import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -30,6 +31,27 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const [adminPassword, setAdminPassword] = useState('');
 
   /**
+   * Auto-redirection logic for existing sessions.
+   */
+  useEffect(() => {
+    if (isUserLoading || !user || !firestore) return;
+
+    const checkAndRedirect = async () => {
+      try {
+        const profile = await UserService.getProfile(firestore, user.uid);
+        if (profile) {
+          if (profile.status === 'blocked') return;
+          if (profile.role === 'admin') router.push('/admin');
+          else router.push('/professor');
+        }
+      } catch (error) {
+        console.error("Auto-redirect check failed:", error);
+      }
+    };
+    checkAndRedirect();
+  }, [user, isUserLoading, firestore, router]);
+
+  /**
    * Handles the Professor Login flow via Google Sign-In.
    * Enforces @neu.edu.ph domain and auto-creates user profiles.
    */
@@ -41,7 +63,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       const signedInUser = await AuthService.signInWithGoogle(auth);
       if (!signedInUser) throw new Error("Sign in failed");
 
-      const email = signedInUser.email?.toLowerCase() || '';
+      const email = (signedInUser.email || '').toLowerCase().trim();
 
       // Requirement: Restrict to NEU institutional emails
       if (!email.endsWith("@neu.edu.ph")) {
@@ -61,9 +83,13 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
-      // Requirement: Redirect based on role
-      toast({ title: 'Welcome Professor', description: `Authenticated as ${signedInUser.displayName}` });
-      router.push('/professor');
+      // Requirement: Redirect based on actual role in database
+      toast({ title: 'Welcome', description: `Authenticated as ${signedInUser.displayName}` });
+      if (profile.role === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push('/professor');
+      }
     } catch (error: any) {
       if (error.code !== 'auth/popup-closed-by-user') {
         toast({
@@ -100,8 +126,12 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       }
 
       // Requirement: Redirect based on role
-      toast({ title: 'Admin Access Granted', description: 'Redirecting to dashboard...' });
-      router.push('/admin');
+      toast({ title: 'Access Granted', description: 'Redirecting to portal...' });
+      if (profile.role === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push('/professor');
+      }
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -116,7 +146,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const handleSignOut = async () => {
     if (auth) {
       await AuthService.logout(auth);
-      toast({ title: 'Signed out', description: 'Institutional session ended.' });
+      toast({ title: 'Signed out', description: 'Session ended.' });
     }
   };
 
