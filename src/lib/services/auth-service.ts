@@ -1,4 +1,3 @@
-
 'use client';
 
 import { 
@@ -10,9 +9,12 @@ import {
   User 
 } from 'firebase/auth';
 
+/**
+ * Service to handle Firebase Authentication operations.
+ */
 export const AuthService = {
   /**
-   * Authenticates a professor via Google Sign-In.
+   * Authenticates a user via Google Sign-In using a popup window.
    */
   async signInWithGoogle(auth: Auth): Promise<User | null> {
     const provider = new GoogleAuthProvider();
@@ -22,7 +24,7 @@ export const AuthService = {
   },
 
   /**
-   * Authenticates an admin via Email/Password.
+   * Authenticates a user via Email and Password.
    */
   async signInWithEmail(auth: Auth, email: string, pass: string): Promise<User | null> {
     const result = await signInWithEmailAndPassword(auth, email, pass);
@@ -30,7 +32,7 @@ export const AuthService = {
   },
 
   /**
-   * Terminates the current session.
+   * Terminates the current Firebase session.
    */
   async logout(auth: Auth): Promise<void> {
     await signOut(auth);

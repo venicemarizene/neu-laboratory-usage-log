@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef, use } from 'react';
@@ -45,18 +44,23 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
 
   useEffect(() => {
     if (isUserLoading || isUserDataLoading) return;
+
+    // Requirement: Ensure user is logged in
     if (!user) {
       router.push('/');
       return;
     }
     
+    // Requirement: Enforce blocked status
     if (userData?.status === 'blocked') {
       setStatus('blocked');
-    } else if (userData?.role !== 'professor') {
-      // Admins are technically allowed to see this but we usually want professors here
-      // No redirection logic here to avoid accidental loops if an admin logs in
+      alert("Your account is restricted. Redirection to home.");
+      AuthService.logout(auth!).then(() => router.push('/'));
+    } else if (userData && userData.role !== 'professor') {
+      // If an admin accidentally lands here, we let them be or redirect if desired.
+      // For this sprint, we just ensure professors are here.
     }
-  }, [user, userData, isUserLoading, isUserDataLoading, router]);
+  }, [user, userData, isUserLoading, isUserDataLoading, router, auth]);
 
   const handleSignOut = async () => {
     if (auth) {
@@ -150,7 +154,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       </header>
 
       <main className="w-full max-w-xl space-y-6">
-        <Card className="border-none shadow-xl">
+        <Card className="border border-primary/10 shadow-xl">
           <CardHeader className="text-center pb-2">
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-2">
               <Monitor className="w-8 h-8 text-primary" />
@@ -242,7 +246,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
           </CardContent>
         </Card>
 
-        <div className="bg-card p-6 rounded-3xl shadow-lg border flex items-center gap-5">
+        <div className="bg-card p-6 rounded-3xl shadow-lg border border-primary/5 flex items-center gap-5">
           <div className="w-14 h-14 rounded-2xl bg-accent text-primary flex items-center justify-center font-black text-2xl shadow-inner">
             {user.email?.[0].toUpperCase() || 'P'}
           </div>

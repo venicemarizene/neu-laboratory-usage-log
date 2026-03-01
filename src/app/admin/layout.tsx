@@ -1,4 +1,3 @@
-
 "use client"
 
 import Link from 'next/link';
@@ -6,9 +5,9 @@ import { useRouter, usePathname } from 'next/navigation';
 import { LayoutDashboard, Users, LogOut, Monitor, Loader2, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser, useAuth, useDoc, useMemoFirebase, useFirestore } from '@/firebase';
-import { signOut } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
 import { useEffect, useState, use } from 'react';
+import { AuthService } from '@/lib/services/auth-service';
 
 export default function AdminLayout(props: {
   children: React.ReactNode;
@@ -38,8 +37,10 @@ export default function AdminLayout(props: {
       return;
     }
 
+    // Requirement: Check role and status
     if (!userData || userData.role !== 'admin' || userData.status === 'blocked') {
       setIsAuthorized(false);
+      alert("Access Denied: Administrative privileges required.");
       router.push('/');
       return;
     }
@@ -49,7 +50,7 @@ export default function AdminLayout(props: {
 
   const handleSignOut = async () => {
     if (auth) {
-      await signOut(auth);
+      await AuthService.logout(auth);
       router.push('/');
     }
   };

@@ -1,22 +1,25 @@
 'use client';
 
-import { Firestore, doc, getDoc, setDoc } from 'firebase/firestore';
+import { Firestore, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { User as FirebaseUser } from 'firebase/auth';
 
 /**
- * Represents the metadata stored for each user in the system.
+ * Interface representing user metadata stored in Firestore.
  */
 export interface UserMetadata {
   id: string;
   email: string;
   role: 'professor' | 'admin';
   status: 'active' | 'blocked';
-  createdAt: string;
+  createdAt: any;
 }
 
+/**
+ * Service to manage user profiles in Firestore.
+ */
 export const UserService = {
   /**
-   * Retrieves user metadata from the 'users' collection.
+   * Retrieves a user's profile from the 'users' collection.
    */
   async getProfile(db: Firestore, uid: string): Promise<UserMetadata | null> {
     const docRef = doc(db, 'users', uid);
@@ -33,17 +36,16 @@ export const UserService = {
   async syncProfile(db: Firestore, user: FirebaseUser, role: 'professor' | 'admin'): Promise<UserMetadata> {
     const existing = await this.getProfile(db, user.uid);
     
-    // If the profile exists, we return it. We don't overwrite the role or status 
-    // to prevent unauthorized role escalation or unblocking.
+    // If user exists, return existing profile to prevent role/status overwriting
     if (existing) return existing;
 
-    // For new users, create the initial profile.
+    // For new users, create the profile with initial metadata
     const newProfile: UserMetadata = {
       id: user.uid,
       email: user.email || '',
       role: role,
       status: 'active',
-      createdAt: new Date().toISOString()
+      createdAt: serverTimestamp()
     };
 
     const docRef = doc(db, 'users', user.uid);
@@ -53,7 +55,7 @@ export const UserService = {
   },
 
   /**
-   * Checks if a user's account is blocked.
+   * Checks if a specific user account is blocked.
    */
   async isBlocked(db: Firestore, uid: string): Promise<boolean> {
     const profile = await this.getProfile(db, uid);

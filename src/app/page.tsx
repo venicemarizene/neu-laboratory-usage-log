@@ -15,7 +15,7 @@ import { AuthService } from '@/lib/services/auth-service';
 import { UserService } from '@/lib/services/user-service';
 
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
-  // Unwrap Next.js 15 parameters
+  // Next.js 15: Unwrap asynchronous dynamic route parameters
   const params = use(props.params);
   const searchParams = use(props.searchParams);
   
@@ -29,18 +29,21 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
 
+  /**
+   * Handles the Professor Login flow via Google Sign-In.
+   * Enforces @neu.edu.ph domain and auto-creates user profiles.
+   */
   const handleProfessorLogin = async () => {
     if (!auth || !firestore) return;
     setIsLoggingIn(true);
 
     try {
-      // Step 1: Authenticate via Google Popup
       const signedInUser = await AuthService.signInWithGoogle(auth);
       if (!signedInUser) throw new Error("Sign in failed");
 
       const email = signedInUser.email?.toLowerCase() || '';
 
-      // Step 2: Enforce institutional domain restriction
+      // Requirement: Restrict to NEU institutional emails
       if (!email.endsWith("@neu.edu.ph")) {
         alert("Only NEU emails are allowed!");
         await AuthService.logout(auth);
@@ -48,10 +51,9 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
-      // Step 3: Automatically sync user profile to database
+      // Requirement: Automatically sync user profile and check status
       const profile = await UserService.syncProfile(firestore, signedInUser, 'professor');
 
-      // Step 4: Enforce account blocking
       if (profile.status === 'blocked') {
         alert("Your account has been blocked. Please contact the administrator.");
         await AuthService.logout(auth);
@@ -59,6 +61,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
+      // Requirement: Redirect based on role
       toast({ title: 'Welcome Professor', description: `Authenticated as ${signedInUser.displayName}` });
       router.push('/professor');
     } catch (error: any) {
@@ -74,20 +77,21 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     }
   };
 
+  /**
+   * Handles the Admin Login flow via Email/Password.
+   */
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth || !firestore) return;
     setIsLoggingIn(true);
 
     try {
-      // Step 1: Authenticate via Email/Password
       const signedInUser = await AuthService.signInWithEmail(auth, adminEmail, adminPassword);
       if (!signedInUser) throw new Error("Admin authentication failed");
 
-      // Step 2: Automatically sync user profile to database
+      // Requirement: Automatically sync admin profile
       const profile = await UserService.syncProfile(firestore, signedInUser, 'admin');
 
-      // Step 3: Enforce account blocking
       if (profile.status === 'blocked') {
         alert("Administrative access revoked. This account is blocked.");
         await AuthService.logout(auth);
@@ -95,6 +99,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
+      // Requirement: Redirect based on role
       toast({ title: 'Admin Access Granted', description: 'Redirecting to dashboard...' });
       router.push('/admin');
     } catch (error: any) {
@@ -167,10 +172,10 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
             
             <TabsContent value="professor" className="p-6 space-y-6 m-0">
               <div className="space-y-4">
-                <Alert className="bg-primary/5 border-primary/20 text-left">
+                <Alert className="bg-primary/5 border border-primary/20 text-left">
                   <Info className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
-                    Please use your institutional @neu.edu.ph account.
+                    Please use your institutional @neu.edu.ph account to continue.
                   </AlertDescription>
                 </Alert>
                 <Button 
