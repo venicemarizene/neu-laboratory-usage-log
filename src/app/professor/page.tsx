@@ -193,8 +193,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-2 transition-all duration-200">
               <Monitor className="w-8 h-8 text-primary" />
             </div>
-            <CardTitle className="text-2xl font-bold">Lab Entry System</CardTitle>
-            <CardDescription>Select your laboratory or use a QR scan.</CardDescription>
+            <CardTitle className="text-2xl font-bold">Lab Entry System</CardTitle(description="Select your laboratory or use a QR scan.")
           </CardHeader>
           <CardContent className="space-y-6">
             {status === 'idle' && (

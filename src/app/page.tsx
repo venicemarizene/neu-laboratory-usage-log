@@ -68,7 +68,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     });
 
     try {
-      // Use signInWithPopup instead of redirect for smoother flow
       const result = await signInWithPopup(auth, provider);
       const signedInUser = result.user;
       const userEmail = signedInUser.email?.toLowerCase() || '';
@@ -93,7 +92,13 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       });
       
       router.push(`/${targetRole}`);
-    } catch (error) {
+    } catch (error: any) {
+      // Gracefully handle user-initiated cancellation
+      if (error.code === 'auth/popup-closed-by-user') {
+        setIsLoggingIn(false);
+        return;
+      }
+      
       console.error(error);
       toast({
         variant: 'destructive',
