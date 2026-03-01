@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Firestore, doc, getDoc, setDoc } from 'firebase/firestore';
@@ -17,7 +16,7 @@ export interface UserMetadata {
 
 export const UserService = {
   /**
-   * Retrieves a user metadata from the 'users' collection.
+   * Retrieves user metadata from the 'users' collection.
    */
   async getProfile(db: Firestore, uid: string): Promise<UserMetadata | null> {
     const docRef = doc(db, 'users', uid);
@@ -30,7 +29,6 @@ export const UserService = {
 
   /**
    * Synchronizes user metadata. Automatically creates a record if it doesn't exist.
-   * This ensures every signed-in user has a corresponding Firestore document.
    */
   async syncProfile(db: Firestore, user: FirebaseUser, role: 'professor' | 'admin'): Promise<UserMetadata> {
     const existing = await this.getProfile(db, user.uid);
@@ -49,7 +47,6 @@ export const UserService = {
     };
 
     const docRef = doc(db, 'users', user.uid);
-    // Use setDoc to ensure the record is created.
     await setDoc(docRef, newProfile, { merge: true });
 
     return newProfile;

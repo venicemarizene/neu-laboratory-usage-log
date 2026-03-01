@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, use } from 'react';
@@ -35,7 +34,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     setIsLoggingIn(true);
 
     try {
-      // Step 1: Authenticate via Google
+      // Step 1: Authenticate via Google Popup
       const signedInUser = await AuthService.signInWithGoogle(auth);
       if (!signedInUser) throw new Error("Sign in failed");
 
