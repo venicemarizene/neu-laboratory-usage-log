@@ -1,51 +1,151 @@
-
 {
   "entities": {
     "UserProfile": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "UserProfile",
       "type": "object",
-      "description": "Represents a user profile within the NEU Lab Log system.",
+      "description": "Represents a user's profile information and access rights within the NEU Lab Log application. This includes professors and administrators.",
       "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "email": { "type": "string", "format": "email" },
-        "role": { "type": "string", "enum": ["Professor", "Admin"] },
-        "isBlocked": { "type": "boolean" },
-        "qrString": { "type": "string" }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserProfile entity. This typically corresponds to the Firebase Authentication User ID (UID)."
+        },
+        "name": {
+          "type": "string",
+          "description": "The full name of the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the user, used for authentication and identification. Must end with '@neu.edu.ph'.",
+          "format": "email"
+        },
+        "role": {
+          "type": "string",
+          "description": "The assigned role of the user within the application, determining access levels (e.g., 'Professor', 'Admin')."
+        },
+        "isBlocked": {
+          "type": "boolean",
+          "description": "A boolean flag indicating whether the user's account is currently blocked, preventing them from accessing certain features."
+        },
+        "qrString": {
+          "type": "string",
+          "description": "A unique string associated with the user, used for generating and validating QR codes for room access."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "The timestamp indicating when the user's profile was created.",
+          "format": "date-time"
+        }
       },
-      "required": ["id", "name", "email", "role", "isBlocked", "qrString"]
+      "required": [
+        "id",
+        "name",
+        "email",
+        "role",
+        "isBlocked",
+        "qrString",
+        "createdAt"
+      ]
     },
     "RoomLog": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "RoomLog",
       "type": "object",
-      "description": "Records an instance of a laboratory room usage event.",
+      "description": "Records a single instance of a laboratory room's usage, including details about the user, room, and time.",
       "properties": {
-        "id": { "type": "string" },
-        "professorId": { "type": "string" },
-        "roomNumber": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" },
-        "status": { "type": "string" }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the RoomLog entity."
+        },
+        "professorId": {
+          "type": "string",
+          "description": "Reference to the UserProfile ID of the professor who used the room. (Relationship: UserProfile 1:N RoomLog)"
+        },
+        "professorName": {
+          "type": "string",
+          "description": "The name of the professor who used the room, denormalized for easier reporting."
+        },
+        "roomNumber": {
+          "type": "string",
+          "description": "The unique identifier or number of the laboratory room that was used."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The date and time when the room usage was logged.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "The status of the room usage log (e.g., 'Active')."
+        }
       },
-      "required": ["id", "professorId", "roomNumber", "timestamp", "status"]
+      "required": [
+        "id",
+        "professorId",
+        "professorName",
+        "roomNumber",
+        "timestamp",
+        "status"
+      ]
     }
   },
   "auth": {
-    "providers": ["google.com"]
+    "providers": [
+      "password",
+      "anonymous"
+    ]
   },
   "firestore": {
-    "user_profiles/{userId}": {
-      "schema": "UserProfile",
-      "description": "Stores individual user profiles."
-    },
-    "room_logs/{logId}": {
-      "schema": "RoomLog",
-      "description": "Records instances of laboratory room usage."
-    },
-    "roles_admin/{userId}": {
-      "schema": "UserProfile",
-      "description": "Administrative role marker."
-    }
+    "structure": [
+      {
+        "path": "/user_profiles/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores individual user profile data, including email, role, and account status. The document ID (`userId`) must match the user's Firebase Authentication UID. Includes 'role' and 'isBlocked' fields crucial for authorization. Users can read their own profile; Admins can read/write all profiles.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, corresponding to their Firebase Authentication UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/room_logs/{roomLogId}",
+        "definition": {
+          "entityName": "RoomLog",
+          "schema": {
+            "$ref": "#/backend/entities/RoomLog"
+          },
+          "description": "Records individual instances of laboratory room usage. Contains denormalized 'professorId' and 'professorName' for reporting and authorization. Read access is restricted to 'Admin' users. Professors can create new logs for themselves if not blocked.",
+          "params": [
+            {
+              "name": "roomLogId",
+              "description": "The unique identifier for a specific room usage log entry."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "A dedicated collection for fast and secure 'Admin' role checks. Documents in this collection serve as markers; their existence signifies that the 'userId' corresponds to an administrator. The document ID (`userId`) is the Firebase Authentication UID of an admin. This structure is used for 'exists()' checks in security rules, enabling authorization independence and efficient DBAC.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who has the 'Admin' role, corresponding to their Firebase Authentication UID."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The proposed Firestore structure prioritizes Authorization Independence, Structural Segregation, and DBAC principles to ensure a secure, scalable, and debuggable system for the NEU Lab Log application. The design focuses on minimizing `get()` calls in security rules, especially for cross-document authorization.\n\n**Authorization Independence via Denormalization:**\n1.  **User Profiles (`/user_profiles/{userId}`):** Each user's profile document has an `id` field that explicitly matches its document ID (`userId`), which in turn matches the Firebase Authentication `uid` (`request.auth.uid`). This allows users to read their own profiles (`request.auth.uid == userId`) without requiring any `get()` calls in the security rules for basic ownership checks. For admin access to all profiles, a separate `/roles_admin/{userId}` collection is used, allowing an `exists()` check (`exists(/roles_admin/$(request.auth.uid))`) instead of reading a `UserProfile` document to determine if the user has an 'Admin' role. This ensures admin authorization is independent and does not rely on hierarchical data retrieval.\n2.  **Room Logs (`/room_logs/{roomLogId}`):** Each `RoomLog` document includes `professorId` (matching the `uid` of the professor) and `professorName`. The `professorName` is denormalized directly into the log entry for reporting purposes, avoiding costly joins or lookups. For *reading* `RoomLog` documents, access is restricted solely to administrators. This is enforced by an `exists()` check on the `/roles_admin/{userId}` collection, completely eliminating `get()` calls for read authorization. For *writing* (creating) a `RoomLog` by a professor, the rule would typically verify `request.auth.uid == request.resource.data.professorId`. However, enforcing the `isBlocked` status directly in security rules for a professor's write operation *would* require a `get()` to their *own* `UserProfile` document (`get(/user_profiles/$(request.auth.uid)).data.isBlocked`). While this is still a `get()` operation, it's considered less problematic than `get()` on *other* users' documents or hierarchical parent documents for authorization, as it checks the requesting user's own authorization context. If strict `get()` avoidance is paramount even for self-profile checks, a separate `/blocked_users/{uid}` collection could be introduced for `exists()` checks.\n3.  **Admin Roles (`/roles_admin/{userId}`):** This dedicated collection stores 'marker' documents where the `id` is the `uid` of an administrator. This is a direct application of the 'Existence over Content' principle for global roles, serving as a denormalized authorization context for rapid `exists()` checks in security rules across any collection needing admin-level access.\n\n**Querying for All Documents (QAPs - Rules are not Filters):**\n*   **User Profiles (`/user_profiles`):** `list` operations for all user profiles are restricted to administrators. The security rule will use `allow list: if exists(/roles_admin/$(request.auth.uid));`. This ensures that only authorized admins can perform a `list` query across the entire collection without the need for additional client-side filtering or complex rule-based filtering, adhering to QAPs.\n*   **Room Logs (`/room_logs`):** Similarly, `list` operations for all room logs are exclusively permitted for administrators. The security rule `allow list: if exists(/roles_admin/$(request.auth.uid));` prevents any non-admin users from listing or querying the collection, making security explicit and performant."
   }
 }
