@@ -56,9 +56,6 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       setStatus('blocked');
       alert("Your account is restricted. Redirection to home.");
       AuthService.logout(auth!).then(() => router.push('/'));
-    } else if (userData && userData.role !== 'professor') {
-      // If an admin accidentally lands here, we let them be or redirect if desired.
-      // For this sprint, we just ensure professors are here.
     }
   }, [user, userData, isUserLoading, isUserDataLoading, router, auth]);
 

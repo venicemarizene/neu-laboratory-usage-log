@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, use } from 'react';
@@ -16,7 +15,6 @@ import { AuthService } from '@/lib/services/auth-service';
 import { UserService } from '@/lib/services/user-service';
 
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
-  // Next.js 15: Unwrap asynchronous dynamic route parameters
   const params = use(props.params);
   const searchParams = use(props.searchParams);
   
@@ -83,7 +81,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
-      // Requirement: Redirect based on actual role in database
+      // Requirement: Redirect based on role
       toast({ title: 'Welcome', description: `Authenticated as ${signedInUser.displayName}` });
       if (profile.role === 'admin') {
         router.push('/admin');
@@ -162,7 +160,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
       <div className="max-w-md w-full space-y-6 text-center animate-in fade-in duration-300">
         <div className="space-y-2">
-          <div className="mx-auto w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-xl transform transition-transform duration-200 hover:scale-105">
+          <div className="mx-auto w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-xl">
             <Monitor className="w-10 h-10 text-primary-foreground" />
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-primary font-headline">NEU LabTrack</h1>
@@ -170,7 +168,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         </div>
 
         {user && (
-          <div className="p-3 bg-card border rounded-xl shadow-sm flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="p-3 bg-card border rounded-xl shadow-sm flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center font-bold text-primary shadow-inner text-xs">
                 {user.email?.[0].toUpperCase()}
@@ -180,7 +178,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                 <p className="text-[10px] text-muted-foreground font-medium">{user.email}</p>
               </div>
             </div>
-            <Button variant="ghost" size="sm" onClick={handleSignOut} className="h-8 text-[10px] text-destructive hover:bg-destructive/10 transition-all duration-200">
+            <Button variant="ghost" size="sm" onClick={handleSignOut} className="h-8 text-[10px] text-destructive hover:bg-destructive/10">
               <LogOut className="w-3 h-3 mr-1" />
               Sign Out
             </Button>
@@ -190,11 +188,11 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         <Card className="border-none shadow-2xl overflow-hidden rounded-2xl">
           <Tabs defaultValue="professor" className="w-full">
             <TabsList className="w-full grid grid-cols-2 rounded-none h-14 bg-muted/30">
-              <TabsTrigger value="professor" className="data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-2 text-sm font-semibold">
+              <TabsTrigger value="professor" className="flex items-center gap-2 text-sm font-semibold">
                 <UserCircle className="w-4 h-4" />
                 Professor
               </TabsTrigger>
-              <TabsTrigger value="admin" className="data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-2 text-sm font-semibold">
+              <TabsTrigger value="admin" className="flex items-center gap-2 text-sm font-semibold">
                 <ShieldCheck className="w-4 h-4" />
                 Admin Portal
               </TabsTrigger>
