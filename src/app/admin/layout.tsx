@@ -1,3 +1,4 @@
+
 "use client"
 
 import Link from 'next/link';
@@ -9,17 +10,11 @@ import { signOut } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
 import { useEffect, useState, use } from 'react';
 
-/**
- * Administrative Layout wrapper.
- * Unwraps Next.js 15 params using use() and verifies authorization.
- */
 export default function AdminLayout(props: {
   children: React.ReactNode;
   params: Promise<any>;
 }) {
-  // Next.js 15: unwrap params explicitly to avoid enumeration errors
   const params = use(props.params);
-  
   const router = useRouter();
   const pathname = usePathname();
   const auth = useAuth();
@@ -27,23 +22,15 @@ export default function AdminLayout(props: {
   const { user, isUserLoading } = useUser();
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
 
-  // Stabilize document references
-  const adminMarkerRef = useMemoFirebase(() => {
+  const userRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return doc(firestore, 'roles_admin', user.uid);
-  }, [firestore, user]);
-  
-  const { data: adminMarker, isLoading: isMarkerLoading } = useDoc(adminMarkerRef);
-
-  const profileRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, 'user_profiles', user.uid);
+    return doc(firestore, 'users', user.uid);
   }, [firestore, user]);
 
-  const { data: profileData, isLoading: isProfileLoading } = useDoc(profileRef);
+  const { data: userData, isLoading: isDataLoading } = useDoc(userRef);
 
   useEffect(() => {
-    if (isUserLoading) return;
+    if (isUserLoading || isDataLoading) return;
 
     if (!user) {
       setIsAuthorized(false);
@@ -51,31 +38,14 @@ export default function AdminLayout(props: {
       return;
     }
 
-    const isInstitutional = user.email?.toLowerCase().endsWith('@neu.edu.ph');
-    if (!isInstitutional) {
-      signOut(auth).then(() => router.push('/'));
+    if (!userData || userData.role !== 'admin' || userData.status === 'blocked') {
       setIsAuthorized(false);
+      router.push('/');
       return;
     }
 
-    if (isMarkerLoading || isProfileLoading) return;
-
-    // Check both marker collection and profile role
-    const isAdmin = !!adminMarker || profileData?.role === 'Admin';
-    
-    if (isAdmin) {
-      setIsAuthorized(true);
-    } else {
-      // Grace period for sync before booting
-      const timer = setTimeout(() => {
-        if (!isAdmin) {
-          setIsAuthorized(false);
-          router.push('/');
-        }
-      }, 5000); 
-      return () => clearTimeout(timer);
-    }
-  }, [user, isUserLoading, isMarkerLoading, isProfileLoading, adminMarker, profileData, router, auth]);
+    setIsAuthorized(true);
+  }, [user, userData, isUserLoading, isDataLoading, router]);
 
   const handleSignOut = async () => {
     if (auth) {
@@ -84,12 +54,12 @@ export default function AdminLayout(props: {
     }
   };
 
-  if (isUserLoading || isAuthorized === null || !user) {
+  if (isUserLoading || isDataLoading || isAuthorized === null || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
           <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
-          <p className="text-muted-foreground font-bold text-sm tracking-tight italic">Verifying Administrative Access...</p>
+          <p className="text-muted-foreground font-bold text-sm tracking-tight italic">Verifying Admin Privileges...</p>
         </div>
       </div>
     );

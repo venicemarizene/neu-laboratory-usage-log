@@ -1,10 +1,11 @@
+
 "use client"
 
 import { useState, useEffect, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectScrollUpButton, SelectScrollDownButton } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Monitor, LogOut, CheckCircle2, AlertTriangle, Loader2, ArrowRight, QrCode, AlertCircle } from 'lucide-react';
@@ -15,10 +16,6 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
 import { AuthService } from '@/lib/services/auth-service';
 
-/**
- * Professor Portal for Laboratory Entry.
- * Strictly focused on session logging with no analytical dashboard.
- */
 export default function ProfessorPortal(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
   const searchParams = use(props.searchParams);
@@ -33,12 +30,12 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   const [isProcessing, setIsProcessing] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'blocked'>('idle');
   
-  const profileRef = useMemoFirebase(() => {
+  const userRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return doc(firestore, 'user_profiles', user.uid);
+    return doc(firestore, 'users', user.uid);
   }, [firestore, user]);
   
-  const { data: profileData, isLoading: isProfileLoading } = useDoc(profileRef);
+  const { data: userData, isLoading: isUserDataLoading } = useDoc(userRef);
   
   const [isScanning, setIsScanning] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
@@ -47,18 +44,19 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   const roomList = Array.from({ length: 11 }, (_, i) => `M${101 + i}`);
 
   useEffect(() => {
-    if (isUserLoading) return;
+    if (isUserLoading || isUserDataLoading) return;
     if (!user) {
       router.push('/');
       return;
     }
-  }, [user, isUserLoading, router]);
-
-  useEffect(() => {
-    if (profileData?.isBlocked) {
+    
+    if (userData?.status === 'blocked') {
       setStatus('blocked');
+    } else if (userData?.role !== 'professor') {
+      // Admins are technically allowed to see this but we usually want professors here
+      // No redirection logic here to avoid accidental loops if an admin logs in
     }
-  }, [profileData?.isBlocked]);
+  }, [user, userData, isUserLoading, isUserDataLoading, router]);
 
   const handleSignOut = async () => {
     if (auth) {
@@ -71,7 +69,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
     if (!selectedRoom || !firestore || !user) return;
     setIsProcessing(true);
     
-    if (profileData?.isBlocked) {
+    if (userData?.status === 'blocked') {
       setStatus('blocked');
       setIsProcessing(false);
       return;
@@ -79,7 +77,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
 
     const logData = {
       professorId: user.uid,
-      professorName: user.displayName || profileData?.name || 'Professor',
+      professorName: user.displayName || userData?.email || 'Professor',
       roomNumber: selectedRoom,
       timestamp: new Date().toISOString(),
       status: 'Active'
@@ -108,8 +106,8 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       setHasCameraPermission(true);
       if (videoRef.current) videoRef.current.srcObject = stream;
       
-      // Mock detection
-      setTimeout(() => handleQRDetected('M105'), 2000);
+      // Mock detection for demo
+      setTimeout(() => handleQRDetected('M105'), 3000);
     } catch (error) {
       setHasCameraPermission(false);
     }
@@ -130,7 +128,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
     }
   };
 
-  if (isUserLoading || isProfileLoading || !user) {
+  if (isUserLoading || isUserDataLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -246,14 +244,14 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
 
         <div className="bg-card p-6 rounded-3xl shadow-lg border flex items-center gap-5">
           <div className="w-14 h-14 rounded-2xl bg-accent text-primary flex items-center justify-center font-black text-2xl shadow-inner">
-            {user.displayName?.[0] || 'P'}
+            {user.email?.[0].toUpperCase() || 'P'}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-bold text-slate-800 text-lg truncate">{user.displayName}</p>
+            <p className="font-bold text-slate-800 text-lg truncate">{user.displayName || 'Faculty'}</p>
             <p className="text-sm text-muted-foreground font-medium truncate">{user.email}</p>
           </div>
           <Badge className="font-bold bg-primary/10 text-primary border-primary/20">
-            {profileData?.role || 'Professor'}
+            {userData?.role || 'Professor'}
           </Badge>
         </div>
       </main>

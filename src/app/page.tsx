@@ -1,10 +1,13 @@
+
 "use client";
 
 import { useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info, Lock } from 'lucide-react';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,10 +15,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AuthService } from '@/lib/services/auth-service';
 import { UserService } from '@/lib/services/user-service';
 
-/**
- * Main Landing and Authentication Page.
- * Uses Service Layers for Auth and User management.
- */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
   const searchParams = use(props.searchParams);
@@ -27,8 +26,10 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const { toast } = useToast();
   
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
 
-  const handleSignIn = async (targetRole: 'admin' | 'professor') => {
+  const handleProfessorLogin = async () => {
     if (!auth || !firestore) return;
     setIsLoggingIn(true);
 
@@ -38,7 +39,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
       const email = signedInUser.email?.toLowerCase() || '';
 
-      // Domain Restriction Logic
       if (!email.endsWith("@neu.edu.ph")) {
         alert("Only NEU emails are allowed!");
         await AuthService.logout(auth);
@@ -46,35 +46,56 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
-      // Sync Profile & Role Check
-      const profile = await UserService.syncProfile(
-        firestore, 
-        signedInUser, 
-        targetRole === 'admin' ? 'Admin' : 'Professor'
-      );
+      const profile = await UserService.syncProfile(firestore, signedInUser, 'professor');
 
-      // Account Blocking Check
-      if (profile.isBlocked) {
+      if (profile.status === 'blocked') {
         alert("Your account has been blocked. Please contact the administrator.");
         await AuthService.logout(auth);
         setIsLoggingIn(false);
         return;
       }
 
-      toast({
-        title: 'Authentication Successful',
-        description: `Welcome, ${signedInUser.displayName}.`,
-      });
-      
-      router.push(profile.role === 'Admin' ? '/admin' : '/professor');
+      toast({ title: 'Welcome Professor', description: `Authenticated as ${signedInUser.displayName}` });
+      router.push('/professor');
     } catch (error: any) {
       if (error.code !== 'auth/popup-closed-by-user') {
         toast({
           variant: 'destructive',
-          title: 'Sign In Error',
-          description: error.message || 'An unexpected error occurred.',
+          title: 'Authentication Error',
+          description: error.message || 'Failed to sign in with Google.',
         });
       }
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth || !firestore) return;
+    setIsLoggingIn(true);
+
+    try {
+      const signedInUser = await AuthService.signInWithEmail(auth, adminEmail, adminPassword);
+      if (!signedInUser) throw new Error("Admin authentication failed");
+
+      const profile = await UserService.syncProfile(firestore, signedInUser, 'admin');
+
+      if (profile.status === 'blocked') {
+        alert("Administrative access revoked. This account is blocked.");
+        await AuthService.logout(auth);
+        setIsLoggingIn(false);
+        return;
+      }
+
+      toast({ title: 'Admin Access Granted', description: 'Redirecting to dashboard...' });
+      router.push('/admin');
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Login Failed',
+        description: 'Invalid credentials or access denied.',
+      });
     } finally {
       setIsLoggingIn(false);
     }
@@ -113,7 +134,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                 {user.email?.[0].toUpperCase()}
               </div>
               <div className="text-left">
-                <p className="text-xs font-semibold leading-none">{user.displayName || 'Faculty'}</p>
+                <p className="text-xs font-semibold leading-none">{user.displayName || 'Staff'}</p>
                 <p className="text-[10px] text-muted-foreground font-medium">{user.email}</p>
               </div>
             </div>
@@ -142,11 +163,11 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                 <Alert className="bg-primary/5 border-primary/20 text-left">
                   <Info className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
-                    Redirection: Session Logging Portal only.
+                    Please use your institutional @neu.edu.ph account.
                   </AlertDescription>
                 </Alert>
                 <Button 
-                  onClick={() => handleSignIn('professor')}
+                  onClick={handleProfessorLogin}
                   disabled={isLoggingIn}
                   className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3"
                 >
@@ -156,23 +177,38 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
               </div>
             </TabsContent>
 
-            <TabsContent value="admin" className="p-6 space-y-6 m-0">
-              <div className="space-y-4">
-                <Alert className="bg-primary/5 border-primary/20 text-left">
-                  <ShieldCheck className="h-4 w-4 text-primary" />
-                  <AlertDescription className="text-sm font-medium">
-                    Redirection: Admin Analytics Dashboard.
-                  </AlertDescription>
-                </Alert>
+            <TabsContent value="admin" className="p-6 space-y-4 m-0">
+              <form onSubmit={handleAdminLogin} className="space-y-4 text-left">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Administrative Email</Label>
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    placeholder="admin@neu.edu.ph" 
+                    value={adminEmail}
+                    onChange={(e) => setAdminEmail(e.target.value)}
+                    required 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input 
+                    id="password" 
+                    type="password" 
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    required 
+                  />
+                </div>
                 <Button 
-                  onClick={() => handleSignIn('admin')}
+                  type="submit"
                   disabled={isLoggingIn}
-                  className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3"
+                  className="w-full h-12 font-bold bg-primary hover:bg-primary/90 shadow-md gap-2"
                 >
-                  {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
-                  Admin Sign-In
+                  {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                  Admin Secure Login
                 </Button>
-              </div>
+              </form>
             </TabsContent>
           </Tabs>
         </Card>

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, use } from 'react';
@@ -11,14 +12,8 @@ import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
-import { Button } from '@/components/ui/button';
 
-/**
- * Faculty Management Page.
- * Unwraps Next.js 15 params using use().
- */
 export default function ProfessorManagement(props: { params: Promise<any>; searchParams: Promise<any> }) {
-  // Next.js 15: unwrap params explicitly
   const params = use(props.params);
   const searchParams = use(props.searchParams);
   
@@ -28,21 +23,22 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
 
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return collection(firestore, 'user_profiles');
+    return collection(firestore, 'users');
   }, [firestore]);
 
   const { data: users, isLoading } = useCollection(usersQuery);
 
-  const toggleBlocked = (uid: string, currentStatus: boolean, profName: string) => {
+  const toggleBlocked = (uid: string, currentStatus: string, email: string) => {
     if (!firestore) return;
-    const docRef = doc(firestore, 'user_profiles', uid);
+    const docRef = doc(firestore, 'users', uid);
     
-    updateDocumentNonBlocking(docRef, { isBlocked: !currentStatus });
+    const newStatus = currentStatus === 'blocked' ? 'active' : 'blocked';
+    updateDocumentNonBlocking(docRef, { status: newStatus });
     
     toast({
-      title: !currentStatus ? 'Access Restricted' : 'Access Restored',
-      description: `${profName}'s account has been ${!currentStatus ? 'blocked' : 'unblocked'}.`,
-      variant: !currentStatus ? 'destructive' : 'default',
+      title: newStatus === 'blocked' ? 'Access Restricted' : 'Access Restored',
+      description: `${email}'s account has been ${newStatus}.`,
+      variant: newStatus === 'blocked' ? 'destructive' : 'default',
     });
   };
 
@@ -52,13 +48,9 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
     if (!term) return users;
 
     return users.filter(p => {
-      const name = (p.name || '').toLowerCase();
-      const displayName = (p.displayName || '').toLowerCase();
       const email = (p.email || '').toLowerCase();
-      
-      return name.includes(term) || 
-             displayName.includes(term) || 
-             email.includes(term);
+      const role = (p.role || '').toLowerCase();
+      return email.includes(term) || role.includes(term);
     });
   }, [users, searchTerm]);
 
@@ -66,13 +58,13 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
     <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold font-headline text-primary tracking-tight">Professor Directory</h1>
-          <p className="text-muted-foreground font-medium">Search faculty and manage system access permissions</p>
+          <h1 className="text-3xl font-bold font-headline text-primary tracking-tight">System Users</h1>
+          <p className="text-muted-foreground font-medium">Manage institutional accounts and system access</p>
         </div>
         <div className="relative w-full md:w-96">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input 
-            placeholder="Search by name or email..." 
+            placeholder="Search by email..." 
             className="pl-10 pr-10 border-2 h-12 rounded-xl bg-card focus-visible:ring-primary"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -97,7 +89,7 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
             <div>
               <CardTitle className="text-xl font-bold">Access Control Center</CardTitle>
               <CardDescription>
-                Review faculty accounts and toggle laboratory access. Blocked users cannot register new sessions.
+                Review all accounts and toggle laboratory access. Blocked users cannot log sessions.
               </CardDescription>
             </div>
           </div>
@@ -112,8 +104,8 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
             <Table>
               <TableHeader className="bg-slate-50/50">
                 <TableRow className="hover:bg-transparent border-none">
-                  <TableHead className="font-bold py-5 px-6">Faculty Member</TableHead>
-                  <TableHead className="font-bold py-5">Institutional Email</TableHead>
+                  <TableHead className="font-bold py-5 px-6">Institutional Email</TableHead>
+                  <TableHead className="font-bold py-5">Role</TableHead>
                   <TableHead className="font-bold py-5">Current Status</TableHead>
                   <TableHead className="text-right font-bold py-5 px-6">Actions</TableHead>
                 </TableRow>
@@ -125,53 +117,48 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <UserRound className="w-12 h-12 opacity-20" />
                         <p className="font-bold text-lg">No matching records found</p>
-                        <p className="text-sm">Try searching with a different name or email.</p>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((prof) => (
-                    <TableRow key={prof.id} className="hover:bg-slate-50/80 transition-colors group">
+                  filtered.map((userDoc) => (
+                    <TableRow key={userDoc.id} className="hover:bg-slate-50/80 transition-colors group">
                       <TableCell className="px-6 py-4">
                         <div className="flex items-center gap-4">
-                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-sm transition-transform duration-300 group-hover:scale-110 ${
-                            prof.isBlocked ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shadow-sm transition-transform duration-300 group-hover:scale-110 ${
+                            userDoc.status === 'blocked' ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'
                           }`}>
-                            {(prof.name || prof.displayName || prof.email || 'A')[0].toUpperCase()}
+                            {(userDoc.email || 'U')[0].toUpperCase()}
                           </div>
-                          <div>
-                            <span className="font-bold text-slate-800 block leading-none mb-1">{prof.name || prof.displayName || 'Anonymous Faculty'}</span>
-                            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{prof.role || 'User'}</span>
-                          </div>
+                          <span className="font-bold text-slate-800">{userDoc.email}</span>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2 text-slate-600 font-medium">
-                          <Mail className="w-4 h-4 text-primary/40" />
-                          {prof.email}
-                        </div>
+                        <Badge variant="secondary" className="uppercase text-[10px] tracking-widest font-black">
+                          {userDoc.role}
+                        </Badge>
                       </TableCell>
                       <TableCell>
-                        {prof.isBlocked ? (
+                        {userDoc.status === 'blocked' ? (
                           <Badge variant="destructive" className="gap-1 px-3 py-1 rounded-full font-bold">
                             <UserX className="w-3 h-3" />
-                            Access Blocked
+                            Blocked
                           </Badge>
                         ) : (
                           <Badge variant="outline" className="gap-1 px-3 py-1 rounded-full font-bold border-green-200 bg-green-50 text-green-700">
                             <UserCheck className="w-3 h-3" />
-                            Authorized
+                            Active
                           </Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-right px-6">
                         <div className="flex items-center justify-end gap-3">
-                          <span className={`text-xs font-bold uppercase hidden sm:inline ${prof.isBlocked ? 'text-destructive' : 'text-muted-foreground'}`}>
-                            {prof.isBlocked ? 'Blocked' : 'Active'}
+                          <span className={`text-xs font-bold uppercase ${userDoc.status === 'blocked' ? 'text-destructive' : 'text-muted-foreground'}`}>
+                            {userDoc.status === 'blocked' ? 'Blocked' : 'Active'}
                           </span>
                           <Switch 
-                            checked={!!prof.isBlocked}
-                            onCheckedChange={() => toggleBlocked(prof.id, !!prof.isBlocked, prof.name || prof.displayName || prof.email)}
+                            checked={userDoc.status === 'blocked'}
+                            onCheckedChange={() => toggleBlocked(userDoc.id, userDoc.status, userDoc.email)}
                             className="data-[state=checked]:bg-destructive"
                           />
                         </div>
