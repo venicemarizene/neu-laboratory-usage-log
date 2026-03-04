@@ -39,6 +39,8 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const [detectedRoom, setDetectedRoom] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  const roomList = Array.from({ length: 11 }, (_, i) => `M${101 + i}`);
+
   /**
    * Universal Login Flow with Intent-Based Role Assignment.
    */
@@ -172,8 +174,9 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       setHasCameraPermission(true);
       if (videoRef.current) videoRef.current.srcObject = stream;
       
-      // Simulation of a QR room detection (M101-M111)
-      setTimeout(() => handleQRDetected('M101'), 2000);
+      // Simulation of a QR room detection: pick a random room from M101-M111
+      const randomRoom = roomList[Math.floor(Math.random() * roomList.length)];
+      setTimeout(() => handleQRDetected(randomRoom), 2000);
     } catch (error) {
       setHasCameraPermission(false);
     }

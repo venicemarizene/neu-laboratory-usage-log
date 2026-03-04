@@ -114,8 +114,9 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       setHasCameraPermission(true);
       if (videoRef.current) videoRef.current.srcObject = stream;
       
-      // Simulation of instant room detection
-      setTimeout(() => handleQRDetected('M105'), 2000);
+      // Simulation of instant room detection: pick a random room from M101-M111
+      const randomRoom = roomList[Math.floor(Math.random() * roomList.length)];
+      setTimeout(() => handleQRDetected(randomRoom), 2000);
     } catch (error) {
       setHasCameraPermission(false);
     }
