@@ -283,7 +283,7 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
               </div>
             )}
           </div>
-        </Header>
+        </CardHeader>
         <CardContent className="p-0">
           {isLogsLoading ? (
             <div className="flex flex-col items-center justify-center py-24 gap-4">
