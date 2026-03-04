@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo, use } from 'react';
@@ -12,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Cell, ResponsiveContainer } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
+import UsageReport from '@/components/UsageReport';
 
 const roomList = ['M101', 'M102', 'M103', 'M104', 'M105', 'M106', 'M107', 'M108', 'M109', 'M110', 'M111'];
 
@@ -22,12 +24,7 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-/**
- * Main Administrative Analytics Dashboard.
- * Unwraps Next.js 15 params/searchParams using use().
- */
 export default function AdminDashboard(props: { params: Promise<any>; searchParams: Promise<any> }) {
-  // Next.js 15: unwrap params explicitly to avoid enumeration errors
   const params = use(props.params);
   const searchParams = use(props.searchParams);
   
@@ -36,7 +33,6 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
   const [mounted, setMounted] = useState(false);
   const firestore = useFirestore();
 
-  // Stabilized queries
   const logsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collection(firestore, 'room_logs'), orderBy('timestamp', 'desc'), limit(1000));
@@ -46,10 +42,10 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
 
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return collection(firestore, 'user_profiles');
+    return collection(firestore, 'users');
   }, [firestore]);
 
-  const { data: profiles } = useCollection(usersQuery);
+  const { data: userProfiles } = useCollection(usersQuery);
 
   useEffect(() => {
     setMounted(true);
@@ -95,9 +91,9 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
     return {
       totalUsesToday: (logs || []).filter(l => new Date(l.timestamp).getTime() >= startOfDay).length,
       totalUniqueProfessors: new Set((logs || []).map(l => l.professorId)).size,
-      totalBlockedUsers: (profiles || []).filter(u => u.isBlocked).length,
+      totalBlockedUsers: (userProfiles || []).filter(u => u.status === 'blocked').length,
     };
-  }, [logs, profiles]);
+  }, [logs, userProfiles]);
 
   if (!mounted) return null;
 
@@ -109,9 +105,10 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
           <p className="text-muted-foreground font-medium uppercase tracking-wider text-xs">Monitoring institutional computer laboratory utilization</p>
         </div>
         <div className="flex items-center gap-3">
-           <Button variant="outline" className="gap-2 border-2 rounded-xl font-bold bg-card shadow-sm transition-all duration-200">
+           <UsageReport logs={filteredLogs} />
+           <Button variant="outline" className="hidden sm:flex gap-2 border-2 rounded-xl font-bold bg-card shadow-sm transition-all duration-200">
              <FileText className="w-4 h-4" />
-             Export Period Data
+             Export Data
            </Button>
         </div>
       </div>

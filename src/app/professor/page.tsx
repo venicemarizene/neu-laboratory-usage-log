@@ -51,7 +51,6 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       return;
     }
     
-    // Status guard
     if (userData?.status === 'blocked') {
       setStatus('blocked');
       AuthService.logout(auth!).then(() => router.push('/'));
@@ -106,7 +105,6 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       setHasCameraPermission(true);
       if (videoRef.current) videoRef.current.srcObject = stream;
       
-      // Mock detection for demo
       setTimeout(() => handleQRDetected('M105'), 3000);
     } catch (error) {
       setHasCameraPermission(false);
