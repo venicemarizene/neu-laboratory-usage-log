@@ -95,7 +95,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   };
 
   /**
-   * QR Scanning Logic for Professors.
+   * QR Scanning Logic for Professor Login Authentication.
    */
   const startScanning = async () => {
     setIsScanning(true);
@@ -104,8 +104,9 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       setHasCameraPermission(true);
       if (videoRef.current) videoRef.current.srcObject = stream;
       
+      // Simulation of a QR login detection
       setTimeout(() => {
-        toast({ title: "QR Detected", description: "Verifying credentials..." });
+        toast({ title: "Account Identified", description: "Verifying institutional credentials..." });
         setIsScanning(false);
       }, 3000);
     } catch (error) {
@@ -178,8 +179,8 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
             </TabsList>
             
             <TabsContent value="professor" className="p-6 space-y-6 m-0">
-              <div className="space-y-4">
-                <Alert className="bg-primary/5 border border-primary/20 text-left">
+              <div className="space-y-4 text-left">
+                <Alert className="bg-primary/5 border border-primary/20">
                   <Info className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
                     Authenticate as a Professor with your @neu.edu.ph account.
@@ -204,14 +205,14 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                         className="w-full h-14 text-lg font-bold border-2 gap-3"
                       >
                         <QrCode className="w-5 h-5 text-primary" />
-                        Scan QR Login
+                        Scan QR Account Login
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-md">
                       <DialogHeader>
                         <DialogTitle>Sign In via QR Code</DialogTitle>
                         <DialogDescription>
-                          Scan your institutional QR code to quickly authenticate.
+                          Scan your institutional QR code to identify your account.
                         </DialogDescription>
                       </DialogHeader>
                       <div className="aspect-square relative rounded-2xl bg-black overflow-hidden border-4 border-muted">
@@ -242,11 +243,11 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
             </TabsContent>
 
             <TabsContent value="admin" className="p-6 space-y-4 m-0">
-              <div className="space-y-4">
-                <Alert className="bg-accent/5 border border-accent/20 text-left">
+              <div className="space-y-4 text-left">
+                <Alert className="bg-accent/5 border border-accent/20">
                   <ShieldCheck className="h-4 w-4 text-accent" />
                   <AlertDescription className="text-sm font-medium">
-                    Authenticate as an Administrator. You can use Google Sign-In.
+                    Authenticate as an Administrator. Institutional access required.
                   </AlertDescription>
                 </Alert>
                 
