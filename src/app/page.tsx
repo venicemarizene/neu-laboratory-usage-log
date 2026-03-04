@@ -70,6 +70,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
+      console.log("Signed in:", signedInUser.email, signedInUser.uid);
       const email = (signedInUser.email || '').toLowerCase().trim();
 
       // Institutional Guard: Validate @neu.edu.ph
@@ -123,6 +124,8 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     try {
       const signedInUser = await AuthService.signInWithEmail(auth, adminEmail, adminPassword);
       if (!signedInUser) throw new Error("Admin login failed");
+
+      console.log("Admin signed in:", signedInUser.email, signedInUser.uid);
 
       // Sync/Create profile as admin
       const profile = await UserService.syncProfile(firestore, signedInUser, 'admin');
