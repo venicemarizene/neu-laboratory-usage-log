@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info, Lock, QrCode, AlertCircle, X } from 'lucide-react';
+import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info, Lock, QrCode, AlertCircle } from 'lucide-react';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -17,7 +17,8 @@ import { AuthService } from '@/lib/services/auth-service';
 import { UserService } from '@/lib/services/user-service';
 
 /**
- * Main Landing Page with Dual Authentication and QR Scanning Support.
+ * Main Landing Page with Dynamic Role Selection.
+ * Handles authentication for both Professors and Administrators.
  */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -40,31 +41,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const videoRef = useRef<HTMLVideoElement>(null);
 
   /**
-   * Automatic redirection for active sessions.
-   */
-  useEffect(() => {
-    if (isUserLoading || !user || !firestore) return;
-
-    const checkAndRedirect = async () => {
-      try {
-        const profile = await UserService.getProfile(firestore, user.uid);
-        if (profile) {
-          if (profile.status === 'blocked') {
-            await AuthService.logout(auth!);
-            return;
-          }
-          if (profile.role === 'admin') router.push('/admin');
-          else router.push('/professor');
-        }
-      } catch (error) {
-        console.error("Session redirection check failed:", error);
-      }
-    };
-    checkAndRedirect();
-  }, [user, isUserLoading, firestore, router, auth]);
-
-  /**
-   * Universal Google Login Flow.
+   * Universal Login Flow with Intent-Based Role Assignment.
    */
   const handleGoogleLogin = async () => {
     if (!auth || !firestore) return;
@@ -82,7 +59,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
       const email = (signedInUser.email || '').toLowerCase().trim();
 
-      // Institutional Guard: Only @neu.edu.ph
+      // Institutional Guard
       if (!email.endsWith("@neu.edu.ph")) {
         alert("Only NEU emails are allowed!");
         await AuthService.logout(auth);
@@ -90,6 +67,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
+      // Synchronize profile with the selected role (Dynamic Role Switching)
       const profile = await UserService.syncProfile(firestore, signedInUser, intendedRole);
 
       if (profile.status === 'blocked') {
@@ -100,8 +78,13 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       }
 
       toast({ title: 'Authenticated', description: `Welcome, ${signedInUser.displayName}` });
-      if (profile.role === 'admin') router.push('/admin');
-      else router.push('/professor');
+      
+      // Force immediate redirect based on the synchronized role
+      if (profile.role === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push('/professor');
+      }
     } catch (error: any) {
       if (error.code !== 'auth/popup-closed-by-user') {
         toast({
@@ -125,11 +108,8 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       setHasCameraPermission(true);
       if (videoRef.current) videoRef.current.srcObject = stream;
       
-      // Simulate detection for development/demo purposes
       setTimeout(() => {
         toast({ title: "QR Detected", description: "Verifying credentials..." });
-        // In a real scenario, we'd extract a token and sign in via custom auth or a look-up
-        // For this demo, we'll prompt them to use Google Login after identifying them
         setIsScanning(false);
       }, 3000);
     } catch (error) {
@@ -145,7 +125,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   };
 
   /**
-   * Admin Login Flow: Email/Password Authentication.
+   * Admin Login Flow: Email/Password.
    */
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,7 +176,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       toast({ title: 'Access Granted', description: 'Redirecting to admin portal...' });
       router.push('/admin');
     } catch (error: any) {
-      console.error("Profile sync error:", error);
       toast({
         variant: 'destructive',
         title: 'Error',

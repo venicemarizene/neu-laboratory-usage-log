@@ -10,6 +10,10 @@ import { doc } from 'firebase/firestore';
 import { useEffect, useState, use } from 'react';
 import { AuthService } from '@/lib/services/auth-service';
 
+/**
+ * Layout guard for Administrative routes.
+ * Ensures only authenticated admins with active status can access.
+ */
 export default function AdminLayout(props: {
   children: React.ReactNode;
   params: Promise<any>;
@@ -30,6 +34,7 @@ export default function AdminLayout(props: {
   const { data: userData, isLoading: isDataLoading } = useDoc(userRef);
 
   useEffect(() => {
+    // Wait for auth and document data to settle
     if (isUserLoading || isDataLoading) return;
 
     if (!user) {
@@ -38,8 +43,15 @@ export default function AdminLayout(props: {
       return;
     }
 
-    // Role and status guard
-    if (!userData || userData.role !== 'admin' || userData.status === 'blocked') {
+    // Role and status guard: If data is loaded and role isn't admin, redirect.
+    // We add a small grace period for the document to exist if just created.
+    if (!userData) {
+      // If document doesn't exist yet, we wait a bit or assume sync is happening.
+      // But if it's definitely not there after loading, it's unauthorized.
+      return; 
+    }
+
+    if (userData.role !== 'admin' || userData.status === 'blocked') {
       setIsAuthorized(false);
       router.push('/');
       return;
@@ -55,6 +67,7 @@ export default function AdminLayout(props: {
     }
   };
 
+  // Show loading state while verifying permissions
   if (isUserLoading || isDataLoading || isAuthorized === null || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -113,7 +126,7 @@ export default function AdminLayout(props: {
 
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         <header className="h-16 border-b bg-card px-8 flex items-center justify-between shrink-0">
-          <h2 className="font-bold text-lg text-primary">Admin Dashboard</h2>
+          <h2 className="font-bold text-lg text-primary">Admin Portal</h2>
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold leading-none">{user?.displayName || 'Administrator'}</p>

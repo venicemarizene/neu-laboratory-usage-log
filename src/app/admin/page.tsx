@@ -24,6 +24,10 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
+/**
+ * Administrative Dashboard for monitoring laboratory usage.
+ * Includes visual analytics, searchable logs, and AI report generation.
+ */
 export default function AdminDashboard(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
   const searchParams = use(props.searchParams);
