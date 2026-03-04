@@ -24,7 +24,7 @@ export const AuthService = {
   },
 
   /**
-   * Authenticates a user via Email and Password.
+   * Authenticates a user via Email and Password for Admin credentials.
    */
   async signInWithEmail(auth: Auth, email: string, pass: string): Promise<User | null> {
     const result = await signInWithEmailAndPassword(auth, email, pass);

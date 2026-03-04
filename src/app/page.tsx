@@ -15,8 +15,7 @@ import { AuthService } from '@/lib/services/auth-service';
 import { UserService } from '@/lib/services/user-service';
 
 /**
- * Main Landing Page with Dual Authentication.
- * Unwraps Next.js 15 params/searchParams using use().
+ * Main Landing Page with Dual Authentication and Role-Based Guarding.
  */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -33,7 +32,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const [adminPassword, setAdminPassword] = useState('');
 
   /**
-   * Auto-redirection logic for existing sessions.
+   * Automatic redirection for active sessions.
    */
   useEffect(() => {
     if (isUserLoading || !user || !firestore) return;
@@ -42,20 +41,22 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       try {
         const profile = await UserService.getProfile(firestore, user.uid);
         if (profile) {
-          if (profile.status === 'blocked') return;
+          if (profile.status === 'blocked') {
+            await AuthService.logout(auth!);
+            return;
+          }
           if (profile.role === 'admin') router.push('/admin');
           else router.push('/professor');
         }
       } catch (error) {
-        console.error("Auto-redirect check failed:", error);
+        console.error("Session redirection check failed:", error);
       }
     };
     checkAndRedirect();
-  }, [user, isUserLoading, firestore, router]);
+  }, [user, isUserLoading, firestore, router, auth]);
 
   /**
-   * Handles the Professor Login flow via Google Sign-In.
-   * Enforces @neu.edu.ph domain and handles popup closure gracefully.
+   * Professor Login Flow: Google Sign-In with Domain Restriction.
    */
   const handleProfessorLogin = async () => {
     if (!auth || !firestore) return;
@@ -71,7 +72,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
       const email = (signedInUser.email || '').toLowerCase().trim();
 
-      // Institutional Guard
+      // Institutional Guard: Validate @neu.edu.ph
       if (!email.endsWith("@neu.edu.ph")) {
         alert("Only NEU emails are allowed!");
         await AuthService.logout(auth);
@@ -79,9 +80,10 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
-      // Sync user profile and check status (using UID as doc ID)
+      // Synchronize/Create Firestore profile
       const profile = await UserService.syncProfile(firestore, signedInUser, 'professor');
 
+      // Check account status
       if (profile.status === 'blocked') {
         alert("Your account has been blocked. Please contact the administrator.");
         await AuthService.logout(auth);
@@ -89,22 +91,20 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
-      // Success Notification & Redirect
-      toast({ title: 'Welcome', description: `Authenticated as ${signedInUser.displayName}` });
+      // Successful Redirection
+      toast({ title: 'Authenticated', description: `Welcome, ${signedInUser.displayName}` });
       if (profile.role === 'admin') {
         router.push('/admin');
       } else {
         router.push('/professor');
       }
     } catch (error: any) {
-      if (error.code === 'auth/popup-closed-by-user') {
-        console.log("Google Sign-In popup was closed by the user.");
-      } else {
-        console.error("Sign-in error:", error);
+      if (error.code !== 'auth/popup-closed-by-user') {
+        console.error("Google Sign-In error:", error);
         toast({
           variant: 'destructive',
           title: 'Authentication Error',
-          description: error.message || 'Failed to sign in with Google.',
+          description: error.message || 'Failed to sign in.',
         });
       }
     } finally {
@@ -113,7 +113,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   };
 
   /**
-   * Handles the Admin Login flow via Email/Password.
+   * Admin Login Flow: Email/Password Authentication.
    */
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,30 +122,26 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
     try {
       const signedInUser = await AuthService.signInWithEmail(auth, adminEmail, adminPassword);
-      if (!signedInUser) throw new Error("Admin authentication failed");
+      if (!signedInUser) throw new Error("Admin login failed");
 
-      // Sync admin profile
+      // Sync/Create profile as admin
       const profile = await UserService.syncProfile(firestore, signedInUser, 'admin');
 
       if (profile.status === 'blocked') {
-        alert("Administrative access revoked. This account is blocked.");
+        alert("Administrative access blocked for this account.");
         await AuthService.logout(auth);
         setIsLoggingIn(false);
         return;
       }
 
-      toast({ title: 'Access Granted', description: 'Redirecting to portal...' });
-      if (profile.role === 'admin') {
-        router.push('/admin');
-      } else {
-        router.push('/professor');
-      }
+      toast({ title: 'Access Granted', description: 'Redirecting to admin portal...' });
+      router.push('/admin');
     } catch (error: any) {
       console.error("Admin login error:", error);
       toast({
         variant: 'destructive',
         title: 'Login Failed',
-        description: 'Invalid credentials or access denied.',
+        description: 'Invalid administrative credentials.',
       });
     } finally {
       setIsLoggingIn(false);
@@ -155,7 +151,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const handleSignOut = async () => {
     if (auth) {
       await AuthService.logout(auth);
-      toast({ title: 'Signed out', description: 'Session ended.' });
+      toast({ title: 'Signed Out', description: 'You have been disconnected.' });
     }
   };
 
@@ -196,7 +192,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
           </div>
         )}
 
-        <Card className="border-none shadow-2xl overflow-hidden rounded-2xl">
+        <Card className="border-none shadow-2xl overflow-hidden rounded-2xl bg-card">
           <Tabs defaultValue="professor" className="w-full">
             <TabsList className="w-full grid grid-cols-2 rounded-none h-14 bg-muted/30">
               <TabsTrigger value="professor" className="flex items-center gap-2 text-sm font-semibold">
@@ -205,7 +201,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
               </TabsTrigger>
               <TabsTrigger value="admin" className="flex items-center gap-2 text-sm font-semibold">
                 <ShieldCheck className="w-4 h-4" />
-                Admin Portal
+                Admin
               </TabsTrigger>
             </TabsList>
             
@@ -214,7 +210,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                 <Alert className="bg-primary/5 border border-primary/20 text-left">
                   <Info className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
-                    Please use your institutional @neu.edu.ph account to continue.
+                    Please authenticate with your @neu.edu.ph institutional account.
                   </AlertDescription>
                 </Alert>
                 <Button 
@@ -224,7 +220,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                   className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3"
                 >
                   {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <Monitor className="w-5 h-5" />}
-                  Sign in with NEU Google Account
+                  Sign in with Google
                 </Button>
               </div>
             </TabsContent>
@@ -232,7 +228,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
             <TabsContent value="admin" className="p-6 space-y-4 m-0">
               <form onSubmit={handleAdminLogin} className="space-y-4 text-left">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Administrative Email</Label>
+                  <Label htmlFor="email">Email</Label>
                   <Input 
                     id="email" 
                     type="email" 
@@ -258,7 +254,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                   className="w-full h-12 font-bold bg-primary hover:bg-primary/90 shadow-md gap-2"
                 >
                   {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
-                  Admin Secure Login
+                  Login as Admin
                 </Button>
               </form>
             </TabsContent>
@@ -266,7 +262,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         </Card>
 
         <p className="text-xs font-medium text-muted-foreground">
-          Institutional <span className="text-primary font-bold">@neu.edu.ph</span> access only.
+          Institutional <span className="text-primary font-bold">@neu.edu.ph</span> domain enforced.
         </p>
       </div>
     </div>

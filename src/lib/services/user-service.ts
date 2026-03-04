@@ -32,7 +32,7 @@ export const UserService = {
 
   /**
    * Synchronizes user metadata. Automatically creates a record if it doesn't exist.
-   * Includes debug logs for tracking execution flow as per step-by-step instructions.
+   * Uses user.uid as the document ID.
    */
   async syncProfile(db: Firestore, user: FirebaseUser, requestedRole: 'professor' | 'admin'): Promise<UserMetadata> {
     console.log("User after sign-in:", user.email, user.uid);
@@ -46,7 +46,7 @@ export const UserService = {
 
       if (userSnap.exists()) {
         const data = userSnap.data() as UserMetadata;
-        console.log("User data:", data);
+        console.log("User data found:", data);
         return data;
       }
 
@@ -61,7 +61,7 @@ export const UserService = {
       };
 
       await setDoc(docRef, newProfile);
-      console.log("New user document created.");
+      console.log("New user document created successfully.");
       return newProfile;
     } catch (error) {
       console.error("Error in syncProfile:", error);
