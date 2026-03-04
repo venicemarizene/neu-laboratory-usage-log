@@ -167,8 +167,8 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
         <div className="w-full max-w-lg space-y-6">
           <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-white">
             <CardHeader className="pb-6 text-center pt-8">
-              <CardTitle className="text-3xl font-black">Access Terminal</CardTitle>
-              <CardDescription className="text-base font-medium mt-1">Institutional laboratory session entry</CardDescription>
+              <CardTitle className="text-3xl font-black">Welcome back!</CardTitle>
+              <CardDescription className="text-base font-medium mt-1">Which room would you like to use?</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 px-8 pb-10">
               {status === 'idle' && (
