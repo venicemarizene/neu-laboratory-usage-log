@@ -23,7 +23,7 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Allow users to read and create their own profile during registration
+      // Allow users to read and create their own profile during registration (using UID as ID)
       allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
       allow list: if isAdmin();
       allow create: if isSignedIn() && isOwner(userId);

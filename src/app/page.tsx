@@ -14,6 +14,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AuthService } from '@/lib/services/auth-service';
 import { UserService } from '@/lib/services/user-service';
 
+/**
+ * Main Landing Page with Dual Authentication.
+ * Unwraps Next.js 15 params/searchParams using use().
+ */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
   const searchParams = use(props.searchParams);
@@ -38,7 +42,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       try {
         const profile = await UserService.getProfile(firestore, user.uid);
         if (profile) {
-          console.log("Existing session detected for:", profile.email, "Role:", profile.role);
           if (profile.status === 'blocked') return;
           if (profile.role === 'admin') router.push('/admin');
           else router.push('/professor');
@@ -51,47 +54,42 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   }, [user, isUserLoading, firestore, router]);
 
   /**
-   * Handles the Professor Login flow via Google Sign-In with Popup.
-   * Includes specific handling for user cancellation (popup-closed-by-user).
+   * Handles the Professor Login flow via Google Sign-In.
+   * Enforces @neu.edu.ph domain and handles popup closure gracefully.
    */
   const handleProfessorLogin = async () => {
     if (!auth || !firestore) return;
     setIsLoggingIn(true);
 
     try {
-      console.log("Initiating Google Sign-In...");
       const signedInUser = await AuthService.signInWithGoogle(auth);
       
       if (!signedInUser) {
-        console.log("Sign-in cancelled or failed.");
         setIsLoggingIn(false);
         return;
       }
 
-      console.log("User after sign-in:", signedInUser.email, signedInUser.uid);
       const email = (signedInUser.email || '').toLowerCase().trim();
 
-      // Requirement: Restrict to NEU institutional emails
+      // Institutional Guard
       if (!email.endsWith("@neu.edu.ph")) {
-        console.log("Access Denied: Non-NEU email detected.");
         alert("Only NEU emails are allowed!");
         await AuthService.logout(auth);
         setIsLoggingIn(false);
         return;
       }
 
-      // Sync user profile and check status
+      // Sync user profile and check status (using UID as doc ID)
       const profile = await UserService.syncProfile(firestore, signedInUser, 'professor');
 
       if (profile.status === 'blocked') {
-        console.log("Access Denied: User is blocked.");
         alert("Your account has been blocked. Please contact the administrator.");
         await AuthService.logout(auth);
         setIsLoggingIn(false);
         return;
       }
 
-      // Redirect based on role
+      // Success Notification & Redirect
       toast({ title: 'Welcome', description: `Authenticated as ${signedInUser.displayName}` });
       if (profile.role === 'admin') {
         router.push('/admin');
@@ -99,7 +97,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         router.push('/professor');
       }
     } catch (error: any) {
-      // Gracefully handle the popup closed by user error
       if (error.code === 'auth/popup-closed-by-user') {
         console.log("Google Sign-In popup was closed by the user.");
       } else {
@@ -126,8 +123,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     try {
       const signedInUser = await AuthService.signInWithEmail(auth, adminEmail, adminPassword);
       if (!signedInUser) throw new Error("Admin authentication failed");
-
-      console.log("Admin signed in:", signedInUser.email);
 
       // Sync admin profile
       const profile = await UserService.syncProfile(firestore, signedInUser, 'admin');

@@ -53,8 +53,6 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
     // Status guard
     if (userData?.status === 'blocked') {
       setStatus('blocked');
-      console.log("Professor access denied: account blocked.");
-      alert("Your account is restricted. Please contact the administrator.");
       AuthService.logout(auth!).then(() => router.push('/'));
     }
   }, [user, userData, isUserLoading, isUserDataLoading, router, auth]);

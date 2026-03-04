@@ -39,9 +39,7 @@ export default function AdminLayout(props: {
 
     // Role and status guard
     if (!userData || userData.role !== 'admin' || userData.status === 'blocked') {
-      console.log("Admin layout access denied for:", user.email, "Role:", userData?.role, "Status:", userData?.status);
       setIsAuthorized(false);
-      alert("Access Denied: Administrative privileges required.");
       router.push('/');
       return;
     }
