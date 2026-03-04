@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, use } from 'react';
@@ -16,7 +15,7 @@ import { AuthService } from '@/lib/services/auth-service';
 import { UserService } from '@/lib/services/user-service';
 
 /**
- * Main Landing Page with Dual Authentication and Role-Based Guarding.
+ * Main Landing Page with Dual Authentication and Dynamic Role Guarding.
  */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -31,6 +30,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
+  const [activeTab, setActiveTab] = useState('professor');
 
   /**
    * Automatic redirection for active sessions.
@@ -58,11 +58,13 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
   /**
    * Universal Google Login Flow.
-   * Handles both Professors and Admin users logging in via Google.
+   * Uses active tab to determine intended role.
    */
   const handleGoogleLogin = async () => {
     if (!auth || !firestore) return;
     setIsLoggingIn(true);
+
+    const intendedRole = activeTab as 'professor' | 'admin';
 
     try {
       const signedInUser = await AuthService.signInWithGoogle(auth);
@@ -72,25 +74,18 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
-      console.log("User after sign-in:", signedInUser.email, signedInUser.uid);
       const email = (signedInUser.email || '').toLowerCase().trim();
 
-      // Get profile first to see if they already exist
-      let profile = await UserService.getProfile(firestore, signedInUser.uid);
-
-      if (!profile) {
-        // Institutional Guard for new users: Only @neu.edu.ph
-        if (!email.endsWith("@neu.edu.ph")) {
-          alert("Only NEU emails are allowed!");
-          await AuthService.logout(auth);
-          setIsLoggingIn(false);
-          return;
-        }
-        
-        // Sync/Create new profile. Predefined admin email gets admin role automatically.
-        const role = email === 'admin@neu.edu.ph' ? 'admin' : 'professor';
-        profile = await UserService.syncProfile(firestore, signedInUser, role);
+      // Institutional Guard: Only @neu.edu.ph
+      if (!email.endsWith("@neu.edu.ph")) {
+        alert("Only NEU emails are allowed!");
+        await AuthService.logout(auth);
+        setIsLoggingIn(false);
+        return;
       }
+
+      // Sync Profile with the Intended Role from the active tab
+      const profile = await UserService.syncProfile(firestore, signedInUser, intendedRole);
 
       // Check account status
       if (profile.status === 'blocked') {
@@ -100,7 +95,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
-      // Successful Redirection
+      // Successful Redirection based on the NEW synced role
       toast({ title: 'Authenticated', description: `Welcome, ${signedInUser.displayName}` });
       if (profile.role === 'admin') {
         router.push('/admin');
@@ -123,7 +118,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
   /**
    * Admin Login Flow: Email/Password Authentication.
-   * Handles automatic creation for predefined credentials if user doesn't exist in Auth.
    */
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,20 +129,17 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     try {
       signedInUser = await AuthService.signInWithEmail(auth, adminEmail, adminPassword);
     } catch (error: any) {
-      // Fallback: If predefined admin, attempt to sign up if sign-in fails
       if (
         (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') &&
         adminEmail === 'admin@neu.edu.ph' && 
         adminPassword === 'adminpassword'
       ) {
         try {
-          console.log("Predefined admin not found. Provisioning account...");
           signedInUser = await AuthService.signUpWithEmail(auth, adminEmail, adminPassword);
         } catch (signUpError: any) {
           console.error("Failed to provision admin:", signUpError);
         }
       } else {
-        console.error("Admin login error:", error);
         toast({
           variant: 'destructive',
           title: 'Login Failed',
@@ -233,7 +224,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         )}
 
         <Card className="border-none shadow-2xl overflow-hidden rounded-2xl bg-card">
-          <Tabs defaultValue="professor" className="w-full">
+          <Tabs defaultValue="professor" onValueChange={setActiveTab} className="w-full">
             <TabsList className="w-full grid grid-cols-2 rounded-none h-14 bg-muted/30">
               <TabsTrigger value="professor" className="flex items-center gap-2 text-sm font-semibold">
                 <UserCircle className="w-4 h-4" />
@@ -250,23 +241,44 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                 <Alert className="bg-primary/5 border border-primary/20 text-left">
                   <Info className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
-                    Please authenticate with your @neu.edu.ph institutional account.
+                    Authenticate as a **Professor** with your @neu.edu.ph account.
                   </AlertDescription>
                 </Alert>
                 <Button 
-                  id="googleLogin"
                   onClick={handleGoogleLogin}
                   disabled={isLoggingIn}
                   className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3"
                 >
                   {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <Monitor className="w-5 h-5" />}
-                  Sign in with Google
+                  Professor Google Login
                 </Button>
               </div>
             </TabsContent>
 
             <TabsContent value="admin" className="p-6 space-y-4 m-0">
               <div className="space-y-4">
+                <Alert className="bg-accent/5 border border-accent/20 text-left">
+                  <ShieldCheck className="h-4 w-4 text-accent" />
+                  <AlertDescription className="text-sm font-medium">
+                    Authenticate as an **Administrator**. You can use Google or email.
+                  </AlertDescription>
+                </Alert>
+                
+                <Button 
+                  variant="outline"
+                  onClick={handleGoogleLogin}
+                  disabled={isLoggingIn}
+                  className="w-full h-14 border-2 font-bold gap-3"
+                >
+                  {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                  Admin Google Login
+                </Button>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">Or password</span></div>
+                </div>
+
                 <form onSubmit={handleAdminLogin} className="space-y-4 text-left">
                   <div className="space-y-2">
                     <Label htmlFor="email">Admin Email</Label>
@@ -298,21 +310,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                     Login as Admin
                   </Button>
                 </form>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">Or</span></div>
-                </div>
-
-                <Button 
-                  variant="outline"
-                  onClick={handleGoogleLogin}
-                  disabled={isLoggingIn}
-                  className="w-full h-12 border-2 font-bold gap-3"
-                >
-                  {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <Monitor className="w-4 h-4" />}
-                  Admin Google Login
-                </Button>
               </div>
             </TabsContent>
           </Tabs>
