@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef, use } from 'react';
@@ -20,6 +19,7 @@ import jsQR from 'jsqr';
 /**
  * Standard Professor Portal for laboratory entry logging.
  * Features a medium-sized layout (max-w-xl) and real QR scanning.
+ * Optimized for minimal delay via cache-first authorization.
  */
 export default function ProfessorPortal(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -50,22 +50,28 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
 
   const roomList = Array.from({ length: 11 }, (_, i) => `M${101 + i}`);
 
+  // Optimized loading check: if userData is in cache, don't show global loader
+  const isWaiting = isUserLoading || (user && isUserDataLoading && !userData);
+
   useEffect(() => {
-    if (isUserLoading || isUserDataLoading) return;
+    if (isWaiting) return;
+    
     if (!user) {
-      router.push('/');
+      router.replace('/');
       return;
     }
+
     if (searchParams.auto === 'true' && searchParams.room) {
       setRoom(searchParams.room);
       setStatus('success');
       return;
     }
+
     if (userData?.status === 'blocked') {
       setStatus('blocked');
-      AuthService.logout(auth!).then(() => router.push('/'));
+      AuthService.logout(auth!).then(() => router.replace('/'));
     }
-  }, [user, userData, isUserLoading, isUserDataLoading, router, auth, searchParams]);
+  }, [user, userData, isWaiting, router, auth, searchParams]);
 
   const handleSignOut = async () => {
     if (auth) {
@@ -154,13 +160,19 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
     }
   };
 
-  if (isUserLoading || isUserDataLoading || !user) {
+  if (isWaiting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="text-center space-y-4">
+          <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
+          <p className="text-muted-foreground font-bold text-sm tracking-tight italic">Accessing Portal...</p>
+        </div>
       </div>
     );
   }
+
+  // Prevent flash for blocked users
+  if (userData?.status === 'blocked' && status !== 'blocked') return null;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -171,8 +183,8 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
         </div>
         <div className="flex items-center gap-4">
           <div className="hidden sm:flex flex-col items-end">
-            <span className="text-xs font-bold leading-none">{user.displayName || 'Professor'}</span>
-            <span className="text-[10px] text-muted-foreground">{user.email}</span>
+            <span className="text-xs font-bold leading-none">{user?.displayName || 'Professor'}</span>
+            <span className="text-[10px] text-muted-foreground">{user?.email}</span>
           </div>
           <Button variant="ghost" size="sm" onClick={handleSignOut} className="h-8 text-xs font-bold text-muted-foreground hover:text-destructive">
             <LogOut className="w-3 h-3 mr-1.5" />
@@ -299,11 +311,11 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
 
           <div className="px-6 py-5 bg-white border border-slate-200 rounded-2xl flex items-center gap-6 shadow-sm">
             <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-black text-xl shrink-0 shadow-inner">
-              {user.email?.[0].toUpperCase()}
+              {user?.email?.[0].toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="text-lg font-black text-slate-900 truncate">{user.displayName || 'Professor'}</p>
-              <p className="text-sm font-bold text-muted-foreground truncate opacity-70">{user.email}</p>
+              <p className="text-lg font-black text-slate-900 truncate">{user?.displayName || 'Professor'}</p>
+              <p className="text-sm font-bold text-muted-foreground truncate opacity-70">{user?.email}</p>
             </div>
             <Badge variant="outline" className="ml-auto text-[10px] font-black uppercase tracking-[0.15em] h-8 px-3 border-slate-200 bg-slate-50 rounded-lg">
               {userData?.role || 'Professor'}

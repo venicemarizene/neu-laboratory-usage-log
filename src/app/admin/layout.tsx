@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * Layout guard for Administrative routes.
- * Optimized for minimal delay by using derived authorization states.
+ * Optimized for minimal delay by using derived authorization states and cache-first rendering.
  */
 export default function AdminLayout(props: {
   children: React.ReactNode;
@@ -33,7 +33,8 @@ export default function AdminLayout(props: {
 
   const { data: userData, isLoading: isDataLoading } = useDoc(userRef);
 
-  // Derived states to determine if we should show loading or content
+  // Optimized loading condition: only wait if we have a user but don't have their data yet.
+  // If userData exists (even if still updating from network), we allow rendering.
   const isAuthorized = user && userData && userData.role === 'admin' && userData.status !== 'blocked';
   const isWaiting = isUserLoading || (user && isDataLoading && !userData);
 
@@ -69,6 +70,7 @@ export default function AdminLayout(props: {
     );
   }
 
+  // Prevent flash of unauthorized content
   if (!isAuthorized) return null;
 
   return (
