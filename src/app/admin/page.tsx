@@ -13,7 +13,6 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Cell, ResponsiveContainer } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import UsageReport from '@/components/UsageReport';
 
 const roomList = ['M101', 'M102', 'M103', 'M104', 'M105', 'M106', 'M107', 'M108', 'M109', 'M110', 'M111'];
 
@@ -26,7 +25,7 @@ const chartConfig = {
 
 /**
  * Administrative Dashboard for monitoring laboratory usage.
- * Includes visual analytics, searchable logs, and AI report generation.
+ * Includes visual analytics, searchable logs, and institutional stats.
  */
 export default function AdminDashboard(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -109,7 +108,6 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
           <p className="text-muted-foreground font-medium uppercase tracking-wider text-xs">Monitoring institutional computer laboratory utilization</p>
         </div>
         <div className="flex items-center gap-3">
-           <UsageReport logs={filteredLogs} />
            <Button variant="outline" className="hidden sm:flex gap-2 border-2 rounded-xl font-bold bg-card shadow-sm transition-all duration-200">
              <FileText className="w-4 h-4" />
              Export Data

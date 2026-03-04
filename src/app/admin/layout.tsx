@@ -13,6 +13,7 @@ import { AuthService } from '@/lib/services/auth-service';
 /**
  * Layout guard for Administrative routes.
  * Ensures only authenticated admins with active status can access.
+ * Handles potential synchronization delays for role-switched accounts.
  */
 export default function AdminLayout(props: {
   children: React.ReactNode;
@@ -43,11 +44,9 @@ export default function AdminLayout(props: {
       return;
     }
 
-    // Role and status guard: If data is loaded and role isn't admin, redirect.
-    // We add a small grace period for the document to exist if just created.
+    // Role and status guard:
+    // If we just signed in and the document doesn't exist yet, wait for synchronization.
     if (!userData) {
-      // If document doesn't exist yet, we wait a bit or assume sync is happening.
-      // But if it's definitely not there after loading, it's unauthorized.
       return; 
     }
 
@@ -67,7 +66,7 @@ export default function AdminLayout(props: {
     }
   };
 
-  // Show loading state while verifying permissions
+  // Show loading state while verifying permissions to prevent layout flickering or premature redirects
   if (isUserLoading || isDataLoading || isAuthorized === null || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
