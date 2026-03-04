@@ -174,8 +174,8 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
           <CardDescription>Visual frequency of usage across M101–M111 for current filters</CardDescription>
         </CardHeader>
         <CardContent className="pt-8">
-          <div className="h-[350px] w-full">
-            <ChartContainer config={chartConfig}>
+          <div className="h-[350px] w-full min-w-0">
+            <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
               <BarChart
                 data={chartData}
                 margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
