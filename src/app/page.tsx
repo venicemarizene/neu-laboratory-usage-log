@@ -70,7 +70,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
-      console.log("Signed in:", signedInUser.email, signedInUser.uid);
+      console.log("User after sign-in:", signedInUser.email, signedInUser.uid);
       const email = (signedInUser.email || '').toLowerCase().trim();
 
       // Institutional Guard: Validate @neu.edu.ph
@@ -115,16 +115,49 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
   /**
    * Admin Login Flow: Email/Password Authentication.
+   * Handles automatic creation for predefined credentials if user doesn't exist in Auth.
    */
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth || !firestore) return;
     setIsLoggingIn(true);
 
-    try {
-      const signedInUser = await AuthService.signInWithEmail(auth, adminEmail, adminPassword);
-      if (!signedInUser) throw new Error("Admin login failed");
+    let signedInUser = null;
 
+    try {
+      // 1. Attempt Sign In
+      signedInUser = await AuthService.signInWithEmail(auth, adminEmail, adminPassword);
+    } catch (error: any) {
+      // 2. If Sign In fails because user doesn't exist, check if it's the predefined admin
+      if (
+        (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') &&
+        adminEmail === 'admin@neu.edu.ph' && 
+        adminPassword === 'adminpassword'
+      ) {
+        try {
+          console.log("Predefined admin not found in Auth. Attempting to create account...");
+          signedInUser = await AuthService.signUpWithEmail(auth, adminEmail, adminPassword);
+        } catch (signUpError: any) {
+          console.error("Failed to provision predefined admin:", signUpError);
+        }
+      } else {
+        console.error("Admin login error:", error);
+        toast({
+          variant: 'destructive',
+          title: 'Login Failed',
+          description: 'Invalid administrative credentials.',
+        });
+        setIsLoggingIn(false);
+        return;
+      }
+    }
+
+    if (!signedInUser) {
+      setIsLoggingIn(false);
+      return;
+    }
+
+    try {
       console.log("Admin signed in:", signedInUser.email, signedInUser.uid);
 
       // Sync/Create profile as admin
@@ -140,11 +173,11 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       toast({ title: 'Access Granted', description: 'Redirecting to admin portal...' });
       router.push('/admin');
     } catch (error: any) {
-      console.error("Admin login error:", error);
+      console.error("Admin profile sync error:", error);
       toast({
         variant: 'destructive',
-        title: 'Login Failed',
-        description: 'Invalid administrative credentials.',
+        title: 'Error',
+        description: 'Failed to synchronize administrative profile.',
       });
     } finally {
       setIsLoggingIn(false);
