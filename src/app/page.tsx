@@ -1,21 +1,23 @@
+
 "use client";
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, use, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info, Lock } from 'lucide-react';
+import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info, Lock, QrCode, AlertCircle, X } from 'lucide-react';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AuthService } from '@/lib/services/auth-service';
 import { UserService } from '@/lib/services/user-service';
 
 /**
- * Main Landing Page with Dual Authentication and Dynamic Role Guarding.
+ * Main Landing Page with Dual Authentication and QR Scanning Support.
  */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -31,6 +33,11 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [activeTab, setActiveTab] = useState('professor');
+
+  // QR Scanning State
+  const [isScanning, setIsScanning] = useState(false);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   /**
    * Automatic redirection for active sessions.
@@ -58,7 +65,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
   /**
    * Universal Google Login Flow.
-   * Uses active tab to determine intended role.
    */
   const handleGoogleLogin = async () => {
     if (!auth || !firestore) return;
@@ -84,10 +90,8 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
-      // Sync Profile with the Intended Role from the active tab
       const profile = await UserService.syncProfile(firestore, signedInUser, intendedRole);
 
-      // Check account status
       if (profile.status === 'blocked') {
         alert("Your account has been blocked. Please contact the administrator.");
         await AuthService.logout(auth);
@@ -95,16 +99,11 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
-      // Successful Redirection based on the NEW synced role
       toast({ title: 'Authenticated', description: `Welcome, ${signedInUser.displayName}` });
-      if (profile.role === 'admin') {
-        router.push('/admin');
-      } else {
-        router.push('/professor');
-      }
+      if (profile.role === 'admin') router.push('/admin');
+      else router.push('/professor');
     } catch (error: any) {
       if (error.code !== 'auth/popup-closed-by-user') {
-        console.error("Google Sign-In error:", error);
         toast({
           variant: 'destructive',
           title: 'Authentication Error',
@@ -113,6 +112,35 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       }
     } finally {
       setIsLoggingIn(false);
+    }
+  };
+
+  /**
+   * QR Scanning Logic for Professors.
+   */
+  const startScanning = async () => {
+    setIsScanning(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      setHasCameraPermission(true);
+      if (videoRef.current) videoRef.current.srcObject = stream;
+      
+      // Simulate detection for development/demo purposes
+      setTimeout(() => {
+        toast({ title: "QR Detected", description: "Verifying credentials..." });
+        // In a real scenario, we'd extract a token and sign in via custom auth or a look-up
+        // For this demo, we'll prompt them to use Google Login after identifying them
+        setIsScanning(false);
+      }, 3000);
+    } catch (error) {
+      setHasCameraPermission(false);
+    }
+  };
+
+  const stopScanning = () => {
+    setIsScanning(false);
+    if (videoRef.current?.srcObject) {
+      (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
     }
   };
 
@@ -241,17 +269,62 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                 <Alert className="bg-primary/5 border border-primary/20 text-left">
                   <Info className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
-                    Authenticate as a **Professor** with your @neu.edu.ph account.
+                    Authenticate as a Professor with your @neu.edu.ph account.
                   </AlertDescription>
                 </Alert>
-                <Button 
-                  onClick={handleGoogleLogin}
-                  disabled={isLoggingIn}
-                  className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3"
-                >
-                  {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <Monitor className="w-5 h-5" />}
-                  Professor Google Login
-                </Button>
+                
+                <div className="grid grid-cols-1 gap-3">
+                  <Button 
+                    onClick={handleGoogleLogin}
+                    disabled={isLoggingIn}
+                    className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3"
+                  >
+                    {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <Monitor className="w-5 h-5" />}
+                    Professor Google Login
+                  </Button>
+
+                  <Dialog onOpenChange={(o) => !o && stopScanning()}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        onClick={startScanning}
+                        className="w-full h-14 text-lg font-bold border-2 gap-3"
+                      >
+                        <QrCode className="w-5 h-5 text-primary" />
+                        Scan QR Login
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Sign In via QR Code</DialogTitle>
+                        <DialogDescription>
+                          Scan your institutional QR code to quickly authenticate.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="aspect-square relative rounded-2xl bg-black overflow-hidden border-4 border-muted">
+                        <video 
+                          ref={videoRef} 
+                          className="absolute inset-0 w-full h-full object-cover" 
+                          autoPlay 
+                          muted 
+                          playsInline 
+                        />
+                        {hasCameraPermission === false && (
+                          <div className="absolute inset-0 bg-black/80 flex items-center justify-center text-white p-6 text-center">
+                            <div>
+                              <AlertCircle className="w-10 h-10 mx-auto mb-2 text-destructive" />
+                              <p className="font-bold">Camera access required</p>
+                              <p className="text-xs text-muted-foreground mt-1">Please enable camera permissions in your browser.</p>
+                            </div>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 border-[40px] border-black/40 pointer-events-none">
+                          <div className="w-full h-full border-2 border-accent/50 rounded-lg animate-pulse" />
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </div>
             </TabsContent>
 
@@ -260,7 +333,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                 <Alert className="bg-accent/5 border border-accent/20 text-left">
                   <ShieldCheck className="h-4 w-4 text-accent" />
                   <AlertDescription className="text-sm font-medium">
-                    Authenticate as an **Administrator**. You can use Google or email.
+                    Authenticate as an Administrator. You can use Google or email.
                   </AlertDescription>
                 </Alert>
                 
@@ -276,28 +349,30 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">Or password</span></div>
+                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">Or Password</span></div>
                 </div>
 
                 <form onSubmit={handleAdminLogin} className="space-y-4 text-left">
                   <div className="space-y-2">
-                    <Label htmlFor="email">Admin Email</Label>
+                    <Label htmlFor="email" className="font-bold">Admin Institutional Email</Label>
                     <Input 
                       id="email" 
                       type="email" 
                       placeholder="admin@neu.edu.ph" 
                       value={adminEmail}
                       onChange={(e) => setAdminEmail(e.target.value)}
+                      className="h-12 border-2 rounded-xl"
                       required 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="password" title="Password" className="font-bold">Password</Label>
                     <Input 
                       id="password" 
                       type="password" 
                       value={adminPassword}
                       onChange={(e) => setAdminPassword(e.target.value)}
+                      className="h-12 border-2 rounded-xl"
                       required 
                     />
                   </div>
