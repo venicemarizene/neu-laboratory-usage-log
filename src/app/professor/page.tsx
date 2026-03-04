@@ -18,7 +18,7 @@ import { AuthService } from '@/lib/services/auth-service';
 
 /**
  * Enhanced Professor Portal for laboratory entry logging.
- * Features a clean, accessible interface with larger interactive elements.
+ * Supports auto-logging state from Home page QR scans.
  */
 export default function ProfessorPortal(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -55,11 +55,18 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       return;
     }
     
+    // Handle Auto-Log success state from Home page scan
+    if (searchParams.auto === 'true' && searchParams.room) {
+      setRoom(searchParams.room);
+      setStatus('success');
+      return;
+    }
+
     if (userData?.status === 'blocked') {
       setStatus('blocked');
       AuthService.logout(auth!).then(() => router.push('/'));
     }
-  }, [user, userData, isUserLoading, isUserDataLoading, router, auth]);
+  }, [user, userData, isUserLoading, isUserDataLoading, router, auth, searchParams]);
 
   const handleSignOut = async () => {
     if (auth) {
@@ -107,7 +114,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       setHasCameraPermission(true);
       if (videoRef.current) videoRef.current.srcObject = stream;
       
-      // Simulate detection for demo
+      // Simulation of instant room detection
       setTimeout(() => handleQRDetected('M105'), 2000);
     } catch (error) {
       setHasCameraPermission(false);
@@ -157,11 +164,11 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       </nav>
 
       <main className="flex-1 flex items-center justify-center p-8">
-        <div className="w-full max-w-md space-y-6">
+        <div className="w-full max-w-lg space-y-6">
           <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-white">
             <CardHeader className="pb-6 text-center pt-8">
-              <CardTitle className="text-2xl font-black">Access Terminal</CardTitle>
-              <CardDescription className="text-sm font-medium mt-1">Institutional laboratory session entry</CardDescription>
+              <CardTitle className="text-3xl font-black">Access Terminal</CardTitle>
+              <CardDescription className="text-base font-medium mt-1">Institutional laboratory session entry</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 px-8 pb-10">
               {status === 'idle' && (
@@ -169,12 +176,12 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
                   <div className="space-y-2">
                     <label className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1">Laboratory Room</label>
                     <Select value={room} onValueChange={setRoom}>
-                      <SelectTrigger className="h-14 rounded-xl border-slate-200 text-base font-semibold">
+                      <SelectTrigger className="h-16 rounded-xl border-slate-200 text-lg font-semibold">
                         <SelectValue placeholder="Choose a Laboratory" />
                       </SelectTrigger>
                       <SelectContent>
                         {roomList.map((num) => (
-                          <SelectItem key={num} value={num} className="font-semibold">{num}</SelectItem>
+                          <SelectItem key={num} value={num} className="font-semibold text-base">{num}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -183,32 +190,38 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
                   <div className="grid grid-cols-1 gap-4">
                     <Dialog onOpenChange={(o) => !o && stopScanning()}>
                       <DialogTrigger asChild>
-                        <Button variant="outline" onClick={startScanning} className="h-14 rounded-xl gap-3 border-2 border-slate-200 font-bold text-base hover:bg-slate-50">
-                          <QrCode className="w-5 h-5 text-primary" />
+                        <Button variant="outline" onClick={startScanning} className="h-16 rounded-xl gap-3 border-2 border-slate-200 font-bold text-lg hover:bg-slate-50">
+                          <QrCode className="w-6 h-6 text-primary" />
                           Auto-Log via QR
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="sm:max-w-lg">
+                      <DialogContent className="sm:max-w-xl">
                         <DialogHeader>
-                          <DialogTitle className="text-xl font-bold">QR Auto-Log Mode</DialogTitle>
-                          <DialogDescription className="text-sm">Position the room QR code within the frame for instant recording.</DialogDescription>
+                          <DialogTitle className="text-2xl font-bold">QR Auto-Log Mode</DialogTitle>
+                          <DialogDescription className="text-base">Position the room QR code within the frame for instant recording.</DialogDescription>
                         </DialogHeader>
                         <div className="aspect-video relative rounded-2xl bg-black overflow-hidden border-4 border-slate-100">
                           <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" autoPlay muted playsInline />
                           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <div className="w-48 h-48 border-2 border-accent/60 rounded-2xl animate-pulse relative">
+                            <div className="w-56 h-56 border-2 border-accent/60 rounded-2xl animate-pulse relative">
                               <div className="absolute top-0 left-0 w-full h-1 bg-accent/80 animate-[scan_2s_linear_infinite] shadow-[0_0_15px_rgba(var(--accent),0.8)]" />
                             </div>
                           </div>
                           {hasCameraPermission === false && (
                             <div className="absolute inset-0 bg-black/95 flex items-center justify-center text-white p-8 text-center">
                               <div className="space-y-4">
-                                <AlertCircle className="w-12 h-12 mx-auto text-destructive" />
-                                <p className="font-bold text-lg">Camera Access Denied</p>
-                                <p className="text-xs opacity-60">Please enable camera permissions in your browser settings to use auto-log.</p>
+                                <AlertCircle className="w-14 h-14 mx-auto text-destructive" />
+                                <p className="font-bold text-xl">Camera Access Denied</p>
+                                <p className="text-sm opacity-60">Please enable camera permissions in your browser settings.</p>
                               </div>
                             </div>
                           )}
+                        </div>
+                        <div className="flex justify-center">
+                           <Badge variant="secondary" className="px-4 py-1.5 text-xs font-black uppercase tracking-widest gap-2 bg-accent/10 text-accent-foreground border-accent/20">
+                             <div className="w-2 h-2 rounded-full bg-accent animate-ping" />
+                             Auto-Entry Mode Active
+                           </Badge>
                         </div>
                       </DialogContent>
                     </Dialog>
@@ -216,9 +229,9 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
                     <Button 
                       onClick={() => performEntry(room)} 
                       disabled={!room || isProcessing}
-                      className="w-full h-16 text-lg font-black bg-primary hover:bg-primary/90 rounded-xl gap-3 transition-all shadow-lg active:scale-[0.98]"
+                      className="w-full h-20 text-xl font-black bg-primary hover:bg-primary/90 rounded-xl gap-3 transition-all shadow-lg active:scale-[0.98]"
                     >
-                      {isProcessing ? <Loader2 className="w-6 h-6 animate-spin" /> : <ArrowRight className="w-6 h-6" />}
+                      {isProcessing ? <Loader2 className="w-7 h-7 animate-spin" /> : <ArrowRight className="w-7 h-7" />}
                       {isProcessing ? 'Recording...' : `Log Entry ${room}`}
                     </Button>
                   </div>
@@ -227,20 +240,21 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
 
               {status === 'success' && (
                 <div className="text-center py-10 space-y-6 animate-in fade-in zoom-in-95 duration-500">
-                  <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center mx-auto text-green-500 border-2 border-green-100 shadow-inner">
-                    <CheckCircle2 className="w-12 h-12" />
+                  <div className="w-28 h-28 bg-green-50 rounded-full flex items-center justify-center mx-auto text-green-500 border-2 border-green-100 shadow-inner">
+                    <CheckCircle2 className="w-14 h-14" />
                   </div>
                   <div className="space-y-2">
-                    <h3 className="text-2xl font-black text-slate-900">Session Verified</h3>
-                    <p className="text-sm font-medium text-slate-500">Your presence in Lab {room} has been recorded.</p>
+                    <h3 className="text-3xl font-black text-slate-900">Session Verified</h3>
+                    <p className="text-base font-medium text-slate-500">Your presence in Lab {room} has been recorded.</p>
                   </div>
                   <Button 
                     variant="outline" 
                     onClick={() => {
                       setRoom('');
                       setStatus('idle');
+                      router.replace('/professor');
                     }} 
-                    className="w-full h-14 text-base font-bold rounded-xl border-2 border-slate-200"
+                    className="w-full h-16 text-lg font-bold rounded-xl border-2 border-slate-200"
                   >
                     Return to Terminal
                   </Button>
@@ -249,14 +263,14 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
 
               {status === 'blocked' && (
                 <div className="text-center py-10 space-y-6 animate-in shake duration-500">
-                  <div className="w-24 h-24 bg-destructive/5 rounded-full flex items-center justify-center mx-auto text-destructive border-2 border-destructive/10">
-                    <AlertTriangle className="w-12 h-12" />
+                  <div className="w-28 h-28 bg-destructive/5 rounded-full flex items-center justify-center mx-auto text-destructive border-2 border-destructive/10">
+                    <AlertTriangle className="w-14 h-14" />
                   </div>
                   <div className="space-y-2">
-                    <h3 className="text-2xl font-black text-destructive">Access Restricted</h3>
-                    <p className="text-sm font-medium text-slate-500 px-6">Your account has been flagged. Please see the laboratory administrator.</p>
+                    <h3 className="text-3xl font-black text-destructive">Access Restricted</h3>
+                    <p className="text-base font-medium text-slate-500 px-6">Your account has been flagged. Please see the laboratory administrator.</p>
                   </div>
-                  <Button onClick={handleSignOut} variant="destructive" className="w-full h-14 text-base font-bold rounded-xl shadow-lg">
+                  <Button onClick={handleSignOut} variant="destructive" className="w-full h-16 text-lg font-bold rounded-xl shadow-lg">
                     Sign Out Immediately
                   </Button>
                 </div>
@@ -264,15 +278,15 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
             </CardContent>
           </Card>
 
-          <div className="px-6 py-5 bg-white border border-slate-200 rounded-2xl flex items-center gap-4 shadow-sm">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-black text-lg shrink-0">
+          <div className="px-8 py-6 bg-white border border-slate-200 rounded-2xl flex items-center gap-6 shadow-sm">
+            <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-black text-xl shrink-0">
               {user.email?.[0].toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-black text-slate-900 truncate">{user.displayName || 'Professor'}</p>
-              <p className="text-xs font-medium text-muted-foreground truncate">{user.email}</p>
+              <p className="text-lg font-black text-slate-900 truncate">{user.displayName || 'Professor'}</p>
+              <p className="text-sm font-medium text-muted-foreground truncate">{user.email}</p>
             </div>
-            <Badge variant="outline" className="ml-auto text-[10px] font-black uppercase tracking-widest h-6 px-2.5 border-slate-200 bg-slate-50">
+            <Badge variant="outline" className="ml-auto text-xs font-black uppercase tracking-widest h-8 px-3.5 border-slate-200 bg-slate-50">
               {userData?.role || 'Professor'}
             </Badge>
           </div>

@@ -5,7 +5,7 @@ import { useState, useEffect, use, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info, QrCode, AlertCircle } from 'lucide-react';
+import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info, QrCode, AlertCircle, ArrowRight } from 'lucide-react';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,10 +13,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AuthService } from '@/lib/services/auth-service';
 import { UserService } from '@/lib/services/user-service';
+import { collection, addDoc } from 'firebase/firestore';
 
 /**
- * Main Landing Page with Dynamic Role Selection.
- * Handles authentication for both Professors and Administrators.
+ * Main Landing Page with One-Touch QR Entry.
+ * Allows professors to log room usage directly from the landing page.
  */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -55,7 +56,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
       const email = (signedInUser.email || '').toLowerCase().trim();
 
-      // Institutional Guard
       if (!email.endsWith("@neu.edu.ph")) {
         alert("Only NEU emails are allowed!");
         await AuthService.logout(auth);
@@ -63,7 +63,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
-      // Synchronize profile with the selected role (Dynamic Role Switching)
       const profile = await UserService.syncProfile(firestore, signedInUser, intendedRole);
 
       if (profile.status === 'blocked') {
@@ -75,7 +74,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
       toast({ title: 'Authenticated', description: `Welcome, ${signedInUser.displayName}` });
       
-      // Force immediate redirect based on the synchronized role
       if (profile.role === 'admin') {
         router.push('/admin');
       } else {
@@ -95,8 +93,38 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   };
 
   /**
-   * QR Scanning Logic for Professor Login Authentication.
+   * Processes QR detection and performs instant room entry if authenticated.
    */
+  const handleQRDetected = async (detectedRoom: string) => {
+    if (!user || !firestore) {
+      toast({
+        variant: 'destructive',
+        title: 'Authentication Required',
+        description: 'Please sign in with Google before scanning room QR codes.',
+      });
+      stopScanning();
+      return;
+    }
+
+    try {
+      const logData = {
+        professorId: user.uid,
+        professorName: user.displayName || user.email || 'Professor',
+        roomNumber: detectedRoom,
+        timestamp: new Date().toISOString(),
+        status: 'Active'
+      };
+      
+      await addDoc(collection(firestore, 'room_logs'), logData);
+      
+      toast({ title: "Entry Recorded", description: `Auto-logged into ${detectedRoom}` });
+      stopScanning();
+      router.push(`/professor?room=${detectedRoom}&auto=true`);
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to record entry.' });
+    }
+  };
+
   const startScanning = async () => {
     setIsScanning(true);
     try {
@@ -104,11 +132,8 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       setHasCameraPermission(true);
       if (videoRef.current) videoRef.current.srcObject = stream;
       
-      // Simulation of a QR login detection
-      setTimeout(() => {
-        toast({ title: "Account Identified", description: "Verifying institutional credentials..." });
-        setIsScanning(false);
-      }, 3000);
+      // Simulation of a QR room detection (M101-M111)
+      setTimeout(() => handleQRDetected('M101'), 2000);
     } catch (error) {
       setHasCameraPermission(false);
     }
@@ -194,7 +219,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                     className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3"
                   >
                     {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <Monitor className="w-5 h-5" />}
-                    Professor Google Login
+                    Sign in with Google
                   </Button>
 
                   <Dialog onOpenChange={(o) => !o && stopScanning()}>
@@ -205,14 +230,14 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                         className="w-full h-14 text-lg font-bold border-2 gap-3"
                       >
                         <QrCode className="w-5 h-5 text-primary" />
-                        Scan QR Account Login
+                        One-Touch QR Entry
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-md">
                       <DialogHeader>
-                        <DialogTitle>Sign In via QR Code</DialogTitle>
+                        <DialogTitle>Instant Room Entry</DialogTitle>
                         <DialogDescription>
-                          Scan your institutional QR code to identify your account.
+                          Scan the laboratory QR code to automatically log your entry.
                         </DialogDescription>
                       </DialogHeader>
                       <div className="aspect-square relative rounded-2xl bg-black overflow-hidden border-4 border-muted">
