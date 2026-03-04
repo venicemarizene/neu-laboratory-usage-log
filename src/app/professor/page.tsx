@@ -3,22 +3,23 @@
 
 import { useState, useEffect, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Monitor, LogOut, CheckCircle2, AlertTriangle, Loader2, ArrowRight, QrCode, AlertCircle, Sparkles } from 'lucide-react';
+import { Monitor, LogOut, CheckCircle2, AlertTriangle, Loader2, ArrowRight, QrCode, AlertCircle, Sparkles, User } from 'lucide-react';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, doc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
 import { AuthService } from '@/lib/services/auth-service';
+import { cn } from '@/lib/utils';
 
 /**
- * Professor Portal for laboratory entry logging.
- * Features automated QR scanning that triggers entry logs instantly upon detection.
+ * Minimized Professor Portal for laboratory entry logging.
+ * Focuses on efficiency with a clean, centered interface.
  */
 export default function ProfessorPortal(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -68,19 +69,10 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
     }
   };
 
-  /**
-   * Core entry logic. Logs session to Firestore.
-   */
   const performEntry = (selectedRoom: string) => {
     if (!selectedRoom || !firestore || !user) return;
     setIsProcessing(true);
     
-    if (userData?.status === 'blocked') {
-      setStatus('blocked');
-      setIsProcessing(false);
-      return;
-    }
-
     const logData = {
       professorId: user.uid,
       professorName: user.displayName || userData?.email || 'Professor',
@@ -89,14 +81,13 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       status: 'Active'
     };
     
-    // Add document to room_logs collection
     addDoc(collection(firestore, 'room_logs'), logData)
       .then(() => {
         setStatus('success');
         setIsProcessing(false);
         toast({
-          title: "Session Logged Successfully",
-          description: `Entry recorded for Laboratory ${selectedRoom}`,
+          title: "Entry Logged",
+          description: `Laboratory ${selectedRoom} session started.`,
         });
       })
       .catch(async () => {
@@ -110,9 +101,6 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       });
   };
 
-  /**
-   * Initializes the QR scanner camera stream.
-   */
   const startScanning = async () => {
     setIsScanning(true);
     try {
@@ -120,17 +108,13 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       setHasCameraPermission(true);
       if (videoRef.current) videoRef.current.srcObject = stream;
       
-      // Simulate detection after 2 seconds for demonstration
-      // In a real scenario, a QR library would parse the video frames
+      // Simulate detection for demo
       setTimeout(() => handleQRDetected('M105'), 2000);
     } catch (error) {
       setHasCameraPermission(false);
     }
   };
 
-  /**
-   * Stops the camera and resets scanning state.
-   */
   const stopScanning = () => {
     setIsScanning(false);
     if (videoRef.current?.srcObject) {
@@ -138,184 +122,160 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
     }
   };
 
-  /**
-   * Automatically triggered when a room code is identified.
-   * Enables seamless "Scan-to-Log" functionality.
-   */
   const handleQRDetected = (detectedRoom: string) => {
     if (roomList.includes(detectedRoom)) {
       setRoom(detectedRoom);
       stopScanning();
-      // Automatic trigger: no manual button click needed after detection
       performEntry(detectedRoom);
     }
   };
 
   if (isUserLoading || isUserDataLoading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8 flex flex-col items-center">
-      <header className="w-full max-w-xl flex items-center justify-between mb-8">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      <nav className="h-14 border-b bg-white flex items-center justify-between px-6 shrink-0">
         <div className="flex items-center gap-2">
-          <Monitor className="w-6 h-6 text-primary" />
-          <h1 className="text-xl font-bold text-primary font-headline tracking-tight">NEU LabTrack</h1>
+          <Monitor className="w-5 h-5 text-primary" />
+          <span className="font-bold text-sm tracking-tight">NEU LabTrack</span>
         </div>
-        <Button variant="ghost" size="sm" onClick={handleSignOut} className="gap-2 font-bold text-muted-foreground hover:text-destructive transition-colors">
-          <LogOut className="w-4 h-4" />
-          Sign Out
-        </Button>
-      </header>
+        <div className="flex items-center gap-4">
+          <div className="hidden sm:flex flex-col items-end mr-2">
+            <span className="text-xs font-bold leading-none">{user.displayName || 'Professor'}</span>
+            <span className="text-[10px] text-muted-foreground">{user.email}</span>
+          </div>
+          <Button variant="ghost" size="sm" onClick={handleSignOut} className="h-8 text-xs font-medium text-muted-foreground hover:text-destructive">
+            <LogOut className="w-3.5 h-3.5 mr-1.5" />
+            Sign Out
+          </Button>
+        </div>
+      </nav>
 
-      <main className="w-full max-w-xl space-y-6">
-        <Card className="border-none shadow-2xl rounded-[2rem] overflow-hidden bg-card">
-          <CardHeader className="text-center pb-2 pt-10">
-            <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto mb-4 animate-in zoom-in duration-500">
-              <Monitor className="w-10 h-10 text-primary" />
-            </div>
-            <CardTitle className="text-3xl font-black text-primary tracking-tight">Access Terminal</CardTitle>
-            <p className="text-muted-foreground font-medium text-sm">Automated laboratory session logging</p>
-          </CardHeader>
-          <CardContent className="space-y-6 px-8 pb-10">
-            {status === 'idle' && (
-              <div className="space-y-6">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between px-1">
-                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Manual Select</label>
-                    {room && <Badge variant="outline" className="text-[10px] font-bold border-primary/20 text-primary bg-primary/5">Selected: {room}</Badge>}
+      <main className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-sm space-y-4">
+          <Card className="border-none shadow-sm rounded-xl overflow-hidden bg-white">
+            <CardHeader className="pb-4 text-center">
+              <CardTitle className="text-xl font-bold">Access Terminal</CardTitle>
+              <CardDescription className="text-xs">Log your laboratory session</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {status === 'idle' && (
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Lab Room</label>
+                    <Select value={room} onValueChange={setRoom}>
+                      <SelectTrigger className="h-11 rounded-lg border-slate-200">
+                        <SelectValue placeholder="Select Lab" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {roomList.map((num) => (
+                          <SelectItem key={num} value={num}>{num}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <Select value={room} onValueChange={setRoom}>
-                    <SelectTrigger className="h-14 text-lg border-2 rounded-2xl focus:ring-primary shadow-sm">
-                      <SelectValue placeholder="Select Computer Lab" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-2">
-                      {roomList.map((num) => (
-                        <SelectItem key={num} value={num} className="text-lg py-3 rounded-lg">Lab Room {num}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
 
-                <div className="grid grid-cols-1 gap-4">
-                  <Dialog onOpenChange={(o) => !o && stopScanning()}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" onClick={startScanning} className="h-16 border-2 font-black rounded-2xl gap-3 hover:bg-slate-50 transition-all text-primary shadow-sm">
-                        <QrCode className="w-6 h-6" />
-                        Scan Lab QR Code
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-md rounded-3xl border-none">
-                      <DialogHeader>
-                        <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-                          <Sparkles className="w-5 h-5 text-accent" />
-                          Auto-Log Scanner
-                        </DialogTitle>
-                        <DialogDescription className="font-medium">
-                          Scanning a valid lab code will automatically record your entry.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="aspect-video relative rounded-2xl bg-black overflow-hidden border-4 border-muted">
-                        <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" autoPlay muted playsInline />
-                        
-                        {/* Scanning Overlay */}
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <div className="w-48 h-48 border-2 border-accent/50 rounded-2xl animate-pulse relative">
-                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-0.5 bg-accent/80 animate-[scan_2s_linear_infinite]" />
-                          </div>
-                        </div>
-
-                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
-                          <Badge className="bg-accent text-accent-foreground font-black px-4 py-1.5 rounded-full shadow-lg border-none animate-bounce">
-                            AUTO-ENTRY MODE
-                          </Badge>
-                        </div>
-
-                        {hasCameraPermission === false && (
-                          <div className="absolute inset-0 bg-black/90 flex items-center justify-center text-white p-8 text-center">
-                            <div className="space-y-4">
-                              <AlertCircle className="w-12 h-12 mx-auto text-destructive" />
-                              <h3 className="text-xl font-bold">Camera Access Required</h3>
-                              <p className="text-sm text-slate-400">Please enable camera permissions in your browser settings to use the automated entry feature.</p>
+                  <div className="grid grid-cols-1 gap-3">
+                    <Dialog onOpenChange={(o) => !o && stopScanning()}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" onClick={startScanning} className="h-11 rounded-lg gap-2 border-slate-200 font-semibold text-sm">
+                          <QrCode className="w-4 h-4 text-primary" />
+                          Auto-Log QR
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                          <DialogTitle className="text-lg font-bold">QR Auto-Log</DialogTitle>
+                          <DialogDescription className="text-xs">Scanning a lab code records entry instantly.</DialogDescription>
+                        </DialogHeader>
+                        <div className="aspect-video relative rounded-lg bg-black overflow-hidden border">
+                          <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" autoPlay muted playsInline />
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <div className="w-32 h-32 border border-accent/40 rounded-lg animate-pulse relative">
+                              <div className="absolute top-0 left-0 w-full h-0.5 bg-accent/60 animate-[scan_2s_linear_infinite]" />
                             </div>
                           </div>
-                        )}
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+                          {hasCameraPermission === false && (
+                            <div className="absolute inset-0 bg-black/90 flex items-center justify-center text-white p-6 text-center text-xs">
+                              <div className="space-y-2">
+                                <AlertCircle className="w-8 h-8 mx-auto text-destructive" />
+                                <p className="font-bold">Camera Access Required</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
 
-                  <div className="relative group">
-                    <div className="absolute -inset-1 bg-gradient-to-r from-primary to-accent rounded-2xl blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
                     <Button 
                       onClick={() => performEntry(room)} 
                       disabled={!room || isProcessing}
-                      className="relative w-full h-20 text-2xl font-black bg-primary hover:bg-primary/90 shadow-2xl rounded-2xl gap-4 transition-all"
+                      className="w-full h-11 text-sm font-bold bg-primary hover:bg-primary/90 rounded-lg gap-2 transition-all"
                     >
-                      {isProcessing ? <Loader2 className="w-8 h-8 animate-spin" /> : <ArrowRight className="w-8 h-8" />}
-                      {isProcessing ? 'Synchronizing...' : `Enter Lab ${room || ''}`}
+                      {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                      {isProcessing ? 'Logging...' : `Log Entry ${room}`}
                     </Button>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {status === 'success' && (
-              <div className="text-center space-y-8 animate-in zoom-in-95 duration-500 py-4">
-                <div className="p-12 bg-green-50 rounded-[3rem] border-4 border-green-100 space-y-6 shadow-inner relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <CheckCircle2 className="w-32 h-32 text-green-500" />
+              {status === 'success' && (
+                <div className="text-center py-6 space-y-4 animate-in fade-in zoom-in-95 duration-300">
+                  <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto text-green-500 border border-green-100">
+                    <CheckCircle2 className="w-8 h-8" />
                   </div>
-                  <CheckCircle2 className="w-24 h-24 text-green-500 mx-auto drop-shadow-md" />
-                  <div className="space-y-2 relative z-10">
-                    <h3 className="text-4xl font-black text-green-800 tracking-tight">Logged Successfully</h3>
-                    <p className="text-green-700/80 font-bold text-lg">Your session in Lab {room} is now active.</p>
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-bold text-slate-900">Session Active</h3>
+                    <p className="text-xs text-slate-500">Logged into Lab {room}.</p>
                   </div>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setRoom('');
+                      setStatus('idle');
+                    }} 
+                    className="w-full h-10 text-xs font-bold rounded-lg border-slate-200"
+                  >
+                    Back to Terminal
+                  </Button>
                 </div>
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setRoom('');
-                    setStatus('idle');
-                  }} 
-                  className="w-full h-16 font-black text-lg border-2 rounded-2xl hover:bg-slate-50 shadow-sm"
-                >
-                  Log Another Entry
-                </Button>
-              </div>
-            )}
+              )}
 
-            {status === 'blocked' && (
-              <div className="text-center space-y-8 animate-in shake duration-500">
-                <div className="p-12 bg-destructive/5 rounded-[3rem] border-4 border-destructive/10 space-y-6">
-                  <AlertTriangle className="w-24 h-24 text-destructive mx-auto drop-shadow-md" />
-                  <div className="space-y-2">
-                    <h3 className="text-3xl font-black text-destructive tracking-tight">Account Restricted</h3>
-                    <p className="text-muted-foreground font-bold">You are currently restricted from logging new sessions. Please contact the administrator.</p>
+              {status === 'blocked' && (
+                <div className="text-center py-6 space-y-4 animate-in shake duration-300">
+                  <div className="w-16 h-16 bg-destructive/5 rounded-full flex items-center justify-center mx-auto text-destructive border border-destructive/10">
+                    <AlertTriangle className="w-8 h-8" />
                   </div>
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-bold text-destructive">Account Restricted</h3>
+                    <p className="text-xs text-slate-500 px-4">Contact the administrator for access.</p>
+                  </div>
+                  <Button onClick={handleSignOut} variant="destructive" className="w-full h-10 text-xs font-bold rounded-lg">
+                    Sign Out
+                  </Button>
                 </div>
-                <Button onClick={handleSignOut} variant="destructive" className="w-full h-16 font-black text-lg rounded-2xl shadow-lg">
-                  Disconnect Account
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
 
-        <div className="bg-card p-6 rounded-[2rem] shadow-xl border-none flex items-center gap-5 group transition-all hover:shadow-2xl">
-          <div className="w-16 h-16 rounded-2xl bg-accent text-primary flex items-center justify-center font-black text-2xl shadow-inner transition-transform group-hover:scale-105 duration-300">
-            {user.email?.[0].toUpperCase() || 'P'}
+          <div className="px-4 py-3 bg-white border border-slate-200 rounded-xl flex items-center gap-3 shadow-sm">
+            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-primary font-bold text-xs shrink-0">
+              {user.email?.[0].toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-slate-900 truncate">{user.displayName || 'Professor'}</p>
+              <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
+            </div>
+            <Badge variant="outline" className="ml-auto text-[9px] font-bold uppercase tracking-widest h-5 px-1.5 border-slate-200">
+              {userData?.role || 'Professor'}
+            </Badge>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-black text-slate-800 text-xl truncate tracking-tight">{user.displayName || 'Faculty Member'}</p>
-            <p className="text-sm text-muted-foreground font-bold truncate">{user.email}</p>
-          </div>
-          <Badge className="font-black bg-primary/10 text-primary border-none px-4 py-1.5 rounded-xl uppercase text-[10px] tracking-widest">
-            {userData?.role || 'Professor'}
-          </Badge>
         </div>
       </main>
       
