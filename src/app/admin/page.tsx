@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo, use } from 'react';
@@ -29,7 +28,6 @@ const chartConfig = {
 
 /**
  * Administrative Dashboard for monitoring laboratory usage.
- * Includes visual analytics, searchable logs, and institutional stats.
  */
 export default function AdminDashboard(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -125,12 +123,6 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
           <h1 className="text-3xl font-black font-headline text-primary tracking-tight">Laboratory Analytics</h1>
           <p className="text-muted-foreground font-medium uppercase tracking-wider text-xs">NEU Computer Laboratory Management</p>
         </div>
-        <div className="flex items-center gap-3">
-           <Button variant="outline" className="hidden sm:flex gap-2 border-2 rounded-xl font-bold bg-card shadow-sm transition-all duration-200">
-             <FileText className="w-4 h-4" />
-             Export Data
-           </Button>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -171,7 +163,7 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
       <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-card transition-all duration-300">
         <CardHeader className="border-b pb-6">
           <CardTitle className="text-xl font-bold">Computer Laboratory Distribution</CardTitle>
-          <CardDescription>Visual frequency of usage across M101–M111 for current filters</CardDescription>
+          <CardDescription>Visual frequency of usage across M101–M111</CardDescription>
         </CardHeader>
         <CardContent className="pt-8">
           <div className="h-[350px] w-full min-w-0">
@@ -210,29 +202,29 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
           <div className="flex flex-col space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <CardTitle className="text-xl font-bold">Laboratory Activity Logs</CardTitle>
-                <CardDescription>Real-time summary and search of room interactions</CardDescription>
+                <CardTitle className="text-xl font-bold">Activity Logs</CardTitle>
+                <CardDescription>Search and filter institutional usage</CardDescription>
               </div>
               <div className="flex flex-col sm:flex-row items-center gap-2">
                 <div className="relative w-full sm:w-72">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input 
-                    placeholder="Search professor or room..." 
-                    className="pl-10 h-11 border-2 rounded-xl transition-all duration-200"
+                    placeholder="Search..." 
+                    className="pl-10 h-11 border-2 rounded-xl"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
                 <Select value={dateFilter} onValueChange={(v: any) => setDateFilter(v)}>
-                  <SelectTrigger className="w-full sm:w-44 h-11 border-2 rounded-xl font-bold transition-all duration-200">
+                  <SelectTrigger className="w-full sm:w-44 h-11 border-2 rounded-xl font-bold">
                     <CalendarIcon className="w-4 h-4 mr-2 opacity-50" />
                     <SelectValue placeholder="Period" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Logs</SelectItem>
                     <SelectItem value="today">Today</SelectItem>
-                    <SelectItem value="weekly">Weekly (Last 7 Days)</SelectItem>
-                    <SelectItem value="monthly">Monthly (Last 30 Days)</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
                     <SelectItem value="custom">Custom Range</SelectItem>
                   </SelectContent>
                 </Select>
@@ -240,7 +232,7 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
             </div>
 
             {dateFilter === 'custom' && (
-              <div className="flex flex-wrap items-center gap-4 p-4 bg-muted/30 rounded-xl border border-dashed animate-in fade-in slide-in-from-top-2">
+              <div className="flex flex-wrap items-center gap-4 p-4 bg-muted/30 rounded-xl border border-dashed">
                 <div className="flex flex-col space-y-1">
                   <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Start Date</label>
                   <Popover>
@@ -293,44 +285,34 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
           ) : (
             <Table>
               <TableHeader className="bg-slate-50/50">
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="font-bold py-5 px-6">Faculty Member</TableHead>
-                  <TableHead className="font-bold py-5">Computer Laboratory</TableHead>
-                  <TableHead className="font-bold py-5">Session Timestamp</TableHead>
-                  <TableHead className="font-bold py-5 px-6">Verification</TableHead>
+                <TableRow>
+                  <TableHead className="font-bold py-5 px-6">Faculty</TableHead>
+                  <TableHead className="font-bold py-5">Laboratory</TableHead>
+                  <TableHead className="font-bold py-5">Timestamp</TableHead>
+                  <TableHead className="font-bold py-5 px-6">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredLogs.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-24 text-muted-foreground">
-                      <div className="flex flex-col items-center gap-2">
-                        <Monitor className="w-12 h-12 opacity-10" />
-                        <p className="font-bold text-lg">No laboratory activity logs found</p>
-                        <p className="text-xs">Adjust your search or period filters</p>
-                      </div>
+                      No logs found.
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredLogs.map((log) => (
-                    <TableRow key={log.id} className="hover:bg-accent/5 transition-colors duration-200 group">
-                      <TableCell className="font-bold text-slate-800 px-6 py-4">{log.professorName}</TableCell>
+                    <TableRow key={log.id}>
+                      <TableCell className="font-bold px-6 py-4">{log.professorName}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="font-mono px-3 py-1 bg-white shadow-sm rounded-lg border-primary/20 text-primary">
+                        <Badge variant="outline" className="font-mono">
                           {log.roomNumber}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2 text-muted-foreground font-bold text-sm">
-                          <CalendarIcon className="w-4 h-4 text-primary/40" />
-                          {new Date(log.timestamp).toLocaleString(undefined, {
-                            dateStyle: 'medium',
-                            timeStyle: 'short'
-                          })}
-                        </div>
+                        {new Date(log.timestamp).toLocaleString()}
                       </TableCell>
                       <TableCell className="px-6 py-4">
-                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200 px-3 py-1 rounded-full font-bold">
+                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
                           {log.status}
                         </Badge>
                       </TableCell>

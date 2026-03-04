@@ -1,4 +1,3 @@
-
 "use client"
 
 import Link from 'next/link';
@@ -35,13 +34,11 @@ export default function AdminLayout(props: {
   const { data: userData, isLoading: isDataLoading } = useDoc(userRef);
 
   // Derived states to determine if we should show loading or content
-  // This avoids extra state update cycles (setIsAuthorized) for snappier transitions
   const isAuthorized = user && userData && userData.role === 'admin' && userData.status !== 'blocked';
   const isWaiting = isUserLoading || (user && isDataLoading && !userData);
 
   useEffect(() => {
-    // Only perform redirect logic once auth state and data have been attempted
-    if (isUserLoading || isDataLoading) return;
+    if (isWaiting) return;
 
     if (!user) {
       router.replace('/');
@@ -52,7 +49,7 @@ export default function AdminLayout(props: {
       router.replace('/');
       return;
     }
-  }, [user, userData, isUserLoading, isDataLoading, router]);
+  }, [user, userData, isWaiting, router]);
 
   const handleSignOut = async () => {
     if (auth) {
@@ -61,7 +58,6 @@ export default function AdminLayout(props: {
     }
   };
 
-  // Show loading state while verifying permissions
   if (isWaiting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -73,7 +69,6 @@ export default function AdminLayout(props: {
     );
   }
 
-  // Final guard: if not authorized after loading, return null (redirect handles the rest)
   if (!isAuthorized) return null;
 
   return (
