@@ -2,6 +2,8 @@
 
 import { Firestore, doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { User as FirebaseUser } from 'firebase/auth';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 /**
  * Interface representing user metadata stored in Firestore.
@@ -23,9 +25,19 @@ export const UserService = {
    */
   async getProfile(db: Firestore, uid: string): Promise<UserMetadata | null> {
     const docRef = doc(db, 'users', uid);
-    const snap = await getDoc(docRef);
-    if (snap.exists()) {
-      return snap.data() as UserMetadata;
+    try {
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        return snap.data() as UserMetadata;
+      }
+    } catch (error: any) {
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: docRef.path,
+          operation: 'get'
+        }));
+      }
+      throw error;
     }
     return null;
   },
@@ -35,28 +47,37 @@ export const UserService = {
    * Updates the role if it differs from the requested intent (Dynamic Role Switching).
    */
   async syncProfile(db: Firestore, user: FirebaseUser, requestedRole: 'professor' | 'admin'): Promise<UserMetadata> {
-    console.log("Syncing profile for:", user.email, "Intended Role:", requestedRole);
+    console.log("User after sign-in:", user.email, user.uid);
+    console.log("Checking Firestore document existence...");
     
     const docRef = doc(db, 'users', user.uid);
     
     try {
       const userSnap = await getDoc(docRef);
+      console.log("Firestore userSnap exists?", userSnap.exists());
 
       if (userSnap.exists()) {
         const existingData = userSnap.data() as UserMetadata;
+        console.log("User data:", existingData);
         
-        // Dynamic Role Switching: If the user intends to log in with a different role
-        // than what is currently stored, we update the role in Firestore.
         if (existingData.role !== requestedRole) {
           console.log(`Updating role from ${existingData.role} to ${requestedRole}`);
-          await updateDoc(docRef, { role: requestedRole });
+          await updateDoc(docRef, { role: requestedRole }).catch(err => {
+            if (err.code === 'permission-denied') {
+              errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: docRef.path,
+                operation: 'update',
+                requestResourceData: { role: requestedRole }
+              }));
+            }
+            throw err;
+          });
           existingData.role = requestedRole;
         }
         
         return existingData;
       }
 
-      // If user does not exist, create new record
       console.log("Creating new user document for:", user.email);
       const newProfile: UserMetadata = {
         id: user.uid,
@@ -66,7 +87,17 @@ export const UserService = {
         createdAt: serverTimestamp()
       };
 
-      await setDoc(docRef, newProfile);
+      await setDoc(docRef, newProfile).catch(err => {
+        if (err.code === 'permission-denied') {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: docRef.path,
+            operation: 'create',
+            requestResourceData: newProfile
+          }));
+        }
+        throw err;
+      });
+      
       return newProfile;
     } catch (error) {
       console.error("Error in syncProfile:", error);

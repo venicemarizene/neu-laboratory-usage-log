@@ -23,11 +23,12 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Allow users to read and create their own profile during registration (using UID as ID)
+      // Allow users to read and create their own profile during registration
       allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
       allow list: if isAdmin();
       allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isAdmin();
+      // Allow users to update their own role for Dynamic Role Switching, while preserving Admin authority
+      allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
       allow delete: if isAdmin();
     }
 
