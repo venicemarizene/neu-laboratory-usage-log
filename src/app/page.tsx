@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, use } from 'react';
@@ -56,9 +57,10 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   }, [user, isUserLoading, firestore, router, auth]);
 
   /**
-   * Professor Login Flow: Google Sign-In with Domain Restriction.
+   * Universal Google Login Flow.
+   * Handles both Professors and Admin users logging in via Google.
    */
-  const handleProfessorLogin = async () => {
+  const handleGoogleLogin = async () => {
     if (!auth || !firestore) return;
     setIsLoggingIn(true);
 
@@ -73,16 +75,22 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       console.log("User after sign-in:", signedInUser.email, signedInUser.uid);
       const email = (signedInUser.email || '').toLowerCase().trim();
 
-      // Institutional Guard: Validate @neu.edu.ph
-      if (!email.endsWith("@neu.edu.ph")) {
-        alert("Only NEU emails are allowed!");
-        await AuthService.logout(auth);
-        setIsLoggingIn(false);
-        return;
-      }
+      // Get profile first to see if they already exist
+      let profile = await UserService.getProfile(firestore, signedInUser.uid);
 
-      // Synchronize/Create Firestore profile
-      const profile = await UserService.syncProfile(firestore, signedInUser, 'professor');
+      if (!profile) {
+        // Institutional Guard for new users: Only @neu.edu.ph
+        if (!email.endsWith("@neu.edu.ph")) {
+          alert("Only NEU emails are allowed!");
+          await AuthService.logout(auth);
+          setIsLoggingIn(false);
+          return;
+        }
+        
+        // Sync/Create new profile. Predefined admin email gets admin role automatically.
+        const role = email === 'admin@neu.edu.ph' ? 'admin' : 'professor';
+        profile = await UserService.syncProfile(firestore, signedInUser, role);
+      }
 
       // Check account status
       if (profile.status === 'blocked') {
@@ -125,20 +133,19 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     let signedInUser = null;
 
     try {
-      // 1. Attempt Sign In
       signedInUser = await AuthService.signInWithEmail(auth, adminEmail, adminPassword);
     } catch (error: any) {
-      // 2. If Sign In fails because user doesn't exist, check if it's the predefined admin
+      // Fallback: If predefined admin, attempt to sign up if sign-in fails
       if (
         (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') &&
         adminEmail === 'admin@neu.edu.ph' && 
         adminPassword === 'adminpassword'
       ) {
         try {
-          console.log("Predefined admin not found in Auth. Attempting to create account...");
+          console.log("Predefined admin not found. Provisioning account...");
           signedInUser = await AuthService.signUpWithEmail(auth, adminEmail, adminPassword);
         } catch (signUpError: any) {
-          console.error("Failed to provision predefined admin:", signUpError);
+          console.error("Failed to provision admin:", signUpError);
         }
       } else {
         console.error("Admin login error:", error);
@@ -158,13 +165,10 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     }
 
     try {
-      console.log("Admin signed in:", signedInUser.email, signedInUser.uid);
-
-      // Sync/Create profile as admin
       const profile = await UserService.syncProfile(firestore, signedInUser, 'admin');
 
       if (profile.status === 'blocked') {
-        alert("Administrative access blocked for this account.");
+        alert("Administrative access blocked.");
         await AuthService.logout(auth);
         setIsLoggingIn(false);
         return;
@@ -173,7 +177,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       toast({ title: 'Access Granted', description: 'Redirecting to admin portal...' });
       router.push('/admin');
     } catch (error: any) {
-      console.error("Admin profile sync error:", error);
+      console.error("Profile sync error:", error);
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -251,7 +255,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                 </Alert>
                 <Button 
                   id="googleLogin"
-                  onClick={handleProfessorLogin}
+                  onClick={handleGoogleLogin}
                   disabled={isLoggingIn}
                   className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3"
                 >
@@ -262,37 +266,54 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
             </TabsContent>
 
             <TabsContent value="admin" className="p-6 space-y-4 m-0">
-              <form onSubmit={handleAdminLogin} className="space-y-4 text-left">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input 
-                    id="email" 
-                    type="email" 
-                    placeholder="admin@neu.edu.ph" 
-                    value={adminEmail}
-                    onChange={(e) => setAdminEmail(e.target.value)}
-                    required 
-                  />
+              <div className="space-y-4">
+                <form onSubmit={handleAdminLogin} className="space-y-4 text-left">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Admin Email</Label>
+                    <Input 
+                      id="email" 
+                      type="email" 
+                      placeholder="admin@neu.edu.ph" 
+                      value={adminEmail}
+                      onChange={(e) => setAdminEmail(e.target.value)}
+                      required 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input 
+                      id="password" 
+                      type="password" 
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                      required 
+                    />
+                  </div>
+                  <Button 
+                    type="submit"
+                    disabled={isLoggingIn}
+                    className="w-full h-12 font-bold bg-primary hover:bg-primary/90 shadow-md gap-2"
+                  >
+                    {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                    Login as Admin
+                  </Button>
+                </form>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">Or</span></div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input 
-                    id="password" 
-                    type="password" 
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
-                    required 
-                  />
-                </div>
+
                 <Button 
-                  type="submit"
+                  variant="outline"
+                  onClick={handleGoogleLogin}
                   disabled={isLoggingIn}
-                  className="w-full h-12 font-bold bg-primary hover:bg-primary/90 shadow-md gap-2"
+                  className="w-full h-12 border-2 font-bold gap-3"
                 >
-                  {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
-                  Login as Admin
+                  {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <Monitor className="w-4 h-4" />}
+                  Admin Google Login
                 </Button>
-              </form>
+              </div>
             </TabsContent>
           </Tabs>
         </Card>

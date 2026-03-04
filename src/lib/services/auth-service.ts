@@ -1,3 +1,4 @@
+
 'use client';
 
 import { 
@@ -33,7 +34,7 @@ export const AuthService = {
   },
 
   /**
-   * Creates a new user via Email and Password.
+   * Creates a new user via Email and Password (for admin auto-provisioning).
    */
   async signUpWithEmail(auth: Auth, email: string, pass: string): Promise<User | null> {
     const result = await createUserWithEmailAndPassword(auth, email, pass);
