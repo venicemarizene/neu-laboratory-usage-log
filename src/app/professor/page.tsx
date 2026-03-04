@@ -15,10 +15,11 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
 import { AuthService } from '@/lib/services/auth-service';
+import jsQR from 'jsqr';
 
 /**
- * Enhanced Professor Portal for laboratory entry logging.
- * Features a medium-sized layout with a balanced, clean design.
+ * Standard Professor Portal for laboratory entry logging.
+ * Features a medium-sized layout (max-w-xl) and real QR scanning.
  */
 export default function ProfessorPortal(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -44,24 +45,22 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   const [isScanning, setIsScanning] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const requestRef = useRef<number>(null);
 
   const roomList = Array.from({ length: 11 }, (_, i) => `M${101 + i}`);
 
   useEffect(() => {
     if (isUserLoading || isUserDataLoading) return;
-
     if (!user) {
       router.push('/');
       return;
     }
-    
-    // Handle Auto-Log success state from Home page scan
     if (searchParams.auto === 'true' && searchParams.room) {
       setRoom(searchParams.room);
       setStatus('success');
       return;
     }
-
     if (userData?.status === 'blocked') {
       setStatus('blocked');
       AuthService.logout(auth!).then(() => router.push('/'));
@@ -78,7 +77,6 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   const performEntry = (selectedRoom: string) => {
     if (!selectedRoom || !firestore || !user) return;
     setIsProcessing(true);
-    
     const logData = {
       professorId: user.uid,
       professorName: user.displayName || userData?.email || 'Professor',
@@ -86,37 +84,55 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       timestamp: new Date().toISOString(),
       status: 'Active'
     };
-    
     addDoc(collection(firestore, 'room_logs'), logData)
       .then(() => {
         setStatus('success');
         setIsProcessing(false);
-        toast({
-          title: "Entry Logged",
-          description: `Laboratory ${selectedRoom} session started.`,
-        });
+        toast({ title: "Entry Logged", description: `Laboratory ${selectedRoom} session started.` });
       })
       .catch(async () => {
-        const permissionError = new FirestorePermissionError({
-          path: 'room_logs',
-          operation: 'create',
-          requestResourceData: logData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
         setIsProcessing(false);
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'room_logs', operation: 'create', requestResourceData: logData,
+        }));
       });
+  };
+
+  const scanFrame = () => {
+    if (!isScanning || !videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+
+    if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
+      canvas.height = video.videoHeight;
+      canvas.width = video.videoWidth;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "dontInvert",
+      });
+
+      if (code) {
+        const foundRoom = roomList.find(r => code.data.includes(r));
+        if (foundRoom) {
+          handleQRDetected(foundRoom);
+          return;
+        }
+      }
+    }
+    requestRef.current = requestAnimationFrame(scanFrame);
   };
 
   const startScanning = async () => {
     setIsScanning(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       setHasCameraPermission(true);
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      
-      // Simulation of instant room detection
-      const randomRoom = roomList[Math.floor(Math.random() * roomList.length)];
-      setTimeout(() => handleQRDetected(randomRoom), 2000);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        requestRef.current = requestAnimationFrame(scanFrame);
+      }
     } catch (error) {
       setHasCameraPermission(false);
     }
@@ -124,6 +140,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
 
   const stopScanning = () => {
     setIsScanning(false);
+    if (requestRef.current) cancelAnimationFrame(requestRef.current);
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
     }
@@ -203,6 +220,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
                         </DialogHeader>
                         <div className="aspect-video relative rounded-xl bg-black overflow-hidden border-2 border-slate-100 shadow-inner">
                           <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" autoPlay muted playsInline />
+                          <canvas ref={canvasRef} className="hidden" />
                           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                             <div className="w-48 h-48 border-2 border-accent/60 rounded-2xl animate-pulse relative">
                               <div className="absolute top-0 left-0 w-full h-0.5 bg-accent/80 animate-[scan_2s_linear_infinite]" />

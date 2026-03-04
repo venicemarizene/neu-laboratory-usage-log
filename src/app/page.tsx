@@ -14,11 +14,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AuthService } from '@/lib/services/auth-service';
 import { UserService } from '@/lib/services/user-service';
 import { collection, addDoc } from 'firebase/firestore';
+import jsQR from 'jsqr';
 
 /**
  * Main Landing Page with One-Touch QR Entry.
- * Allows professors to log room usage directly from the landing page.
- * Enhanced to support "One-Touch" authentication + logging flow for signed-out users.
+ * Uses real-time QR scanning via jsQR for standard institutional entry.
  */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -38,104 +38,78 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [detectedRoom, setDetectedRoom] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const requestRef = useRef<number>(null);
 
   const roomList = Array.from({ length: 11 }, (_, i) => `M${101 + i}`);
 
-  /**
-   * Universal Login Flow with Intent-Based Role Assignment.
-   */
   const handleGoogleLogin = async () => {
     if (!auth || !firestore) return;
     setIsLoggingIn(true);
-
     const intendedRole = activeTab as 'professor' | 'admin';
-
     try {
       const signedInUser = await AuthService.signInWithGoogle(auth);
-      
       if (!signedInUser) {
         setIsLoggingIn(false);
         return;
       }
-
       const email = (signedInUser.email || '').toLowerCase().trim();
-
       if (!email.endsWith("@neu.edu.ph")) {
-        alert("Only NEU emails are allowed!");
+        alert("Only @neu.edu.ph emails are allowed!");
         await AuthService.logout(auth);
         setIsLoggingIn(false);
         return;
       }
-
       const profile = await UserService.syncProfile(firestore, signedInUser, intendedRole);
-
       if (profile.status === 'blocked') {
-        alert("Your account has been blocked. Please contact the administrator.");
+        alert("Your account has been blocked.");
         await AuthService.logout(auth);
         setIsLoggingIn(false);
         return;
       }
-
       toast({ title: 'Authenticated', description: `Welcome, ${signedInUser.displayName}` });
-      
-      if (profile.role === 'admin') {
-        router.push('/admin');
-      } else {
-        router.push('/professor');
-      }
+      if (profile.role === 'admin') router.push('/admin');
+      else router.push('/professor');
     } catch (error: any) {
       if (error.code !== 'auth/popup-closed-by-user') {
-        toast({
-          variant: 'destructive',
-          title: 'Authentication Error',
-          description: error.message || 'Failed to sign in.',
-        });
+        toast({ variant: 'destructive', title: 'Authentication Error', description: error.message });
       }
     } finally {
       setIsLoggingIn(false);
     }
   };
 
-  /**
-   * Processes QR detection. 
-   * If not authenticated, triggers login first, then performs instant room entry.
-   */
   const handleQRDetected = async (room: string) => {
+    if (detectedRoom) return; // Prevent double trigger
     setDetectedRoom(room);
     let currentUser = user;
 
     if (!currentUser) {
       if (!auth || !firestore) return;
-      
       setIsLoggingIn(true);
       try {
         const signedInUser = await AuthService.signInWithGoogle(auth);
-        
         if (!signedInUser) {
           setIsLoggingIn(false);
           setDetectedRoom(null);
           return;
         }
-
         const email = (signedInUser.email || '').toLowerCase().trim();
         if (!email.endsWith("@neu.edu.ph")) {
-          alert("Only NEU emails are allowed!");
+          alert("Institutional account required.");
           await AuthService.logout(auth);
           setIsLoggingIn(false);
           setDetectedRoom(null);
           return;
         }
-
         const profile = await UserService.syncProfile(firestore, signedInUser, 'professor');
-
         if (profile.status === 'blocked') {
-          alert("Your account has been blocked.");
+          alert("Account blocked.");
           await AuthService.logout(auth);
           setIsLoggingIn(false);
           setDetectedRoom(null);
           return;
         }
-
         currentUser = signedInUser;
       } catch (error: any) {
         setIsLoggingIn(false);
@@ -146,7 +120,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       }
     }
 
-    // Record the entry
     try {
       const logData = {
         professorId: currentUser.uid,
@@ -155,10 +128,8 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         timestamp: new Date().toISOString(),
         status: 'Active'
       };
-      
       await addDoc(collection(firestore, 'room_logs'), logData);
-      
-      toast({ title: "Entry Recorded", description: `Auto-logged into ${room}` });
+      toast({ title: "Entry Recorded", description: `Logged into ${room}` });
       stopScanning();
       router.push(`/professor?room=${room}&auto=true`);
     } catch (error) {
@@ -166,17 +137,42 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     }
   };
 
+  const scanFrame = () => {
+    if (!isScanning || !videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+
+    if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
+      canvas.height = video.videoHeight;
+      canvas.width = video.videoWidth;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "dontInvert",
+      });
+
+      if (code) {
+        const foundRoom = roomList.find(r => code.data.includes(r));
+        if (foundRoom) {
+          handleQRDetected(foundRoom);
+          return;
+        }
+      }
+    }
+    requestRef.current = requestAnimationFrame(scanFrame);
+  };
+
   const startScanning = async () => {
     setIsScanning(true);
     setDetectedRoom(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       setHasCameraPermission(true);
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      
-      // Simulation of a QR room detection: pick a random room from M101-M111
-      const randomRoom = roomList[Math.floor(Math.random() * roomList.length)];
-      setTimeout(() => handleQRDetected(randomRoom), 2000);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        requestRef.current = requestAnimationFrame(scanFrame);
+      }
     } catch (error) {
       setHasCameraPermission(false);
     }
@@ -185,6 +181,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const stopScanning = () => {
     setIsScanning(false);
     setDetectedRoom(null);
+    if (requestRef.current) cancelAnimationFrame(requestRef.current);
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
     }
@@ -193,7 +190,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const handleSignOut = async () => {
     if (auth) {
       await AuthService.logout(auth);
-      toast({ title: 'Signed Out', description: 'You have been disconnected.' });
+      toast({ title: 'Signed Out', description: 'Session terminated.' });
     }
   };
 
@@ -281,7 +278,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                       <DialogHeader>
                         <DialogTitle>Instant Room Entry</DialogTitle>
                         <DialogDescription>
-                          Scan the laboratory QR code. If you aren't signed in, you'll be prompted to authenticate to complete the entry.
+                          Scan the laboratory QR code. If you aren't signed in, we'll authenticate you to complete the entry.
                         </DialogDescription>
                       </DialogHeader>
                       <div className="aspect-square relative rounded-2xl bg-black overflow-hidden border-4 border-muted shadow-2xl">
@@ -292,6 +289,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                           muted 
                           playsInline 
                         />
+                        <canvas ref={canvasRef} className="hidden" />
                         
                         {detectedRoom && (
                           <div className="absolute inset-0 bg-primary/20 flex items-center justify-center backdrop-blur-[2px] z-10">
