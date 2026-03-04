@@ -5,7 +5,7 @@ import { useState, useEffect, use, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info, QrCode, AlertCircle, ArrowRight } from 'lucide-react';
+import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info, QrCode, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -18,7 +18,7 @@ import { collection, addDoc } from 'firebase/firestore';
 /**
  * Main Landing Page with One-Touch QR Entry.
  * Allows professors to log room usage directly from the landing page.
- * Enhanced to support "One-Touch" authentication + logging flow.
+ * Enhanced to support "One-Touch" authentication + logging flow for signed-out users.
  */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -36,6 +36,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   // QR Scanning State
   const [isScanning, setIsScanning] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [detectedRoom, setDetectedRoom] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   /**
@@ -97,7 +98,8 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
    * Processes QR detection. 
    * If not authenticated, triggers login first, then performs instant room entry.
    */
-  const handleQRDetected = async (detectedRoom: string) => {
+  const handleQRDetected = async (room: string) => {
+    setDetectedRoom(room);
     let currentUser = user;
 
     if (!currentUser) {
@@ -109,7 +111,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         
         if (!signedInUser) {
           setIsLoggingIn(false);
-          stopScanning();
+          setDetectedRoom(null);
           return;
         }
 
@@ -118,54 +120,45 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
           alert("Only NEU emails are allowed!");
           await AuthService.logout(auth);
           setIsLoggingIn(false);
-          stopScanning();
+          setDetectedRoom(null);
           return;
         }
 
-        // QR scan is specific to Professors
         const profile = await UserService.syncProfile(firestore, signedInUser, 'professor');
 
         if (profile.status === 'blocked') {
           alert("Your account has been blocked.");
           await AuthService.logout(auth);
           setIsLoggingIn(false);
-          stopScanning();
+          setDetectedRoom(null);
           return;
         }
 
-        toast({ title: 'Authenticated', description: `Welcome, ${signedInUser.displayName}` });
         currentUser = signedInUser;
       } catch (error: any) {
-        if (error.code !== 'auth/popup-closed-by-user') {
-          toast({
-            variant: 'destructive',
-            title: 'One-Touch Error',
-            description: error.message || 'Authentication failed during scan.',
-          });
-        }
         setIsLoggingIn(false);
-        stopScanning();
+        setDetectedRoom(null);
         return;
       } finally {
         setIsLoggingIn(false);
       }
     }
 
-    // Now that we have a user, perform the log
+    // Record the entry
     try {
       const logData = {
         professorId: currentUser.uid,
         professorName: currentUser.displayName || currentUser.email || 'Professor',
-        roomNumber: detectedRoom,
+        roomNumber: room,
         timestamp: new Date().toISOString(),
         status: 'Active'
       };
       
       await addDoc(collection(firestore, 'room_logs'), logData);
       
-      toast({ title: "Entry Recorded", description: `Auto-logged into ${detectedRoom}` });
+      toast({ title: "Entry Recorded", description: `Auto-logged into ${room}` });
       stopScanning();
-      router.push(`/professor?room=${detectedRoom}&auto=true`);
+      router.push(`/professor?room=${room}&auto=true`);
     } catch (error) {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to record entry.' });
     }
@@ -173,6 +166,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
   const startScanning = async () => {
     setIsScanning(true);
+    setDetectedRoom(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       setHasCameraPermission(true);
@@ -187,6 +181,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
   const stopScanning = () => {
     setIsScanning(false);
+    setDetectedRoom(null);
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
     }
@@ -254,7 +249,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                 <Alert className="bg-primary/5 border border-primary/20">
                   <Info className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
-                    Authenticate as a Professor with your @neu.edu.ph account.
+                    Use your @neu.edu.ph account. Scan a room QR code for instant entry.
                   </AlertDescription>
                 </Alert>
                 
@@ -283,10 +278,10 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                       <DialogHeader>
                         <DialogTitle>Instant Room Entry</DialogTitle>
                         <DialogDescription>
-                          Scan the laboratory QR code. If you aren't signed in, you will be prompted to authenticate first.
+                          Scan the laboratory QR code. If you aren't signed in, you'll be prompted to authenticate to complete the entry.
                         </DialogDescription>
                       </DialogHeader>
-                      <div className="aspect-square relative rounded-2xl bg-black overflow-hidden border-4 border-muted">
+                      <div className="aspect-square relative rounded-2xl bg-black overflow-hidden border-4 border-muted shadow-2xl">
                         <video 
                           ref={videoRef} 
                           className="absolute inset-0 w-full h-full object-cover" 
@@ -294,6 +289,24 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                           muted 
                           playsInline 
                         />
+                        
+                        {detectedRoom && (
+                          <div className="absolute inset-0 bg-primary/20 flex items-center justify-center backdrop-blur-[2px] z-10">
+                            <div className="text-center bg-white p-6 rounded-2xl shadow-2xl animate-in zoom-in duration-300">
+                              <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-2" />
+                              <p className="font-black text-primary text-xl">Lab {detectedRoom} Detected</p>
+                              {isLoggingIn ? (
+                                <div className="mt-4 flex flex-col items-center gap-2">
+                                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                                  <p className="text-xs font-bold uppercase tracking-widest animate-pulse">Authenticating...</p>
+                                </div>
+                              ) : (
+                                <p className="text-sm font-medium text-muted-foreground mt-1">Completing Entry...</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
                         {hasCameraPermission === false && (
                           <div className="absolute inset-0 bg-black/80 flex items-center justify-center text-white p-6 text-center">
                             <div>
@@ -303,17 +316,10 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                             </div>
                           </div>
                         )}
+
                         <div className="absolute inset-0 border-[40px] border-black/40 pointer-events-none">
                           <div className="w-full h-full border-2 border-accent/50 rounded-lg animate-pulse" />
                         </div>
-                        {isLoggingIn && (
-                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm z-10">
-                            <div className="text-center space-y-2">
-                              <Loader2 className="w-10 h-10 animate-spin text-white mx-auto" />
-                              <p className="text-white text-xs font-bold uppercase tracking-widest">Authenticating...</p>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </DialogContent>
                   </Dialog>
