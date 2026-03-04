@@ -5,9 +5,7 @@ import { useState, useEffect, use, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info, Lock, QrCode, AlertCircle } from 'lucide-react';
+import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info, QrCode, AlertCircle } from 'lucide-react';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -31,8 +29,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const { toast } = useToast();
   
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [adminEmail, setAdminEmail] = useState('');
-  const [adminPassword, setAdminPassword] = useState('');
   const [activeTab, setActiveTab] = useState('professor');
 
   // QR Scanning State
@@ -121,68 +117,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     setIsScanning(false);
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
-    }
-  };
-
-  /**
-   * Admin Login Flow: Email/Password.
-   */
-  const handleAdminLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!auth || !firestore) return;
-    setIsLoggingIn(true);
-
-    let signedInUser = null;
-
-    try {
-      signedInUser = await AuthService.signInWithEmail(auth, adminEmail, adminPassword);
-    } catch (error: any) {
-      if (
-        (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') &&
-        adminEmail === 'admin@neu.edu.ph' && 
-        adminPassword === 'adminpassword'
-      ) {
-        try {
-          signedInUser = await AuthService.signUpWithEmail(auth, adminEmail, adminPassword);
-        } catch (signUpError: any) {
-          console.error("Failed to provision admin:", signUpError);
-        }
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Login Failed',
-          description: 'Invalid administrative credentials.',
-        });
-        setIsLoggingIn(false);
-        return;
-      }
-    }
-
-    if (!signedInUser) {
-      setIsLoggingIn(false);
-      return;
-    }
-
-    try {
-      const profile = await UserService.syncProfile(firestore, signedInUser, 'admin');
-
-      if (profile.status === 'blocked') {
-        alert("Administrative access blocked.");
-        await AuthService.logout(auth);
-        setIsLoggingIn(false);
-        return;
-      }
-
-      toast({ title: 'Access Granted', description: 'Redirecting to admin portal...' });
-      router.push('/admin');
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to synchronize administrative profile.',
-      });
-    } finally {
-      setIsLoggingIn(false);
     }
   };
 
@@ -312,58 +246,18 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                 <Alert className="bg-accent/5 border border-accent/20 text-left">
                   <ShieldCheck className="h-4 w-4 text-accent" />
                   <AlertDescription className="text-sm font-medium">
-                    Authenticate as an Administrator. You can use Google or email.
+                    Authenticate as an Administrator. You can use Google Sign-In.
                   </AlertDescription>
                 </Alert>
                 
                 <Button 
-                  variant="outline"
                   onClick={handleGoogleLogin}
                   disabled={isLoggingIn}
-                  className="w-full h-14 border-2 font-bold gap-3"
+                  className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3"
                 >
-                  {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                  {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
                   Admin Google Login
                 </Button>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">Or Password</span></div>
-                </div>
-
-                <form onSubmit={handleAdminLogin} className="space-y-4 text-left">
-                  <div className="space-y-2">
-                    <Label htmlFor="email" className="font-bold">Admin Institutional Email</Label>
-                    <Input 
-                      id="email" 
-                      type="email" 
-                      placeholder="admin@neu.edu.ph" 
-                      value={adminEmail}
-                      onChange={(e) => setAdminEmail(e.target.value)}
-                      className="h-12 border-2 rounded-xl"
-                      required 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password" title="Password" className="font-bold">Password</Label>
-                    <Input 
-                      id="password" 
-                      type="password" 
-                      value={adminPassword}
-                      onChange={(e) => setAdminPassword(e.target.value)}
-                      className="h-12 border-2 rounded-xl"
-                      required 
-                    />
-                  </div>
-                  <Button 
-                    type="submit"
-                    disabled={isLoggingIn}
-                    className="w-full h-12 font-bold bg-primary hover:bg-primary/90 shadow-md gap-2"
-                  >
-                    {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
-                    Login as Admin
-                  </Button>
-                </form>
               </div>
             </TabsContent>
           </Tabs>
