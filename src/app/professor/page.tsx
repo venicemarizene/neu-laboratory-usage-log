@@ -276,7 +276,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-3xl font-black text-slate-900">Session Verified</h3>
-                    <p className="text-base font-bold text-slate-500">Your presence in Lab {room} has been recorded.</p>
+                    <p className="text-base font-bold text-slate-500">Thank you for using room {room}.</p>
                   </div>
                   <Button 
                     variant="outline" 
