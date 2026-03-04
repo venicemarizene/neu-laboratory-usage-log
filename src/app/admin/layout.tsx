@@ -13,8 +13,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * Layout guard for Administrative routes.
- * Ensures only authenticated admins with active status can access.
- * Includes a collapsible sidebar for maximized content visibility.
+ * Optimized for minimal delay by using derived authorization states.
  */
 export default function AdminLayout(props: {
   children: React.ReactNode;
@@ -26,7 +25,6 @@ export default function AdminLayout(props: {
   const auth = useAuth();
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
-  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const userRef = useMemoFirebase(() => {
@@ -36,28 +34,24 @@ export default function AdminLayout(props: {
 
   const { data: userData, isLoading: isDataLoading } = useDoc(userRef);
 
+  // Derived states to determine if we should show loading or content
+  // This avoids extra state update cycles (setIsAuthorized) for snappier transitions
+  const isAuthorized = user && userData && userData.role === 'admin' && userData.status !== 'blocked';
+  const isWaiting = isUserLoading || (user && isDataLoading && !userData);
+
   useEffect(() => {
-    // Wait for auth and document data to settle
+    // Only perform redirect logic once auth state and data have been attempted
     if (isUserLoading || isDataLoading) return;
 
     if (!user) {
-      setIsAuthorized(false);
-      router.push('/');
+      router.replace('/');
       return;
     }
 
-    // Role and status guard:
-    if (!userData) {
-      return; 
-    }
-
-    if (userData.role !== 'admin' || userData.status === 'blocked') {
-      setIsAuthorized(false);
-      router.push('/');
+    if (!userData || userData.role !== 'admin' || userData.status === 'blocked') {
+      router.replace('/');
       return;
     }
-
-    setIsAuthorized(true);
   }, [user, userData, isUserLoading, isDataLoading, router]);
 
   const handleSignOut = async () => {
@@ -68,7 +62,7 @@ export default function AdminLayout(props: {
   };
 
   // Show loading state while verifying permissions
-  if (isUserLoading || isDataLoading || isAuthorized === null || !user) {
+  if (isWaiting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
@@ -78,6 +72,9 @@ export default function AdminLayout(props: {
       </div>
     );
   }
+
+  // Final guard: if not authorized after loading, return null (redirect handles the rest)
+  if (!isAuthorized) return null;
 
   return (
     <div className="min-h-screen flex bg-background animate-in fade-in duration-300">
