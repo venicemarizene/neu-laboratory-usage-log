@@ -18,6 +18,7 @@ import { collection, addDoc } from 'firebase/firestore';
 /**
  * Main Landing Page with One-Touch QR Entry.
  * Allows professors to log room usage directly from the landing page.
+ * Enhanced to support "One-Touch" authentication + logging flow.
  */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -93,23 +94,68 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   };
 
   /**
-   * Processes QR detection and performs instant room entry if authenticated.
+   * Processes QR detection. 
+   * If not authenticated, triggers login first, then performs instant room entry.
    */
   const handleQRDetected = async (detectedRoom: string) => {
-    if (!user || !firestore) {
-      toast({
-        variant: 'destructive',
-        title: 'Authentication Required',
-        description: 'Please sign in with Google before scanning room QR codes.',
-      });
-      stopScanning();
-      return;
+    let currentUser = user;
+
+    if (!currentUser) {
+      if (!auth || !firestore) return;
+      
+      setIsLoggingIn(true);
+      try {
+        const signedInUser = await AuthService.signInWithGoogle(auth);
+        
+        if (!signedInUser) {
+          setIsLoggingIn(false);
+          stopScanning();
+          return;
+        }
+
+        const email = (signedInUser.email || '').toLowerCase().trim();
+        if (!email.endsWith("@neu.edu.ph")) {
+          alert("Only NEU emails are allowed!");
+          await AuthService.logout(auth);
+          setIsLoggingIn(false);
+          stopScanning();
+          return;
+        }
+
+        // QR scan is specific to Professors
+        const profile = await UserService.syncProfile(firestore, signedInUser, 'professor');
+
+        if (profile.status === 'blocked') {
+          alert("Your account has been blocked.");
+          await AuthService.logout(auth);
+          setIsLoggingIn(false);
+          stopScanning();
+          return;
+        }
+
+        toast({ title: 'Authenticated', description: `Welcome, ${signedInUser.displayName}` });
+        currentUser = signedInUser;
+      } catch (error: any) {
+        if (error.code !== 'auth/popup-closed-by-user') {
+          toast({
+            variant: 'destructive',
+            title: 'One-Touch Error',
+            description: error.message || 'Authentication failed during scan.',
+          });
+        }
+        setIsLoggingIn(false);
+        stopScanning();
+        return;
+      } finally {
+        setIsLoggingIn(false);
+      }
     }
 
+    // Now that we have a user, perform the log
     try {
       const logData = {
-        professorId: user.uid,
-        professorName: user.displayName || user.email || 'Professor',
+        professorId: currentUser.uid,
+        professorName: currentUser.displayName || currentUser.email || 'Professor',
         roomNumber: detectedRoom,
         timestamp: new Date().toISOString(),
         status: 'Active'
@@ -237,7 +283,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                       <DialogHeader>
                         <DialogTitle>Instant Room Entry</DialogTitle>
                         <DialogDescription>
-                          Scan the laboratory QR code to automatically log your entry.
+                          Scan the laboratory QR code. If you aren't signed in, you will be prompted to authenticate first.
                         </DialogDescription>
                       </DialogHeader>
                       <div className="aspect-square relative rounded-2xl bg-black overflow-hidden border-4 border-muted">
@@ -260,6 +306,14 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                         <div className="absolute inset-0 border-[40px] border-black/40 pointer-events-none">
                           <div className="w-full h-full border-2 border-accent/50 rounded-lg animate-pulse" />
                         </div>
+                        {isLoggingIn && (
+                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm z-10">
+                            <div className="text-center space-y-2">
+                              <Loader2 className="w-10 h-10 animate-spin text-white mx-auto" />
+                              <p className="text-white text-xs font-bold uppercase tracking-widest">Authenticating...</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </DialogContent>
                   </Dialog>
