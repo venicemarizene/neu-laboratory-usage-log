@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Firestore, collection, addDoc, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
@@ -6,12 +7,15 @@ import { FirestorePermissionError } from '@/firebase/errors';
 
 /**
  * Service to manage laboratory usage logs in Firestore.
+ * Handles automatic session completion and duration calculations.
  */
 export const LogService = {
   /**
-   * Starts a new laboratory session.
+   * Starts a new laboratory session for a professor.
+   * Automatically ends any existing active session for that professor.
    */
   async startSession(db: Firestore, email: string, room: string) {
+    // Authoritative check: close previous sessions before starting a new one
     await this.endActiveSession(db, email);
 
     const logData = {
@@ -36,7 +40,8 @@ export const LogService = {
   },
 
   /**
-   * Ends active sessions for a professor.
+   * Finds and completes all active laboratory sessions for a specific professor.
+   * Calculates the final duration in minutes.
    */
   async endActiveSession(db: Firestore, email: string) {
     const q = query(
@@ -52,6 +57,8 @@ export const LogService = {
         const data = activeLog.data();
         const loginTime = new Date(data.loginTime);
         const logoutTime = new Date();
+        
+        // Calculate duration in minutes, minimum 1 minute
         const duration = Math.max(1, Math.round((logoutTime.getTime() - loginTime.getTime()) / 60000));
         
         const updateData = {

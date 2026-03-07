@@ -20,6 +20,7 @@ import jsQR from 'jsqr';
 
 /**
  * Standard Professor Portal for laboratory entry logging.
+ * Features a medium-sized container and session duration management.
  */
 export default function ProfessorPortal(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -71,8 +72,10 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       return;
     }
 
-    if (searchParams.auto === 'true' && searchParams.room) {
-      setRoom(searchParams.room);
+    // Handle auto-entry from Landing Page QR scan
+    const resolvedSearchParams = (searchParams as any);
+    if (resolvedSearchParams?.auto === 'true' && resolvedSearchParams?.room) {
+      setRoom(resolvedSearchParams.room);
       setStatus('success');
       return;
     }
@@ -81,7 +84,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   const handleSignOut = async () => {
     if (auth && firestore && user?.email) {
       setIsProcessing(true);
-      // End the active session before signing out
+      // End the active session before signing out to calculate duration
       await LogService.endActiveSession(firestore, user.email);
       await AuthService.logout(auth);
       router.push('/');
