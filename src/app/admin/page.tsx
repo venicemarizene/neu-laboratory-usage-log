@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo, use } from 'react';
@@ -6,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Search, Calendar as CalendarIcon, Users, Monitor, Ban, FileText, Loader2, Activity, X } from 'lucide-react';
+import { Search, Calendar as CalendarIcon, Users, Monitor, Ban, FileText, Loader2, Activity, X, Clock } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
@@ -285,47 +284,74 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Updating...</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader className="bg-slate-50/50">
-                <TableRow>
-                  <TableHead className="font-bold py-5 px-6">Professor Email</TableHead>
-                  <TableHead className="font-bold py-5">Laboratory</TableHead>
-                  <TableHead className="font-bold py-5">Login Time</TableHead>
-                  <TableHead className="font-bold py-5 px-6">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredLogs.length === 0 ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-slate-50/50">
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-24 text-muted-foreground">
-                      No logs found.
-                    </TableCell>
+                    <TableHead className="font-bold py-5 px-6">Professor Email</TableHead>
+                    <TableHead className="font-bold py-5">Laboratory</TableHead>
+                    <TableHead className="font-bold py-5">Login Time</TableHead>
+                    <TableHead className="font-bold py-5">Logout Time</TableHead>
+                    <TableHead className="font-bold py-5 text-center">Duration</TableHead>
+                    <TableHead className="font-bold py-5 px-6">Status</TableHead>
                   </TableRow>
-                ) : (
-                  filteredLogs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell className="font-bold px-6 py-4">{log.professorEmail}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="font-mono">
-                          {log.roomNumber}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {new Date(log.loginTime).toLocaleString()}
-                      </TableCell>
-                      <TableCell className="px-6 py-4">
-                        <Badge className={cn(
-                          "uppercase text-[10px] font-black",
-                          log.status === 'active' ? "bg-green-100 text-green-700 hover:bg-green-100" : "bg-slate-100 text-slate-700 hover:bg-slate-100"
-                        )}>
-                          {log.status}
-                        </Badge>
+                </TableHeader>
+                <TableBody>
+                  {filteredLogs.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-24 text-muted-foreground">
+                        No logs found.
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    filteredLogs.map((log) => (
+                      <TableRow key={log.id}>
+                        <TableCell className="font-bold px-6 py-4">{log.professorEmail}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="font-mono">
+                            {log.roomNumber}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">{new Date(log.loginTime).toLocaleDateString()}</span>
+                            <span className="text-xs text-muted-foreground">{new Date(log.loginTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {log.logoutTime ? (
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium">{new Date(log.logoutTime).toLocaleDateString()}</span>
+                              <span className="text-xs text-muted-foreground">{new Date(log.logoutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs italic text-muted-foreground">In Progress</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center font-bold">
+                          {log.duration ? (
+                            <div className="flex items-center justify-center gap-1 text-primary">
+                              <Clock className="w-3 h-3" />
+                              <span>{log.duration}m</span>
+                            </div>
+                          ) : (
+                            "-"
+                          )}
+                        </TableCell>
+                        <TableCell className="px-6 py-4">
+                          <Badge className={cn(
+                            "uppercase text-[10px] font-black",
+                            log.status === 'active' ? "bg-green-100 text-green-700 hover:bg-green-100" : "bg-slate-100 text-slate-700 hover:bg-slate-100"
+                          )}>
+                            {log.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
