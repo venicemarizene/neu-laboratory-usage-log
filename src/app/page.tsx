@@ -110,10 +110,13 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
    * Authoritative QR Login Function with Step 3-7 logs.
    */
   const handleQRCodeLogin = async (scannedEmail: string) => {
-    // Step 6: Prevent Infinite Scanning (concurrency lock)
+    // Prevent Infinite Scanning (concurrency lock)
     if (isProcessingDetection || !firestore) return;
     setIsProcessingDetection(true); 
     
+    // Stop camera immediately after detection
+    stopScanning();
+
     // Step 3: Debug Login Function
     console.log("Processing QR login...");
     console.log("Scanned email:", scannedEmail);
@@ -138,7 +141,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       if (profile.status === 'blocked') {
         console.log("Login failed: Account blocked");
         setErrorMessage("Your account has been blocked. Please contact the administrator.");
-        stopScanning();
+        setIsProcessingDetection(false);
         return;
       }
 
@@ -151,9 +154,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       // Step 5: Confirm Redirect
       console.log("Login successful. Redirecting...");
       toast({ title: 'Login Successful', description: `Welcome back, ${scannedEmail}` });
-
-      // Step 7: Stop Camera After Login
-      stopScanning();
       
       // Redirect based on role
       router.push(profile.role === 'admin' ? '/admin/dashboard' : '/professor/dashboard');
@@ -174,7 +174,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
     if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
-      // Step 1: Use native video resolution for better scanning accuracy (Fix for "holding code for seconds")
+      // Use native resolution for best accuracy
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -201,6 +201,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   };
 
   const startScanning = async () => {
+    console.log("Scanner started");
     setIsScanning(true);
     setIsProcessingDetection(false);
     setDetectedEmail(null);
@@ -212,7 +213,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       setHasCameraPermission(true);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        // Wait for video metadata to be ready before starting loop
         videoRef.current.onloadedmetadata = () => {
           requestRef.current = requestAnimationFrame(scanFrame);
         };
