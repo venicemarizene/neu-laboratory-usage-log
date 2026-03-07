@@ -66,26 +66,24 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
     const savedEmail = localStorage.getItem('identifiedProfessorEmail');
     if (savedEmail) {
       setQrIdentityEmail(savedEmail);
-      if (firestore && !userData) {
-        UserService.syncProfileByEmail(firestore, savedEmail).then(profile => {
-          setUserData(profile);
-          if (profile.status === 'blocked') setStatus('blocked');
-          setIsSessionLoading(false);
-        }).catch(() => {
-          localStorage.removeItem('identifiedProfessorEmail');
-          setQrIdentityEmail(null);
-          setIsSessionLoading(false);
-        });
-      } else if (!firestore) {
-         // Firestore not ready yet, keep loading
-         setIsSessionLoading(true);
-      } else {
-        setIsSessionLoading(false);
+      if (firestore) {
+        setIsSessionLoading(true);
+        UserService.syncProfileByEmail(firestore, savedEmail)
+          .then(profile => {
+            setUserData(profile);
+            if (profile.status === 'blocked') setStatus('blocked');
+            setIsSessionLoading(false);
+          })
+          .catch(() => {
+            localStorage.removeItem('identifiedProfessorEmail');
+            setQrIdentityEmail(null);
+            setIsSessionLoading(false);
+          });
       }
     } else {
       setIsSessionLoading(false);
     }
-  }, [firestore, userData]);
+  }, [firestore]);
 
   const activeEmail = user?.email || qrIdentityEmail;
   const activeUserData = userDocData || userData;
@@ -181,7 +179,9 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   const startScanning = async () => {
     setIsScanning(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } 
+      });
       setHasCameraPermission(true);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;

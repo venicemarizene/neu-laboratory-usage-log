@@ -35,6 +35,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
   // QR Scanning State
   const [isScanning, setIsScanning] = useState(false);
+  const [isProcessingDetection, setIsProcessingDetection] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [detectedRoom, setDetectedRoom] = useState<string | null>(null);
   const [detectedEmail, setDetectedEmail] = useState<string | null>(null);
@@ -119,15 +120,13 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
    * Process QR data based on content type (Email or Room ID)
    */
   const handleQRDetected = async (data: string) => {
-    if (isLoggingIn) return;
+    if (isProcessingDetection || isLoggingIn) return;
     const cleanData = data.trim();
     
     // 1. Identify if it's a Professor Email QR
     if (cleanData.toLowerCase().endsWith('@neu.edu.ph')) {
-      if (detectedEmail) return;
-      
+      setIsProcessingDetection(true);
       setDetectedEmail(cleanData);
-      setIsLoggingIn(true);
       
       if (!firestore) return;
       
@@ -136,23 +135,23 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         if (profile.status === 'blocked') {
           setBlockedError("Your account has been blocked. Please contact the administrator.");
           stopScanning();
-          setIsLoggingIn(false);
+          setIsProcessingDetection(false);
           return;
         }
         
-        // Persist identity and redirect
+        // Authoritative identity storage
         localStorage.setItem('identifiedProfessorEmail', cleanData);
         toast({ title: "Identity Verified", description: `Welcome, ${cleanData}` });
         
-        // Small delay to ensure localStorage is set
+        // Small delay to ensure localStorage and state updates are complete before redirect
         setTimeout(() => {
           stopScanning();
           router.push('/professor/dashboard');
-        }, 800);
+        }, 1000);
       } catch (error: any) {
         toast({ variant: 'destructive', title: 'Identity Error', description: error.message });
         setDetectedEmail(null);
-        setIsLoggingIn(false);
+        setIsProcessingDetection(false);
       }
       return;
     }
@@ -160,7 +159,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     // 2. Identify if it's a Room QR
     const foundRoom = roomList.find(r => cleanData.toUpperCase().includes(r.toUpperCase()));
     if (foundRoom) {
-      if (detectedRoom) return;
+      setIsProcessingDetection(true);
       setDetectedRoom(foundRoom);
 
       const activeEmail = user?.email || localStorage.getItem('identifiedProfessorEmail');
@@ -169,22 +168,26 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         try {
           await LogService.startSession(firestore, activeEmail, foundRoom);
           toast({ title: "Entry Recorded", description: `Logged into ${foundRoom}` });
-          stopScanning();
-          router.push(`/professor/dashboard?room=${foundRoom}&auto=true`);
+          setTimeout(() => {
+            stopScanning();
+            router.push(`/professor/dashboard?room=${foundRoom}&auto=true`);
+          }, 1000);
         } catch (error) {
           toast({ variant: 'destructive', title: 'Error', description: 'Failed to record entry.' });
           setDetectedRoom(null);
+          setIsProcessingDetection(false);
         }
       } else {
         toast({ title: "Room Detected", description: "Please sign in or scan your ID to complete entry." });
         setDetectedRoom(null);
+        setIsProcessingDetection(false);
       }
       return;
     }
   };
 
   const scanFrame = () => {
-    if (!isScanning || !videoRef.current || !canvasRef.current) return;
+    if (!isScanning || isProcessingDetection || !videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d', { willReadFrequently: true });
@@ -207,6 +210,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
   const startScanning = async () => {
     setIsScanning(true);
+    setIsProcessingDetection(false);
     setDetectedRoom(null);
     setDetectedEmail(null);
     setBlockedError(null);
@@ -226,6 +230,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
   const stopScanning = () => {
     setIsScanning(false);
+    setIsProcessingDetection(false);
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
@@ -365,19 +370,19 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                         />
                         <canvas ref={canvasRef} className="hidden" />
                         
-                        {(detectedRoom || detectedEmail || isLoggingIn) && !blockedError && (
+                        {(detectedRoom || detectedEmail || isProcessingDetection || isLoggingIn) && !blockedError && (
                           <div className="absolute inset-0 bg-primary/20 flex items-center justify-center backdrop-blur-[2px] z-10">
                             <div className="text-center bg-white p-6 rounded-2xl shadow-2xl animate-in zoom-in duration-300">
-                              {isLoggingIn ? (
+                              {(isLoggingIn || isProcessingDetection) ? (
                                 <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-2" />
                               ) : (
                                 <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-2" />
                               )}
                               <p className="font-black text-primary text-xl">
-                                {isLoggingIn ? 'Processing...' : (detectedRoom ? `Lab ${detectedRoom}` : 'ID Verified')}
+                                {(isLoggingIn || isProcessingDetection) ? 'Processing...' : (detectedRoom ? `Lab ${detectedRoom}` : 'ID Verified')}
                               </p>
                               <p className="text-sm font-medium text-muted-foreground mt-1">
-                                {isLoggingIn ? 'Verifying profile...' : 'Completing Access...'}
+                                {(isLoggingIn || isProcessingDetection) ? 'Verifying profile...' : 'Completing Access...'}
                               </p>
                             </div>
                           </div>
