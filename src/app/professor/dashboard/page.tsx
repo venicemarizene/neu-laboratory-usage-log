@@ -37,9 +37,16 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   const [isProcessing, setIsProcessing] = useState(false);
   const [isEmailing, setIsEmailing] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'blocked' | 'unauthorized'>('idle');
-  const [qrIdentityEmail, setQrIdentityEmail] = useState<string | null>(null);
   const [userData, setUserData] = useState<any>(null);
   const [isSessionLoading, setIsSessionLoading] = useState(true);
+
+  // Authoritative identity initialization from localStorage to prevent redirect race conditions
+  const [qrIdentityEmail, setQrIdentityEmail] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('identifiedProfessorEmail');
+    }
+    return null;
+  });
   
   const userRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -61,29 +68,25 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
     'LAB204'
   ];
 
-  // Resolve active identity from either Google Auth or QR Scan persistent session
+  // Robust session recovery
   useEffect(() => {
-    const savedEmail = localStorage.getItem('identifiedProfessorEmail');
-    if (savedEmail) {
-      setQrIdentityEmail(savedEmail);
-      if (firestore) {
-        setIsSessionLoading(true);
-        UserService.syncProfileByEmail(firestore, savedEmail)
-          .then(profile => {
-            setUserData(profile);
-            if (profile.status === 'blocked') setStatus('blocked');
-            setIsSessionLoading(false);
-          })
-          .catch(() => {
-            localStorage.removeItem('identifiedProfessorEmail');
-            setQrIdentityEmail(null);
-            setIsSessionLoading(false);
-          });
-      }
+    if (qrIdentityEmail && firestore) {
+      setIsSessionLoading(true);
+      UserService.syncProfileByEmail(firestore, qrIdentityEmail)
+        .then(profile => {
+          setUserData(profile);
+          if (profile.status === 'blocked') setStatus('blocked');
+          setIsSessionLoading(false);
+        })
+        .catch(() => {
+          localStorage.removeItem('identifiedProfessorEmail');
+          setQrIdentityEmail(null);
+          setIsSessionLoading(false);
+        });
     } else {
       setIsSessionLoading(false);
     }
-  }, [firestore]);
+  }, [firestore, qrIdentityEmail]);
 
   const activeEmail = user?.email || qrIdentityEmail;
   const activeUserData = userDocData || userData;
@@ -94,7 +97,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   useEffect(() => {
     if (isWaiting) return;
     
-    // If we've finished loading and still have no identity, go home
+    // Final check for identity. If none exists, return home.
     if (!activeEmail) {
       router.replace('/');
       return;

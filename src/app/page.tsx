@@ -121,12 +121,17 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
    */
   const handleQRDetected = async (data: string) => {
     if (isProcessingDetection || isLoggingIn) return;
+    
+    // Aggressive sanitization to catch institutional emails
     const cleanData = data.trim();
+    const emailPattern = /[a-zA-Z0-9._%+-]+@neu\.edu\.ph/i;
+    const emailMatch = cleanData.match(emailPattern);
     
     // 1. Identify if it's a Professor Email QR
-    if (cleanData.toLowerCase().endsWith('@neu.edu.ph')) {
+    if (emailMatch) {
+      const identifiedEmail = emailMatch[0].toLowerCase();
       setIsProcessingDetection(true);
-      setDetectedEmail(cleanData);
+      setDetectedEmail(identifiedEmail);
       
       if (!firestore) {
         setIsProcessingDetection(false);
@@ -134,7 +139,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       }
       
       try {
-        const profile = await UserService.syncProfileByEmail(firestore, cleanData);
+        const profile = await UserService.syncProfileByEmail(firestore, identifiedEmail);
         if (profile.status === 'blocked') {
           setBlockedError("Your account has been blocked. Please contact the administrator.");
           stopScanning();
@@ -142,16 +147,17 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
           return;
         }
         
-        // Authoritative identity storage
-        localStorage.setItem('identifiedProfessorEmail', cleanData);
-        toast({ title: "Identity Verified", description: `Welcome, ${cleanData}` });
+        // Immediate authoritative identity storage
+        localStorage.setItem('identifiedProfessorEmail', identifiedEmail);
+        toast({ title: "Identity Verified", description: `Welcome, ${identifiedEmail}` });
         
-        // Small delay to ensure localStorage and state updates are complete before redirect
+        // Critical: small timeout to allow state/localStorage to settle before router kicks in
         setTimeout(() => {
           stopScanning();
-          router.push('/professor/dashboard');
-        }, 1000);
+          router.replace('/professor/dashboard');
+        }, 800);
       } catch (error: any) {
+        console.error("QR Identification Error:", error);
         toast({ variant: 'destructive', title: 'Identity Error', description: error.message });
         setDetectedEmail(null);
         setIsProcessingDetection(false);
@@ -196,7 +202,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
     if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
-      // Optimization: Downscale processing resolution for better performance/accuracy on mobile
+      // Optimized processing resolution
       const scale = Math.min(1, 640 / video.videoWidth);
       canvas.width = video.videoWidth * scale;
       canvas.height = video.videoHeight * scale;
@@ -207,7 +213,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         inversionAttempts: "dontInvert",
       });
 
-      if (code) {
+      if (code && !isProcessingDetection) {
         handleQRDetected(code.data);
       }
     }
