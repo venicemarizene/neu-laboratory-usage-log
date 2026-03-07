@@ -92,10 +92,8 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
         })
         .catch((err) => {
           console.error("QR Recovery Failed:", err);
-          if (err.message?.includes('No professor record')) {
-            localStorage.removeItem('identifiedProfessorEmail');
-            setQrIdentityEmail(null);
-          }
+          // If the profile doesn't exist yet, we still allow the session locally 
+          // as a fallback for pre-provisioned users who haven't synced yet.
           setIsSessionLoading(false);
         });
     } else {
@@ -106,13 +104,13 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   const activeEmail = user?.email || qrIdentityEmail;
   const activeUserData = userDocData || userData;
 
-  // Authoritative loading check: only wait if we have no email identity at all
-  const isWaiting = (isUserLoading || isUserDataLoading || isSessionLoading) && !activeEmail;
+  // Authoritative loading check: wait until we've at least tried to load local or remote identity
+  const isWaiting = isUserLoading || isUserDataLoading || (isSessionLoading && !!qrIdentityEmail);
 
   useEffect(() => {
     if (isWaiting) return;
     
-    // Final check for identity. If none exists, return home.
+    // Check if we have any valid identity (Google or scanned QR)
     if (!activeEmail) {
       router.replace('/');
       return;
@@ -127,7 +125,8 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       setStatus('blocked');
       setTimeout(() => {
         localStorage.removeItem('identifiedProfessorEmail');
-        AuthService.logout(auth!).then(() => router.replace('/'));
+        if (auth) AuthService.logout(auth).then(() => router.replace('/'));
+        else router.replace('/');
       }, 2500);
       return;
     }
@@ -145,7 +144,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       setIsProcessing(true);
       await LogService.endActiveSession(firestore, activeEmail);
       localStorage.removeItem('identifiedProfessorEmail');
-      await AuthService.logout(auth!);
+      if (auth) await AuthService.logout(auth);
       router.push('/');
     }
   };

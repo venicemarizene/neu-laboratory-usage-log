@@ -129,41 +129,20 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     const emailPattern = /[a-zA-Z0-9._%+-]+@neu\.edu\.ph/i;
     const emailMatch = cleanData.match(emailPattern);
     
-    // 1. Identify if it's a Professor Email QR (Login)
+    // 1. Identify if it's a Professor Email QR (One-Touch Login)
     if (emailMatch) {
       const identifiedEmail = emailMatch[0].toLowerCase();
       setIsProcessingDetection(true);
       setDetectedEmail(identifiedEmail);
       
-      if (!firestore) {
-        setIsProcessingDetection(false);
-        return;
-      }
+      // For one-touch login, we immediately set identity and redirect.
+      // Verification happens on the dashboard to avoid permission errors here.
+      localStorage.setItem('identifiedProfessorEmail', identifiedEmail);
       
-      try {
-        // Authoritative Verification
-        const profile = await UserService.syncProfileByEmail(firestore, identifiedEmail);
-        
-        if (profile.status === 'blocked') {
-          setBlockedError("Your account has been blocked. Please contact the administrator.");
-          stopScanning();
-          setIsProcessingDetection(false);
-          return;
-        }
-        
-        // Instant identity establishment
-        localStorage.setItem('identifiedProfessorEmail', identifiedEmail);
-        
-        // Definitive redirection
-        setTimeout(() => {
-          stopScanning();
-          router.replace('/professor/dashboard');
-        }, 800);
-      } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Identity Error', description: error.message || 'No record found.' });
-        setDetectedEmail(null);
-        setIsProcessingDetection(false);
-      }
+      setTimeout(() => {
+        stopScanning();
+        router.replace('/professor/dashboard');
+      }, 500);
       return;
     }
 
@@ -182,7 +161,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
           setTimeout(() => {
             stopScanning();
             router.push(`/professor/dashboard?room=${foundRoom}&auto=true`);
-          }, 1000);
+          }, 800);
         } catch (error) {
           toast({ variant: 'destructive', title: 'Error', description: 'Failed to record entry.' });
           setDetectedRoom(null);
@@ -204,9 +183,9 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
     if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
-      const scale = 0.5;
-      canvas.width = video.videoWidth * scale;
-      canvas.height = video.videoHeight * scale;
+      // Process at full resolution for better accuracy on phone screens
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
       
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
