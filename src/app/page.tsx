@@ -135,14 +135,17 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       setIsProcessingDetection(true);
       setDetectedEmail(identifiedEmail);
       
-      // For one-touch login, we immediately set identity and redirect.
-      // Verification happens on the dashboard to avoid permission errors here.
+      // Stop scanning immediately to prevent duplicate detections
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+      
+      // Authoritatively set identity
       localStorage.setItem('identifiedProfessorEmail', identifiedEmail);
       
+      // Short delay for visual confirmation before authoritative redirect
       setTimeout(() => {
         stopScanning();
-        router.replace('/professor/dashboard');
-      }, 500);
+        router.push('/professor/dashboard');
+      }, 800);
       return;
     }
 
@@ -183,9 +186,9 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
     if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
-      // Process at full resolution for better accuracy on phone screens
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      // Process at fixed resolution for consistent speed
+      canvas.width = 640;
+      canvas.height = 480;
       
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
@@ -197,7 +200,9 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         handleQRDetected(code.data);
       }
     }
-    requestRef.current = requestAnimationFrame(scanFrame);
+    if (!isProcessingDetection) {
+      requestRef.current = requestAnimationFrame(scanFrame);
+    }
   };
 
   const startScanning = async () => {
@@ -349,7 +354,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                       <DialogHeader>
                         <DialogTitle className="text-xl font-black">QR Identity & Entry</DialogTitle>
                         <DialogDescription className="text-sm font-medium">
-                          Scan your Professor ID QR code or a Room QR code.
+                          Scan your Professor ID QR code for instant "One-Touch" login.
                         </DialogDescription>
                       </DialogHeader>
                       <div className="aspect-square relative rounded-2xl bg-black overflow-hidden border-4 border-muted shadow-2xl">
@@ -365,19 +370,19 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                         {isProcessingDetection && (
                           <div className="absolute inset-0 bg-primary/20 flex items-center justify-center backdrop-blur-[2px] z-20">
                             <div className="text-center bg-white p-6 rounded-2xl shadow-2xl animate-in zoom-in duration-300">
-                              <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-2" />
-                              <p className="font-black text-primary text-xl">Processing Identity</p>
-                              <p className="text-sm font-medium text-muted-foreground mt-1">Verifying institutional record...</p>
-                            </div>
-                          </div>
-                        )}
-
-                        {detectedEmail && !isProcessingDetection && (
-                          <div className="absolute inset-0 bg-green-500/20 flex items-center justify-center backdrop-blur-[2px] z-20">
-                            <div className="text-center bg-white p-6 rounded-2xl shadow-2xl animate-in zoom-in duration-300">
-                              <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-2" />
-                              <p className="font-black text-green-600 text-xl">ID Verified</p>
-                              <p className="text-sm font-medium text-muted-foreground mt-1">Redirecting to dashboard...</p>
+                              {detectedEmail ? (
+                                <>
+                                  <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-2" />
+                                  <p className="font-black text-green-600 text-xl">Identity Verified</p>
+                                  <p className="text-sm font-medium text-muted-foreground mt-1">Logging you in...</p>
+                                </>
+                              ) : (
+                                <>
+                                  <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-2" />
+                                  <p className="font-black text-primary text-xl">Processing</p>
+                                  <p className="text-sm font-medium text-muted-foreground mt-1">Establishing session...</p>
+                                </>
+                              )}
                             </div>
                           </div>
                         )}

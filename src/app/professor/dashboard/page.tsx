@@ -173,8 +173,8 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
     if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
-      canvas.height = video.videoHeight;
-      canvas.width = video.videoWidth;
+      canvas.height = 480;
+      canvas.width = 640;
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
       const code = jsQR(imageData.data, imageData.width, imageData.height, {
