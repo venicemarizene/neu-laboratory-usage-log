@@ -33,7 +33,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
   // QR Scanning State
   const [isScanning, setIsScanning] = useState(false);
-  const [isProcessingDetection, setIsProcessingDetection] = useState(false); // loginProcessing flag
+  const [isProcessingDetection, setIsProcessingDetection] = useState(false); 
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [detectedEmail, setDetectedEmail] = useState<string | null>(null);
   
@@ -107,15 +107,15 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   };
 
   /**
-   * Authoritative QR Login Function with mandated debugging logs.
+   * Authoritative QR Login Function with Step 3-7 logs.
    */
   const handleQRCodeLogin = async (scannedEmail: string) => {
-    // Step 6: Prevent Infinite Scanning
+    // Step 6: Prevent Infinite Scanning (concurrency lock)
     if (isProcessingDetection || !firestore) return;
     setIsProcessingDetection(true); 
     
     // Step 3: Debug Login Function
-    console.log("Processing QR login");
+    console.log("Processing QR login...");
     console.log("Scanned email:", scannedEmail);
     
     setErrorMessage(null);
@@ -134,7 +134,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       const profile = await UserService.syncProfileByEmail(firestore, scannedEmail);
       console.log("User found:", profile);
 
-      // Condition 2 — Account Status
+      // Account Status Check
       if (profile.status === 'blocked') {
         console.log("Login failed: Account blocked");
         setErrorMessage("Your account has been blocked. Please contact the administrator.");
@@ -155,10 +155,10 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       // Step 7: Stop Camera After Login
       stopScanning();
       
-      // Redirect based on role (Condition 3)
+      // Redirect based on role
       router.push(profile.role === 'admin' ? '/admin/dashboard' : '/professor/dashboard');
     } catch (error: any) {
-      console.log("Login failed: User document not found or error", error);
+      console.log("Login failed: User document not found or query error", error);
       setErrorMessage("QR code not recognized. Please contact the administrator.");
       setIsProcessingDetection(false);
       setDetectedEmail(null);
@@ -174,7 +174,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
     if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
-      // Step 1: Use native video resolution for better scanning accuracy
+      // Step 1: Use native video resolution for better scanning accuracy (Fix for "holding code for seconds")
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -212,7 +212,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       setHasCameraPermission(true);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        // Wait for video to be ready before starting loop
+        // Wait for video metadata to be ready before starting loop
         videoRef.current.onloadedmetadata = () => {
           requestRef.current = requestAnimationFrame(scanFrame);
         };
@@ -225,7 +225,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   };
 
   const stopScanning = () => {
-    console.log("Stopping scanner and closing camera...");
+    console.log("Stopping scanner and closing camera tracks...");
     setIsScanning(false);
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
     if (videoRef.current?.srcObject) {
