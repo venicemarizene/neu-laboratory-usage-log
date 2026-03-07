@@ -1,6 +1,6 @@
 'use client';
 
-import { Firestore, doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { Firestore, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { User as FirebaseUser } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -43,42 +43,22 @@ export const UserService = {
   },
 
   /**
-   * Synchronizes user metadata. Automatically creates a record if it doesn't exist.
-   * Updates the role if it differs from the requested intent (Dynamic Role Switching).
+   * Synchronizes user metadata. 
+   * Authoritative Logic: If a profile exists, return it (DB wins).
+   * Only creates a new profile if it doesn't exist.
    */
   async syncProfile(db: Firestore, user: FirebaseUser, requestedRole: 'professor' | 'admin'): Promise<UserMetadata> {
-    console.log("User after sign-in:", user.email, user.uid);
-    console.log("Checking Firestore document existence...");
-    
     const docRef = doc(db, 'users', user.uid);
     
     try {
       const userSnap = await getDoc(docRef);
-      console.log("Firestore userSnap exists?", userSnap.exists());
 
       if (userSnap.exists()) {
-        const existingData = userSnap.data() as UserMetadata;
-        console.log("User data:", existingData);
-        
-        if (existingData.role !== requestedRole) {
-          console.log(`Updating role from ${existingData.role} to ${requestedRole}`);
-          await updateDoc(docRef, { role: requestedRole }).catch(err => {
-            if (err.code === 'permission-denied') {
-              errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: docRef.path,
-                operation: 'update',
-                requestResourceData: { role: requestedRole }
-              }));
-            }
-            throw err;
-          });
-          existingData.role = requestedRole;
-        }
-        
-        return existingData;
+        // Return existing authoritative data from DB. Do NOT update role.
+        return userSnap.data() as UserMetadata;
       }
 
-      console.log("Creating new user document for:", user.email);
+      // Profile doesn't exist, create it with the requested role (initial registration)
       const newProfile: UserMetadata = {
         id: user.uid,
         email: (user.email || '').toLowerCase().trim(),

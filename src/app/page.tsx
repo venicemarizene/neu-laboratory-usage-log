@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, use, useRef } from 'react';
@@ -17,8 +16,7 @@ import { collection, addDoc } from 'firebase/firestore';
 import jsQR from 'jsqr';
 
 /**
- * Main Landing Page with One-Touch QR Entry.
- * Uses real-time QR scanning via jsQR for standard institutional entry.
+ * Main Landing Page with Authoritative Role-Based Entry.
  */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -60,16 +58,25 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         setIsLoggingIn(false);
         return;
       }
+
+      // syncProfile returns the AUTHORITATIVE role from the DB
       const profile = await UserService.syncProfile(firestore, signedInUser, intendedRole);
+      
       if (profile.status === 'blocked') {
         alert("Your account has been blocked.");
         await AuthService.logout(auth);
         setIsLoggingIn(false);
         return;
       }
+
       toast({ title: 'Authenticated', description: `Welcome, ${signedInUser.displayName}` });
-      if (profile.role === 'admin') router.push('/admin');
-      else router.push('/professor');
+
+      // AUTHORITATIVE REDIRECTION
+      if (profile.role === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push('/professor');
+      }
     } catch (error: any) {
       if (error.code !== 'auth/popup-closed-by-user') {
         toast({ variant: 'destructive', title: 'Authentication Error', description: error.message });
@@ -80,7 +87,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   };
 
   const handleQRDetected = async (room: string) => {
-    if (detectedRoom) return; // Prevent double trigger
+    if (detectedRoom) return; 
     setDetectedRoom(room);
     let currentUser = user;
 

@@ -18,8 +18,7 @@ import jsQR from 'jsqr';
 
 /**
  * Standard Professor Portal for laboratory entry logging.
- * Features a medium-sized layout (max-w-xl) and real QR scanning.
- * Optimized for minimal delay via cache-first authorization.
+ * Features strict role-based guarding and authoritative DB checks.
  */
 export default function ProfessorPortal(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -33,7 +32,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
 
   const [room, setRoom] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [status, setStatus] = useState<'idle' | 'success' | 'blocked'>('idle');
+  const [status, setStatus] = useState<'idle' | 'success' | 'blocked' | 'unauthorized'>('idle');
   
   const userRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -50,7 +49,6 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
 
   const roomList = Array.from({ length: 11 }, (_, i) => `M${101 + i}`);
 
-  // Optimized loading check: if userData is in cache, don't show global loader
   const isWaiting = isUserLoading || (user && isUserDataLoading && !userData);
 
   useEffect(() => {
@@ -61,15 +59,22 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       return;
     }
 
-    if (searchParams.auto === 'true' && searchParams.room) {
-      setRoom(searchParams.room);
-      setStatus('success');
+    // Role Guard: Redirect admins trying to access the professor portal
+    if (userData?.role === 'admin') {
+      router.replace('/admin');
       return;
     }
 
     if (userData?.status === 'blocked') {
       setStatus('blocked');
       AuthService.logout(auth!).then(() => router.replace('/'));
+      return;
+    }
+
+    if (searchParams.auto === 'true' && searchParams.room) {
+      setRoom(searchParams.room);
+      setStatus('success');
+      return;
     }
   }, [user, userData, isWaiting, router, auth, searchParams]);
 
@@ -171,8 +176,8 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
     );
   }
 
-  // Prevent flash for blocked users
-  if (userData?.status === 'blocked' && status !== 'blocked') return null;
+  // Final check to prevent unauthorized flash
+  if (userData?.role === 'admin' || userData?.status === 'blocked') return null;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
