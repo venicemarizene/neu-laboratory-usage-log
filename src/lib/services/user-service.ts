@@ -64,13 +64,13 @@ export const UserService = {
       console.warn("Direct lookup failed, falling back to query", error);
     }
 
-    // 2. Fallback to query (Syncing creates UID-based docs)
+    // 2. Fallback to query
     const q = query(collection(db, 'users'), where('email', '==', cleanEmail));
     try {
       const snap = await getDocs(q);
       
       if (snap.empty) {
-        throw new Error("No professor record found for this QR code. Contact your administrator.");
+        throw new Error("No professor record found for this QR code.");
       }
       
       return snap.docs[0].data() as UserMetadata;
@@ -90,7 +90,6 @@ export const UserService = {
    */
   async addProfessor(db: Firestore, email: string): Promise<void> {
     const cleanEmail = email.toLowerCase().trim();
-    // Use email as doc ID for manual additions until they log in via Google
     const docRef = doc(db, 'users', cleanEmail);
     
     const newProfile: UserMetadata = {
@@ -122,22 +121,17 @@ export const UserService = {
     const docRef = doc(db, 'users', user.uid);
     
     try {
-      // 1. Check if UID-based document already exists
       const userSnap = await getDoc(docRef);
 
       if (userSnap.exists()) {
         const existingData = userSnap.data() as UserMetadata;
-        
-        // Ensure Admin role is synced
         if (userEmail === ADMIN_EMAIL && existingData.role !== 'admin') {
           await updateDoc(docRef, { role: 'admin' });
           return { ...existingData, role: 'admin' };
         }
-        
         return existingData;
       }
 
-      // 2. Check if a pre-provisioned email-based document exists
       const emailQ = query(collection(db, 'users'), where('email', '==', userEmail));
       const emailSnap = await getDocs(emailQ);
 
@@ -145,7 +139,6 @@ export const UserService = {
       if (!emailSnap.empty) {
         const preProvisioned = emailSnap.docs[0].data() as UserMetadata;
         baseData = preProvisioned;
-        // Delete the pre-provisioned doc if it was using email as ID
         if (emailSnap.docs[0].id === userEmail) {
           await deleteDoc(doc(db, 'users', userEmail));
         }
@@ -176,9 +169,6 @@ export const UserService = {
     }
   },
 
-  /**
-   * Checks if a specific user account is blocked.
-   */
   async isBlocked(db: Firestore, uid: string): Promise<boolean> {
     const profile = await this.getProfile(db, uid);
     return profile?.status === 'blocked';

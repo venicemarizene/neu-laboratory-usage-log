@@ -5,7 +5,7 @@ import { useState, use, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info, QrCode, AlertCircle, CheckCircle2, Ban } from 'lucide-react';
+import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info, QrCode, AlertCircle, CheckCircle2, Ban, X } from 'lucide-react';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,12 +13,10 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AuthService } from '@/lib/services/auth-service';
 import { UserService } from '@/lib/services/user-service';
-import { LogService } from '@/lib/services/log-service';
 import jsQR from 'jsqr';
 
 /**
- * Main Landing Page with Role-Based Redirection and QR-Based Identification.
- * Optimized for "One-Touch" QR Entry.
+ * Main Landing Page with "Login using QR Code" implementation.
  */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -32,7 +30,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [activeTab, setActiveTab] = useState('professor');
-  const [blockedError, setBlockedError] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // QR Scanning State
   const [isScanning, setIsScanning] = useState(false);
@@ -44,38 +42,35 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(null);
 
-  /**
-   * Check for existing active identity (QR or Google)
-   */
+  // Auto-redirect if already logged in (Google or QR)
   useEffect(() => {
     if (isUserLoading || isLoggingIn || isProcessingDetection) return;
 
-    const checkIdentity = async () => {
-      if (user) {
-        const profile = await UserService.syncProfile(firestore!, user);
-        if (profile.status === 'active') {
-          router.push(profile.role === 'admin' ? '/admin/dashboard' : '/professor/dashboard');
-        } else {
-          setBlockedError("Your account has been blocked. Please contact the administrator.");
-          AuthService.logout(auth!);
-        }
-      } else {
-        const savedEmail = localStorage.getItem('identifiedProfessorEmail');
-        if (savedEmail) {
-          router.replace('/professor/dashboard');
-        }
+    const savedEmail = localStorage.getItem('identifiedProfessorEmail');
+    if (user || savedEmail) {
+      const email = user?.email || savedEmail;
+      if (email && firestore) {
+        UserService.syncProfileByEmail(firestore, email)
+          .then(profile => {
+            if (profile.status === 'active') {
+              router.push(profile.role === 'admin' ? '/admin/dashboard' : '/professor/dashboard');
+            } else {
+              setErrorMessage("Your account has been blocked. Please contact the administrator.");
+              if (user) AuthService.logout(auth!);
+              localStorage.removeItem('identifiedProfessorEmail');
+            }
+          })
+          .catch(() => {
+            // No profile found yet, stay on login
+          });
       }
-    };
-
-    if (firestore && auth) {
-      checkIdentity();
     }
   }, [user, isUserLoading, isLoggingIn, isProcessingDetection, firestore, auth, router]);
 
   const handleGoogleLogin = async () => {
     if (!auth || !firestore) return;
     setIsLoggingIn(true);
-    setBlockedError(null);
+    setErrorMessage(null);
     
     try {
       const signedInUser = await AuthService.signInWithGoogle(auth);
@@ -95,7 +90,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       const profile = await UserService.syncProfile(firestore, signedInUser);
       
       if (profile.status === 'blocked') {
-        setBlockedError("Your account has been blocked. Please contact the administrator.");
+        setErrorMessage("Your account has been blocked. Please contact the administrator.");
         await AuthService.logout(auth);
         setIsLoggingIn(false);
         return;
@@ -113,35 +108,50 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   };
 
   /**
-   * Process QR data based on content type (Email or Room ID)
+   * Process QR data: Extract email, verify in Firestore, and handle role-based redirection.
    */
   const handleQRDetected = async (data: string) => {
-    if (isProcessingDetection || isLoggingIn) return;
+    if (isProcessingDetection || isLoggingIn || !firestore) return;
     
     const cleanData = data.trim();
-    // Use a broad email pattern to catch institutional emails inside QR data
+    // Validate institutional domain
     const emailPattern = /[a-zA-Z0-9._%+-]+@neu\.edu\.ph/i;
     const emailMatch = cleanData.match(emailPattern);
     
-    if (emailMatch) {
-      const identifiedEmail = emailMatch[0].toLowerCase();
-      setIsProcessingDetection(true);
-      setDetectedEmail(identifiedEmail);
+    if (!emailMatch) {
+      toast({ variant: 'destructive', title: 'Invalid QR Format', description: "This QR code does not contain a valid institutional email." });
+      return;
+    }
+
+    const scannedEmail = emailMatch[0].toLowerCase();
+    setIsProcessingDetection(true);
+    setDetectedEmail(scannedEmail);
+    
+    try {
+      // Condition 1: User Verification
+      const profile = await UserService.syncProfileByEmail(firestore, scannedEmail);
       
-      // Stop scanning immediately
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+      // Condition 2: Account Status
+      if (profile.status === 'blocked') {
+        setErrorMessage("Your account has been blocked. Please contact the administrator.");
+        stopScanning();
+        return;
+      }
+
+      // Condition 3: Role Verification & Redirection
+      toast({ title: 'ID Verified', description: `Welcome, ${scannedEmail}` });
+      localStorage.setItem('identifiedProfessorEmail', scannedEmail);
+      localStorage.setItem('loginTimestamp', new Date().toISOString());
       
-      // Authoritatively set identity in localStorage
-      localStorage.setItem('identifiedProfessorEmail', identifiedEmail);
-      
-      toast({ title: 'ID Verified', description: `Identifying ${identifiedEmail}...` });
-      
-      // Short delay for visual confirmation and persistence sync
       setTimeout(() => {
         stopScanning();
-        router.push('/professor/dashboard');
-      }, 1200);
-      return;
+        router.push(profile.role === 'admin' ? '/admin/dashboard' : '/professor/dashboard');
+      }, 1000);
+
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'QR code not recognized', description: "Please contact the administrator." });
+      setIsProcessingDetection(false);
+      setDetectedEmail(null);
     }
   };
 
@@ -152,17 +162,13 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
     if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
-      // High resolution scanning for better precision on mobile screens
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      
+      canvas.width = 640;
+      canvas.height = 480;
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-      const code = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: "dontInvert",
-      });
+      const code = jsQR(imageData.data, imageData.width, imageData.height);
 
-      if (code && !isProcessingDetection) {
+      if (code) {
         handleQRDetected(code.data);
       }
     }
@@ -175,10 +181,10 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     setIsScanning(true);
     setIsProcessingDetection(false);
     setDetectedEmail(null);
-    setBlockedError(null);
+    setErrorMessage(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } 
+        video: { facingMode: 'environment' } 
       });
       setHasCameraPermission(true);
       if (videoRef.current) {
@@ -187,6 +193,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       }
     } catch (error) {
       setHasCameraPermission(false);
+      toast({ variant: 'destructive', title: 'Camera Permission Denied', description: 'Camera access is required to scan QR codes.' });
     }
   };
 
@@ -199,30 +206,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     }
   };
 
-  const handleSignOut = async () => {
-    if (auth && firestore) {
-      const activeEmail = user?.email || localStorage.getItem('identifiedProfessorEmail');
-      if (activeEmail) {
-        await LogService.endActiveSession(firestore, activeEmail);
-      }
-      localStorage.removeItem('identifiedProfessorEmail');
-      await AuthService.logout(auth);
-      toast({ title: 'Signed Out', description: 'Session terminated.' });
-    }
-  };
-
-  useEffect(() => {
-    return () => stopScanning();
-  }, []);
-
-  if (isUserLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
       <div className="max-w-md w-full space-y-6 text-center animate-in fade-in duration-300">
@@ -234,42 +217,12 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
           <p className="text-muted-foreground font-medium uppercase tracking-wider text-[10px]">Institutional Laboratory Management</p>
         </div>
 
-        {blockedError && (
+        {errorMessage && (
           <Alert variant="destructive" className="animate-in slide-in-from-top-2 duration-300">
             <Ban className="h-4 w-4" />
             <AlertTitle className="font-bold">Access Restricted</AlertTitle>
-            <AlertDescription className="font-semibold">
-              {blockedError}
-            </AlertDescription>
+            <AlertDescription className="font-semibold">{errorMessage}</AlertDescription>
           </Alert>
-        )}
-
-        {(user || localStorage.getItem('identifiedProfessorEmail')) && !blockedError && (
-          <div className="p-3 bg-card border rounded-xl shadow-sm flex items-center justify-between animate-in slide-in-from-top-2">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center font-bold text-primary shadow-inner text-xs">
-                {(user?.email || localStorage.getItem('identifiedProfessorEmail') || 'P')[0].toUpperCase()}
-              </div>
-              <div className="text-left">
-                <p className="text-xs font-semibold leading-none">{user?.displayName || (user?.email || localStorage.getItem('identifiedProfessorEmail'))?.split('@')[0]}</p>
-                <p className="text-[10px] text-muted-foreground font-medium">{user?.email || localStorage.getItem('identifiedProfessorEmail')}</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => router.push('/professor/dashboard')} 
-                className="h-8 text-[10px] font-bold"
-              >
-                Dashboard
-              </Button>
-              <Button variant="ghost" size="sm" onClick={handleSignOut} className="h-8 text-[10px] text-destructive hover:bg-destructive/10">
-                <LogOut className="w-3 h-3 mr-1" />
-                Sign Out
-              </Button>
-            </div>
-          </div>
         )}
 
         <Card className="border-none shadow-2xl overflow-hidden rounded-2xl bg-card">
@@ -286,112 +239,80 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
             </TabsList>
             
             <TabsContent value="professor" className="p-6 space-y-6 m-0">
-              <div className="space-y-4 text-left">
-                <Alert className="bg-primary/5 border border-primary/20">
-                  <Info className="h-4 w-4 text-primary" />
-                  <AlertDescription className="text-sm font-medium">
-                    Use your @neu.edu.ph account. Scan your identification QR code for instant entry.
-                  </AlertDescription>
-                </Alert>
-                
-                <div className="grid grid-cols-1 gap-3">
-                  <Button 
-                    onClick={handleGoogleLogin}
-                    disabled={isLoggingIn || isProcessingDetection}
-                    className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3 transition-all"
-                  >
-                    {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <Monitor className="w-5 h-5" />}
-                    Sign in with Google
-                  </Button>
+              <div className="space-y-4">
+                <Button 
+                  onClick={handleGoogleLogin}
+                  disabled={isLoggingIn || isProcessingDetection}
+                  className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3 transition-all"
+                >
+                  {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <Monitor className="w-5 h-5" />}
+                  Sign in with Google
+                </Button>
 
-                  <Dialog onOpenChange={(o) => !o && stopScanning()}>
-                    <DialogTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        onClick={startScanning}
-                        className="w-full h-14 text-lg font-bold border-2 gap-3 hover:bg-slate-50 transition-all"
-                      >
-                        <QrCode className="w-5 h-5 text-primary" />
-                        One-Touch QR Entry
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-md rounded-2xl">
-                      <DialogHeader>
-                        <DialogTitle className="text-xl font-black">QR Identity & Entry</DialogTitle>
-                        <DialogDescription className="text-sm font-medium">
-                          Scan your Professor ID QR code for instant "One-Touch" login.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="aspect-square relative rounded-2xl bg-black overflow-hidden border-4 border-muted shadow-2xl">
-                        <video 
-                          ref={videoRef} 
-                          className="absolute inset-0 w-full h-full object-cover" 
-                          autoPlay 
-                          muted 
-                          playsInline 
-                        />
-                        <canvas ref={canvasRef} className="hidden" />
-                        
-                        {isProcessingDetection && (
-                          <div className="absolute inset-0 bg-primary/20 flex items-center justify-center backdrop-blur-[2px] z-20">
-                            <div className="text-center bg-white p-6 rounded-2xl shadow-2xl animate-in zoom-in duration-300">
-                              {detectedEmail ? (
-                                <>
-                                  <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-2" />
-                                  <p className="font-black text-green-600 text-xl">ID Verified</p>
-                                  <p className="text-sm font-medium text-muted-foreground mt-1">Establishing session...</p>
-                                </>
-                              ) : (
-                                <>
-                                  <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-2" />
-                                  <p className="font-black text-primary text-xl">Processing</p>
-                                  <p className="text-sm font-medium text-muted-foreground mt-1">Verifying identity...</p>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {hasCameraPermission === false && (
-                          <div className="absolute inset-0 bg-black/80 flex items-center justify-center text-white p-6 text-center">
-                            <div>
-                              <AlertCircle className="w-10 h-10 mx-auto mb-2 text-destructive" />
-                              <p className="font-bold">Camera access required</p>
-                              <p className="text-xs text-muted-foreground mt-1">Please enable camera permissions in your browser.</p>
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="absolute inset-0 border-[40px] border-black/40 pointer-events-none">
-                          <div className="w-full h-full border-2 border-accent/50 rounded-lg relative overflow-hidden">
-                            <div className="absolute top-0 left-0 w-full h-0.5 bg-accent/80 animate-[scan_2s_linear_infinite]" />
+                <Dialog onOpenChange={(o) => !o && stopScanning()}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      onClick={startScanning}
+                      className="w-full h-14 text-lg font-bold border-2 gap-3 hover:bg-slate-50 transition-all"
+                    >
+                      <QrCode className="w-5 h-5 text-primary" />
+                      Login using QR Code
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl font-black text-center">QR Identity Login</DialogTitle>
+                      <DialogDescription className="text-center">Scan your Professor ID QR code for instant entry.</DialogDescription>
+                    </DialogHeader>
+                    <div className="aspect-square relative rounded-2xl bg-black overflow-hidden border-4 border-muted shadow-2xl">
+                      <video 
+                        ref={videoRef} 
+                        className="absolute inset-0 w-full h-full object-cover" 
+                        autoPlay 
+                        muted 
+                        playsInline 
+                      />
+                      <canvas ref={canvasRef} className="hidden" />
+                      
+                      {isProcessingDetection && (
+                        <div className="absolute inset-0 bg-primary/20 flex items-center justify-center backdrop-blur-[2px] z-20">
+                          <div className="text-center bg-white p-6 rounded-2xl shadow-2xl animate-in zoom-in duration-300">
+                            <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-2" />
+                            <p className="font-black text-primary text-xl">Verifying...</p>
                           </div>
                         </div>
+                      )}
+
+                      {hasCameraPermission === false && (
+                        <div className="absolute inset-0 bg-black/80 flex items-center justify-center text-white p-6 text-center">
+                          <div>
+                            <AlertCircle className="w-10 h-10 mx-auto mb-2 text-destructive" />
+                            <p className="font-bold">Camera access required</p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="absolute inset-0 border-[40px] border-black/40 pointer-events-none">
+                        <div className="w-full h-full border-2 border-accent/50 rounded-lg relative overflow-hidden">
+                          <div className="absolute top-0 left-0 w-full h-0.5 bg-accent/80 animate-[scan_2s_linear_infinite]" />
+                        </div>
                       </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
             </TabsContent>
 
             <TabsContent value="admin" className="p-6 space-y-4 m-0">
-              <div className="space-y-4 text-left">
-                <Alert className="bg-accent/5 border border-accent/20">
-                  <ShieldCheck className="h-4 w-4 text-accent" />
-                  <AlertDescription className="text-sm font-medium">
-                    Authenticate as an Administrator. Institutional access required.
-                  </AlertDescription>
-                </Alert>
-                
-                <Button 
-                  onClick={handleGoogleLogin}
-                  disabled={isLoggingIn}
-                  className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3 transition-all"
-                >
-                  {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
-                  Admin Google Login
-                </Button>
-              </div>
+              <Button 
+                onClick={handleGoogleLogin}
+                disabled={isLoggingIn}
+                className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3 transition-all"
+              >
+                {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
+                Admin Google Login
+              </Button>
             </TabsContent>
           </Tabs>
         </Card>
