@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Firestore, doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
@@ -13,6 +14,7 @@ export interface UserMetadata {
   email: string;
   role: 'professor' | 'admin';
   status: 'active' | 'blocked';
+  qrValue?: string;
   createdAt: any;
 }
 
@@ -47,10 +49,6 @@ export const UserService = {
 
   /**
    * Synchronizes user metadata. 
-   * Logic: Roles are stored in Firestore.
-   * - Only venicemarizene.linga@neu.edu.ph is forced to 'admin'.
-   * - New users default to 'professor'.
-   * - Existing users keep their role unless they are the admin email.
    */
   async syncProfile(db: Firestore, user: FirebaseUser): Promise<UserMetadata> {
     const docRef = doc(db, 'users', user.uid);
@@ -62,7 +60,6 @@ export const UserService = {
       if (userSnap.exists()) {
         const existingData = userSnap.data() as UserMetadata;
         
-        // Authoritative override: Ensure the specific admin email always has the admin role
         if (userEmail === ADMIN_EMAIL && existingData.role !== 'admin') {
           await updateDoc(docRef, { role: 'admin' }).catch(err => {
             if (err.code === 'permission-denied') {
@@ -79,7 +76,6 @@ export const UserService = {
         return existingData;
       }
 
-      // For new users, determine role based on email
       const finalRole: 'professor' | 'admin' = userEmail === ADMIN_EMAIL ? 'admin' : 'professor';
 
       const newProfile: UserMetadata = {
@@ -87,6 +83,7 @@ export const UserService = {
         email: userEmail,
         role: finalRole,
         status: 'active',
+        qrValue: userEmail, // Initialize with email as requested
         createdAt: serverTimestamp()
       };
 

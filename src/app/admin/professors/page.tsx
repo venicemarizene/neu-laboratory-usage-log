@@ -1,23 +1,28 @@
 
 "use client"
 
-import { useState, useMemo, use } from 'react';
+import { useState, useMemo, use, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Search, UserRound, Mail, Loader2, ShieldAlert, UserX, UserCheck, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Search, UserRound, Mail, Loader2, ShieldAlert, UserX, UserCheck, X, QrCode, Download } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
+import { QRCodeCanvas } from 'qrcode.react';
 
 export default function ProfessorManagement(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
   const searchParams = use(props.searchParams);
   
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const qrRef = useRef<HTMLCanvasElement>(null);
   const firestore = useFirestore();
   const { toast } = useToast();
 
@@ -40,6 +45,27 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
       description: `${email}'s account has been ${newStatus}.`,
       variant: newStatus === 'blocked' ? 'destructive' : 'default',
     });
+  };
+
+  const generateQR = (user: any) => {
+    if (!firestore) return;
+    const docRef = doc(firestore, 'users', user.id);
+    updateDocumentNonBlocking(docRef, { qrValue: user.email });
+    setSelectedUser({ ...user, qrValue: user.email });
+    toast({ title: 'QR Generated', description: `Permanent QR code created for ${user.email}` });
+  };
+
+  const downloadQR = (email: string) => {
+    const canvas = qrRef.current;
+    if (canvas) {
+      const url = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${email.split('@')[0]}-qr.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   const filtered = useMemo(() => {
@@ -89,7 +115,7 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
             <div>
               <CardTitle className="text-xl font-bold">Access Control Center</CardTitle>
               <CardDescription>
-                Review all accounts and toggle laboratory access. Blocked users cannot log sessions.
+                Review accounts, toggle access, and manage identification QR codes.
               </CardDescription>
             </div>
           </div>
@@ -153,14 +179,52 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
                       </TableCell>
                       <TableCell className="text-right px-6">
                         <div className="flex items-center justify-end gap-3">
-                          <span className={`text-xs font-bold uppercase ${userDoc.status === 'blocked' ? 'text-destructive' : 'text-muted-foreground'}`}>
-                            {userDoc.status === 'blocked' ? 'Blocked' : 'Active'}
-                          </span>
-                          <Switch 
-                            checked={userDoc.status === 'blocked'}
-                            onCheckedChange={() => toggleBlocked(userDoc.id, userDoc.status, userDoc.email)}
-                            className="data-[state=checked]:bg-destructive"
-                          />
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-8 gap-2 font-bold text-primary hover:bg-primary/5"
+                                onClick={() => userDoc.qrValue ? setSelectedUser(userDoc) : generateQR(userDoc)}
+                              >
+                                <QrCode className="w-4 h-4" />
+                                {userDoc.qrValue ? 'View QR' : 'Generate QR'}
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-xs text-center">
+                              <DialogHeader>
+                                <DialogTitle className="text-xl font-bold">Laboratory QR</DialogTitle>
+                                <DialogDescription className="font-medium">{userDoc.email}</DialogDescription>
+                              </DialogHeader>
+                              <div className="flex justify-center p-4 bg-white rounded-2xl border-2 border-slate-50 shadow-inner my-4">
+                                <QRCodeCanvas 
+                                  ref={qrRef}
+                                  value={userDoc.qrValue || userDoc.email} 
+                                  size={200}
+                                  level="H"
+                                  includeMargin
+                                />
+                              </div>
+                              <Button 
+                                className="w-full h-12 font-bold gap-2 rounded-xl"
+                                onClick={() => downloadQR(userDoc.email)}
+                              >
+                                <Download className="w-4 h-4" />
+                                Download PNG
+                              </Button>
+                            </DialogContent>
+                          </Dialog>
+
+                          <div className="flex items-center gap-3 ml-4">
+                            <span className={`text-[10px] font-black uppercase tracking-tighter ${userDoc.status === 'blocked' ? 'text-destructive' : 'text-muted-foreground'}`}>
+                              Block
+                            </span>
+                            <Switch 
+                              checked={userDoc.status === 'blocked'}
+                              onCheckedChange={() => toggleBlocked(userDoc.id, userDoc.status, userDoc.email)}
+                              className="data-[state=checked]:bg-destructive"
+                            />
+                          </div>
                         </div>
                       </TableCell>
                     </TableRow>
