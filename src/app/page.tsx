@@ -5,7 +5,7 @@ import { useState, use, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Monitor, Loader2, ShieldCheck, UserCircle, QrCode, AlertCircle, Ban } from 'lucide-react';
+import { Monitor, Loader2, ShieldCheck, UserCircle, QrCode, AlertCircle } from 'lucide-react';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -57,8 +57,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
               setErrorMessage("Your account has been blocked. Please contact the administrator.");
               if (user) AuthService.logout(auth!);
               localStorage.removeItem('identifiedProfessorEmail');
-              localStorage.removeItem('userRole');
-              localStorage.removeItem('userUid');
             }
           })
           .catch(() => {
@@ -109,48 +107,56 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   };
 
   /**
-   * Authoritative QR Login Function as per Prompt Requirements.
+   * Authoritative QR Login Function with Debugging Logs.
    */
   const handleQRCodeLogin = async (scannedEmail: string) => {
+    // Step 6: Prevent Infinite Scanning
     if (isProcessingDetection || !firestore) return;
-    setIsProcessingDetection(true); // loginProcessing = true
+    setIsProcessingDetection(true); 
+    
+    // Step 3: Debug Login Function
+    console.log("Processing QR login");
+    console.log("Scanned email:", scannedEmail);
+    
     setErrorMessage(null);
     setDetectedEmail(scannedEmail);
 
     // Institutional Domain Check
     if (!scannedEmail.toLowerCase().endsWith("@neu.edu.ph")) {
+      console.log("Login failed: Invalid domain");
       setErrorMessage("Invalid QR code. Institutional email required.");
       setIsProcessingDetection(false);
       return;
     }
 
     try {
-      // Step 1: Query Firestore
+      // Step 4: Verify Firestore Query
       const profile = await UserService.syncProfileByEmail(firestore, scannedEmail);
+      console.log("User found:", profile);
 
-      // Step 2 & 3: Check Exists and Status
       if (profile.status === 'blocked') {
+        console.log("Login failed: Account blocked");
         setErrorMessage("Your account has been blocked. Please contact the administrator.");
         stopScanning();
         return;
       }
 
-      // Step 4: Create Authenticated Session
+      // Create Authenticated Session
       localStorage.setItem('identifiedProfessorEmail', scannedEmail);
       localStorage.setItem('userUid', profile.id);
       localStorage.setItem('userRole', profile.role);
       localStorage.setItem('loginTimestamp', new Date().toISOString());
 
+      // Step 5: Confirm Redirect
+      console.log("Login successful. Redirecting...");
       toast({ title: 'Login Successful', description: `Welcome back, ${scannedEmail}` });
 
-      // Step 5: Redirect based on role
-      setTimeout(() => {
-        stopScanning();
-        router.push(profile.role === 'admin' ? '/admin/dashboard' : '/professor/dashboard');
-      }, 1000);
-
+      // Step 7: Stop Camera After Login
+      stopScanning();
+      
+      router.push(profile.role === 'admin' ? '/admin/dashboard' : '/professor/dashboard');
     } catch (error: any) {
-      // Step 2 Fallback: User not found
+      console.log("Login failed: User document not found or error", error);
       setErrorMessage("QR code not recognized. Please contact the administrator.");
       setIsProcessingDetection(false);
       setDetectedEmail(null);
@@ -171,18 +177,23 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       const code = jsQR(imageData.data, imageData.width, imageData.height);
 
       if (code) {
-        const cleanData = code.data.trim();
+        const decodedText = code.data.trim();
+        // Step 1: Verify QR Scanner Output
+        console.log("QR detected:", decodedText);
+
         const emailPattern = /[a-zA-Z0-9._%+-]+@neu\.edu\.ph/i;
-        const emailMatch = cleanData.match(emailPattern);
+        const emailMatch = decodedText.match(emailPattern);
         
         if (emailMatch) {
+          // Step 2: Trigger Login Function
           handleQRCodeLogin(emailMatch[0].toLowerCase());
         } else {
-          setErrorMessage("Invalid QR format.");
-          // We don't stop the loop here to allow the user to try another code
+          console.log("QR decoded but no institutional email found");
+          // Don't stop the camera, wait for a valid scan
         }
       }
     }
+    
     if (!isProcessingDetection) {
       requestRef.current = requestAnimationFrame(scanFrame);
     }
@@ -209,6 +220,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   };
 
   const stopScanning = () => {
+    console.log("Stopping scanner and closing camera...");
     setIsScanning(false);
     setIsProcessingDetection(false);
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
@@ -231,7 +243,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         {errorMessage && (
           <Alert variant="destructive" className="animate-in slide-in-from-top-2 duration-300 text-left">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle className="font-bold">Login Failed</AlertTitle>
+            <AlertTitle className="font-bold">Login Error</AlertTitle>
             <AlertDescription className="font-semibold">{errorMessage}</AlertDescription>
           </Alert>
         )}

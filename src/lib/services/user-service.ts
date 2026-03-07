@@ -32,7 +32,9 @@ export const UserService = {
     try {
       const snap = await getDoc(docRef);
       if (snap.exists()) {
-        return snap.data() as UserMetadata;
+        const data = snap.data() as UserMetadata;
+        console.log(`[UserService] Profile found for UID ${uid}:`, data);
+        return { ...data, id: snap.id };
       }
     } catch (error: any) {
       if (error.code === 'permission-denied') {
@@ -52,6 +54,7 @@ export const UserService = {
    */
   async syncProfileByEmail(db: Firestore, email: string): Promise<UserMetadata> {
     const cleanEmail = email.toLowerCase().trim();
+    console.log(`[UserService] Searching for profile by email: ${cleanEmail}`);
     
     // Fallback to query
     const q = query(collection(db, 'users'), where('email', '==', cleanEmail));
@@ -59,10 +62,13 @@ export const UserService = {
       const snap = await getDocs(q);
       
       if (snap.empty) {
+        console.log(`[UserService] No user found for email: ${cleanEmail}`);
         throw new Error("No professor record found for this QR code.");
       }
       
-      return { ...snap.docs[0].data(), id: snap.docs[0].id } as UserMetadata;
+      const profile = { ...snap.docs[0].data(), id: snap.docs[0].id } as UserMetadata;
+      console.log(`[UserService] Match found in Firestore:`, profile);
+      return profile;
     } catch (error: any) {
       if (error.code === 'permission-denied') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -90,6 +96,7 @@ export const UserService = {
       createdAt: serverTimestamp()
     };
 
+    console.log(`[UserService] Pre-provisioning professor: ${cleanEmail}`);
     return setDoc(docRef, newProfile).catch(err => {
       if (err.code === 'permission-denied') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
