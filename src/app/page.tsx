@@ -1,11 +1,10 @@
-
 "use client";
 
-import { useState, useEffect, use, useRef } from 'react';
+import { useState, use, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info, QrCode, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info, QrCode, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -17,7 +16,7 @@ import { LogService } from '@/lib/services/log-service';
 import jsQR from 'jsqr';
 
 /**
- * Main Landing Page with Authoritative Role-Based Entry.
+ * Main Landing Page with Role-Based Redirection from Firestore.
  */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -45,13 +44,14 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const handleGoogleLogin = async () => {
     if (!auth || !firestore) return;
     setIsLoggingIn(true);
-    const intendedRole = activeTab as 'professor' | 'admin';
+    
     try {
       const signedInUser = await AuthService.signInWithGoogle(auth);
       if (!signedInUser) {
         setIsLoggingIn(false);
         return;
       }
+      
       const email = (signedInUser.email || '').toLowerCase().trim();
       if (!email.endsWith("@neu.edu.ph")) {
         alert("Only @neu.edu.ph emails are allowed!");
@@ -60,7 +60,8 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
-      const profile = await UserService.syncProfile(firestore, signedInUser, intendedRole);
+      // Sync profile - role is determined authoritatively in the database
+      const profile = await UserService.syncProfile(firestore, signedInUser);
       
       if (profile.status === 'blocked') {
         alert("Your account has been blocked.");
@@ -71,6 +72,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
       toast({ title: 'Authenticated', description: `Welcome, ${signedInUser.displayName}` });
 
+      // Redirect based on role stored in Firestore
       if (profile.role === 'admin') {
         router.push('/admin');
       } else {
@@ -100,6 +102,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
           setDetectedRoom(null);
           return;
         }
+        
         const email = (signedInUser.email || '').toLowerCase().trim();
         if (!email.endsWith("@neu.edu.ph")) {
           alert("Institutional account required.");
@@ -108,7 +111,8 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
           setDetectedRoom(null);
           return;
         }
-        const profile = await UserService.syncProfile(firestore, signedInUser, 'professor');
+
+        const profile = await UserService.syncProfile(firestore, signedInUser);
         if (profile.status === 'blocked') {
           alert("Account blocked.");
           await AuthService.logout(auth);

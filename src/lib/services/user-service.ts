@@ -47,40 +47,40 @@ export const UserService = {
 
   /**
    * Synchronizes user metadata. 
-   * Authoritative Logic: Enforces the specific Admin email.
+   * Logic: Roles are stored in Firestore.
+   * - Only venicemarizene.linga@neu.edu.ph is forced to 'admin'.
+   * - New users default to 'professor'.
+   * - Existing users keep their role unless they are the admin email.
    */
-  async syncProfile(db: Firestore, user: FirebaseUser, requestedRole: 'professor' | 'admin'): Promise<UserMetadata> {
+  async syncProfile(db: Firestore, user: FirebaseUser): Promise<UserMetadata> {
     const docRef = doc(db, 'users', user.uid);
     const userEmail = (user.email || '').toLowerCase().trim();
     
-    let finalRole: 'professor' | 'admin' = 'professor';
-    if (userEmail === ADMIN_EMAIL) {
-      finalRole = 'admin';
-    } else {
-      finalRole = 'professor';
-    }
-
     try {
       const userSnap = await getDoc(docRef);
 
       if (userSnap.exists()) {
         const existingData = userSnap.data() as UserMetadata;
         
-        if (existingData.role !== finalRole) {
-          await updateDoc(docRef, { role: finalRole }).catch(err => {
+        // Authoritative override: Ensure the specific admin email always has the admin role
+        if (userEmail === ADMIN_EMAIL && existingData.role !== 'admin') {
+          await updateDoc(docRef, { role: 'admin' }).catch(err => {
             if (err.code === 'permission-denied') {
               errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: docRef.path,
                 operation: 'update',
-                requestResourceData: { role: finalRole }
+                requestResourceData: { role: 'admin' }
               }));
             }
           });
-          return { ...existingData, role: finalRole };
+          return { ...existingData, role: 'admin' };
         }
         
         return existingData;
       }
+
+      // For new users, determine role based on email
+      const finalRole: 'professor' | 'admin' = userEmail === ADMIN_EMAIL ? 'admin' : 'professor';
 
       const newProfile: UserMetadata = {
         id: user.uid,
