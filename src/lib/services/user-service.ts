@@ -34,10 +34,11 @@ export const UserService = {
       }
     } catch (error: any) {
       if (error.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
+        const contextualError = new FirestorePermissionError({
           path: docRef.path,
           operation: 'get'
-        }));
+        });
+        errorEmitter.emit('permission-error', contextualError);
       }
       throw error;
     }
@@ -47,18 +48,15 @@ export const UserService = {
   /**
    * Synchronizes user metadata. 
    * Authoritative Logic: Enforces the specific Admin email.
-   * Only 'venicemarizene.linga@neu.edu.ph' can be an admin.
    */
   async syncProfile(db: Firestore, user: FirebaseUser, requestedRole: 'professor' | 'admin'): Promise<UserMetadata> {
     const docRef = doc(db, 'users', user.uid);
     const userEmail = (user.email || '').toLowerCase().trim();
     
-    // Determine the authoritative role
     let finalRole: 'professor' | 'admin' = 'professor';
     if (userEmail === ADMIN_EMAIL) {
       finalRole = 'admin';
     } else {
-      // Force anyone else to be a professor even if they requested admin role
       finalRole = 'professor';
     }
 
@@ -68,17 +66,22 @@ export const UserService = {
       if (userSnap.exists()) {
         const existingData = userSnap.data() as UserMetadata;
         
-        // Corrective logic: If the admin email is currently a professor in DB, upgrade it.
-        // If a non-admin email is currently an admin in DB, downgrade it.
         if (existingData.role !== finalRole) {
-          await updateDoc(docRef, { role: finalRole });
+          await updateDoc(docRef, { role: finalRole }).catch(err => {
+            if (err.code === 'permission-denied') {
+              errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: docRef.path,
+                operation: 'update',
+                requestResourceData: { role: finalRole }
+              }));
+            }
+          });
           return { ...existingData, role: finalRole };
         }
         
         return existingData;
       }
 
-      // Profile doesn't exist, create it with the enforced role
       const newProfile: UserMetadata = {
         id: user.uid,
         email: userEmail,
@@ -99,8 +102,13 @@ export const UserService = {
       });
       
       return newProfile;
-    } catch (error) {
-      console.error("Error in syncProfile:", error);
+    } catch (error: any) {
+      if (error.code === 'permission-denied' && !error.message.includes('denied by Firestore Security Rules')) {
+         errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: docRef.path,
+          operation: 'get'
+        }));
+      }
       throw error;
     }
   },
