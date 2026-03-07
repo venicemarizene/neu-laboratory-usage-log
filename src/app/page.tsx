@@ -119,24 +119,24 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
    * Process QR data based on content type (Email or Room ID)
    */
   const handleQRDetected = async (data: string) => {
+    if (isLoggingIn) return;
     const cleanData = data.trim();
     
     // 1. Identify if it's a Professor Email QR
     if (cleanData.toLowerCase().endsWith('@neu.edu.ph')) {
-      if (detectedEmail || isLoggingIn) return;
+      if (detectedEmail) return;
       
-      // Stop scanning immediately to prevent duplicate triggers
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
       setDetectedEmail(cleanData);
+      setIsLoggingIn(true);
       
       if (!firestore) return;
-      setIsLoggingIn(true);
       
       try {
         const profile = await UserService.syncProfileByEmail(firestore, cleanData);
         if (profile.status === 'blocked') {
           setBlockedError("Your account has been blocked. Please contact the administrator.");
           stopScanning();
+          setIsLoggingIn(false);
           return;
         }
         
@@ -144,17 +144,15 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         localStorage.setItem('identifiedProfessorEmail', cleanData);
         toast({ title: "Identity Verified", description: `Welcome, ${cleanData}` });
         
-        // Wait a small moment for localStorage to settle before navigating
+        // Small delay to ensure localStorage is set
         setTimeout(() => {
           stopScanning();
           router.push('/professor/dashboard');
-        }, 500);
+        }, 800);
       } catch (error: any) {
         toast({ variant: 'destructive', title: 'Identity Error', description: error.message });
         setDetectedEmail(null);
         setIsLoggingIn(false);
-        // Restart scanning on error
-        requestRef.current = requestAnimationFrame(scanFrame);
       }
       return;
     }
@@ -202,7 +200,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
       if (code) {
         handleQRDetected(code.data);
-        return; // Important: exit current frame processing
       }
     }
     requestRef.current = requestAnimationFrame(scanFrame);
@@ -214,7 +211,9 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     setDetectedEmail(null);
     setBlockedError(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } 
+      });
       setHasCameraPermission(true);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -285,7 +284,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                 {(user?.email || localStorage.getItem('identifiedProfessorEmail') || 'P')[0].toUpperCase()}
               </div>
               <div className="text-left">
-                <p className="text-xs font-semibold leading-none">{user?.displayName || 'Professor'}</p>
+                <p className="text-xs font-semibold leading-none">{user?.displayName || (user?.email || localStorage.getItem('identifiedProfessorEmail'))?.split('@')[0]}</p>
                 <p className="text-[10px] text-muted-foreground font-medium">{user?.email || localStorage.getItem('identifiedProfessorEmail')}</p>
               </div>
             </div>
@@ -366,21 +365,20 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                         />
                         <canvas ref={canvasRef} className="hidden" />
                         
-                        {(detectedRoom || detectedEmail) && !blockedError && (
+                        {(detectedRoom || detectedEmail || isLoggingIn) && !blockedError && (
                           <div className="absolute inset-0 bg-primary/20 flex items-center justify-center backdrop-blur-[2px] z-10">
                             <div className="text-center bg-white p-6 rounded-2xl shadow-2xl animate-in zoom-in duration-300">
-                              <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-2" />
-                              <p className="font-black text-primary text-xl">
-                                {detectedRoom ? `Lab ${detectedRoom}` : 'ID Verified'}
-                              </p>
                               {isLoggingIn ? (
-                                <div className="mt-4 flex flex-col items-center gap-2">
-                                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                                  <p className="text-xs font-bold uppercase tracking-widest animate-pulse">Processing...</p>
-                                </div>
+                                <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-2" />
                               ) : (
-                                <p className="text-sm font-medium text-muted-foreground mt-1">Completing Access...</p>
+                                <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-2" />
                               )}
+                              <p className="font-black text-primary text-xl">
+                                {isLoggingIn ? 'Processing...' : (detectedRoom ? `Lab ${detectedRoom}` : 'ID Verified')}
+                              </p>
+                              <p className="text-sm font-medium text-muted-foreground mt-1">
+                                {isLoggingIn ? 'Verifying profile...' : 'Completing Access...'}
+                              </p>
                             </div>
                           </div>
                         )}

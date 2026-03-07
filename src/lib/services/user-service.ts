@@ -51,12 +51,26 @@ export const UserService = {
    * Synchronizes user metadata by email. Used for QR identification.
    */
   async syncProfileByEmail(db: Firestore, email: string): Promise<UserMetadata> {
-    const q = query(collection(db, 'users'), where('email', '==', email.toLowerCase().trim()));
+    const cleanEmail = email.toLowerCase().trim();
+    
+    // 1. Try to get doc directly by email (Admin-added docs use email as ID)
+    const docRef = doc(db, 'users', cleanEmail);
+    try {
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return docSnap.data() as UserMetadata;
+      }
+    } catch (error) {
+      console.warn("Direct lookup failed, falling back to query", error);
+    }
+
+    // 2. Fallback to query (Syncing creates UID-based docs)
+    const q = query(collection(db, 'users'), where('email', '==', cleanEmail));
     try {
       const snap = await getDocs(q);
       
       if (snap.empty) {
-        throw new Error("No professor record found for this QR code.");
+        throw new Error("No professor record found for this QR code. Contact your administrator.");
       }
       
       return snap.docs[0].data() as UserMetadata;
