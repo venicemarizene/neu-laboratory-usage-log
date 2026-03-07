@@ -10,11 +10,12 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Monitor, LogOut, CheckCircle2, AlertTriangle, Loader2, ArrowRight, QrCode, AlertCircle } from 'lucide-react';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, doc } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
 import { AuthService } from '@/lib/services/auth-service';
+import { LogService } from '@/lib/services/log-service';
 import jsQR from 'jsqr';
 
 /**
@@ -78,35 +79,30 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   }, [user, userData, isWaiting, router, auth, searchParams]);
 
   const handleSignOut = async () => {
-    if (auth) {
+    if (auth && firestore && user?.email) {
+      setIsProcessing(true);
+      // End the active session before signing out
+      await LogService.endActiveSession(firestore, user.email);
       await AuthService.logout(auth);
       router.push('/');
     }
   };
 
-  const performEntry = (selectedRoom: string) => {
-    if (!selectedRoom || !firestore || !user) return;
+  const performEntry = async (selectedRoom: string) => {
+    if (!selectedRoom || !firestore || !user?.email) return;
     setIsProcessing(true);
-    const logData = {
-      professorEmail: user.email,
-      roomNumber: selectedRoom,
-      loginTime: new Date().toISOString(),
-      logoutTime: null,
-      duration: 0,
-      status: 'active'
-    };
-    addDoc(collection(firestore, 'logs'), logData)
-      .then(() => {
-        setStatus('success');
-        setIsProcessing(false);
-        toast({ title: "Entry Logged", description: `Laboratory ${selectedRoom} session started.` });
-      })
-      .catch(async () => {
-        setIsProcessing(false);
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: 'logs', operation: 'create', requestResourceData: logData,
-        }));
-      });
+    
+    try {
+      await LogService.startSession(firestore, user.email, selectedRoom);
+      setStatus('success');
+      toast({ title: "Entry Logged", description: `Laboratory ${selectedRoom} session started.` });
+    } catch (error: any) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: 'logs', operation: 'create', requestResourceData: { professorEmail: user.email, roomNumber: selectedRoom },
+      }));
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const scanFrame = () => {
@@ -190,8 +186,8 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
             <span className="text-xs font-bold leading-none">{user?.displayName || 'Professor'}</span>
             <span className="text-[10px] text-muted-foreground">{user?.email}</span>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleSignOut} className="h-8 text-xs font-bold text-muted-foreground hover:text-destructive">
-            <LogOut className="w-3 h-3 mr-1.5" />
+          <Button variant="ghost" size="sm" onClick={handleSignOut} disabled={isProcessing} className="h-8 text-xs font-bold text-muted-foreground hover:text-destructive">
+            {isProcessing ? <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> : <LogOut className="w-3 h-3 mr-1.5" />}
             Sign Out
           </Button>
         </div>

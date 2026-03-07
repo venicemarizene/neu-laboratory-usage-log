@@ -13,7 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AuthService } from '@/lib/services/auth-service';
 import { UserService } from '@/lib/services/user-service';
-import { collection, addDoc } from 'firebase/firestore';
+import { LogService } from '@/lib/services/log-service';
 import jsQR from 'jsqr';
 
 /**
@@ -127,18 +127,12 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     }
 
     try {
-      const logData = {
-        professorEmail: currentUser.email,
-        roomNumber: room,
-        loginTime: new Date().toISOString(),
-        logoutTime: null,
-        duration: 0,
-        status: 'active'
-      };
-      await addDoc(collection(firestore, 'logs'), logData);
-      toast({ title: "Entry Recorded", description: `Logged into ${room}` });
-      stopScanning();
-      router.push(`/professor?room=${room}&auto=true`);
+      if (firestore && currentUser?.email) {
+        await LogService.startSession(firestore, currentUser.email, room);
+        toast({ title: "Entry Recorded", description: `Logged into ${room}` });
+        stopScanning();
+        router.push(`/professor?room=${room}&auto=true`);
+      }
     } catch (error) {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to record entry.' });
     }
@@ -195,7 +189,8 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   };
 
   const handleSignOut = async () => {
-    if (auth) {
+    if (auth && firestore && user?.email) {
+      await LogService.endActiveSession(firestore, user.email);
       await AuthService.logout(auth);
       toast({ title: 'Signed Out', description: 'Session terminated.' });
     }
