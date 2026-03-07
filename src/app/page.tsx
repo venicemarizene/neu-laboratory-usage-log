@@ -43,7 +43,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(null);
 
-  // Supports both M101-M111 and the LAB prefixes mentioned in requirements
   const roomList = [
     ...Array.from({ length: 11 }, (_, i) => `M${101 + i}`),
     ...Array.from({ length: 11 }, (_, i) => `LAB${101 + i}`),
@@ -114,14 +113,13 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     
     // 1. Identify if it's a Professor Email QR (Generated on Admin Dashboard)
     if (cleanData.toLowerCase().endsWith('@neu.edu.ph')) {
-      if (detectedEmail) return;
+      if (detectedEmail || isLoggingIn) return;
       setDetectedEmail(cleanData);
       
       if (!firestore) return;
       setIsLoggingIn(true);
       
       try {
-        // Query users by email to find profile and verify status
         const profile = await UserService.syncProfileByEmail(firestore, cleanData);
         if (profile.status === 'blocked') {
           setBlockedError("Your account has been blocked. Please contact the administrator.");
@@ -129,12 +127,14 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
           return;
         }
         
-        // "Log in" via QR for the prototype by persisting identity
+        // Persist identity and redirect
         localStorage.setItem('identifiedProfessorEmail', cleanData);
+        stopScanning();
         toast({ title: "Identity Verified", description: `Welcome, ${cleanData}` });
         router.push('/professor/dashboard');
       } catch (error: any) {
         toast({ variant: 'destructive', title: 'Identity Error', description: error.message });
+        setDetectedEmail(null);
       } finally {
         setIsLoggingIn(false);
       }
@@ -157,9 +157,11 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
           router.push(`/professor/dashboard?room=${foundRoom}&auto=true`);
         } catch (error) {
           toast({ variant: 'destructive', title: 'Error', description: 'Failed to record entry.' });
+          setDetectedRoom(null);
         }
       } else {
         toast({ title: "Room Detected", description: "Please sign in or scan your ID to complete entry." });
+        setDetectedRoom(null);
       }
       return;
     }
@@ -206,8 +208,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
   const stopScanning = () => {
     setIsScanning(false);
-    setDetectedRoom(null);
-    setDetectedEmail(null);
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());

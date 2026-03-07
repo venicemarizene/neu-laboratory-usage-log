@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, use, useRef } from 'react';
@@ -7,20 +8,23 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Search, UserRound, Mail, Loader2, ShieldAlert, UserX, UserCheck, X, QrCode, Download, Send, CheckCircle2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Search, UserRound, Mail, Loader2, ShieldAlert, UserX, UserCheck, X, QrCode, Download, Send, UserPlus } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { QRCodeCanvas } from 'qrcode.react';
 import { EmailService } from '@/lib/services/email-service';
+import { UserService } from '@/lib/services/user-service';
 
 export default function ProfessorManagement(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
   const searchParams = use(props.searchParams);
   
   const [searchTerm, setSearchTerm] = useState('');
+  const [newProfessorEmail, setNewProfessorEmail] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isEmailing, setIsEmailing] = useState(false);
   const qrRef = useRef<HTMLCanvasElement>(null);
@@ -46,6 +50,25 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
       description: `${email}'s account has been ${newStatus}.`,
       variant: newStatus === 'blocked' ? 'destructive' : 'default',
     });
+  };
+
+  const handleAddProfessor = async () => {
+    if (!firestore || !newProfessorEmail) return;
+    if (!newProfessorEmail.endsWith('@neu.edu.ph')) {
+      toast({ variant: 'destructive', title: 'Invalid Domain', description: 'Only @neu.edu.ph emails are permitted.' });
+      return;
+    }
+
+    setIsAdding(true);
+    try {
+      await UserService.addProfessor(firestore, newProfessorEmail);
+      toast({ title: 'Success', description: `${newProfessorEmail} has been added to the system.` });
+      setNewProfessorEmail('');
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } finally {
+      setIsAdding(false);
+    }
   };
 
   const generateQR = (user: any) => {
@@ -112,22 +135,62 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
           <h1 className="text-3xl font-bold font-headline text-primary tracking-tight">System Users</h1>
           <p className="text-muted-foreground font-medium">Manage institutional accounts and system access</p>
         </div>
-        <div className="relative w-full md:w-96">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input 
-            placeholder="Search by email..." 
-            className="pl-10 pr-10 border-2 h-12 rounded-xl bg-card focus-visible:ring-primary"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          {searchTerm && (
-            <button 
-              onClick={() => setSearchTerm('')}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-slate-100 rounded-full transition-colors"
-            >
-              <X className="w-4 h-4 text-muted-foreground" />
-            </button>
-          )}
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button className="font-bold gap-2 rounded-xl h-12 px-6">
+                <UserPlus className="w-5 h-5" />
+                Add Professor
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Institutional Professor</DialogTitle>
+                <DialogDescription>
+                  Pre-register a professor using their institutional @neu.edu.ph email.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase text-muted-foreground">Institutional Email</label>
+                  <Input 
+                    placeholder="name@neu.edu.ph" 
+                    value={newProfessorEmail}
+                    onChange={(e) => setNewProfessorEmail(e.target.value)}
+                    className="h-12 border-2 rounded-xl"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button 
+                  onClick={handleAddProfessor} 
+                  disabled={!newProfessorEmail || isAdding}
+                  className="w-full h-12 font-bold rounded-xl"
+                >
+                  {isAdding ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <UserPlus className="w-4 h-4 mr-2" />}
+                  Register Professor
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search by email..." 
+              className="pl-10 pr-10 border-2 h-12 rounded-xl bg-card focus-visible:ring-primary"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-slate-100 rounded-full transition-colors"
+              >
+                <X className="w-4 h-4 text-muted-foreground" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -152,122 +215,124 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
               <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Retrieving Directory...</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader className="bg-slate-50/50">
-                <TableRow className="hover:bg-transparent border-none">
-                  <TableHead className="font-bold py-5 px-6">Institutional Email</TableHead>
-                  <TableHead className="font-bold py-5">Role</TableHead>
-                  <TableHead className="font-bold py-5">Current Status</TableHead>
-                  <TableHead className="text-right font-bold py-5 px-6">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center py-24">
-                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                        <UserRound className="w-12 h-12 opacity-20" />
-                        <p className="font-bold text-lg">No matching records found</p>
-                      </div>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-slate-50/50">
+                  <TableRow className="hover:bg-transparent border-none">
+                    <TableHead className="font-bold py-5 px-6">Institutional Email</TableHead>
+                    <TableHead className="font-bold py-5">Role</TableHead>
+                    <TableHead className="font-bold py-5">Current Status</TableHead>
+                    <TableHead className="text-right font-bold py-5 px-6">Actions</TableHead>
                   </TableRow>
-                ) : (
-                  filtered.map((userDoc) => (
-                    <TableRow key={userDoc.id} className="hover:bg-slate-50/80 transition-colors group">
-                      <TableCell className="px-6 py-4">
-                        <div className="flex items-center gap-4">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shadow-sm transition-transform duration-300 group-hover:scale-110 ${
-                            userDoc.status === 'blocked' ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'
-                          }`}>
-                            {(userDoc.email || 'U')[0].toUpperCase()}
-                          </div>
-                          <span className="font-bold text-slate-800">{userDoc.email}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="uppercase text-[10px] tracking-widest font-black">
-                          {userDoc.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {userDoc.status === 'blocked' ? (
-                          <Badge variant="destructive" className="gap-1 px-3 py-1 rounded-full font-bold">
-                            <UserX className="w-3 h-3" />
-                            Blocked
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="gap-1 px-3 py-1 rounded-full font-bold border-green-200 bg-green-50 text-green-700">
-                            <UserCheck className="w-3 h-3" />
-                            Active
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right px-6">
-                        <div className="flex items-center justify-end gap-3">
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="h-8 gap-2 font-bold text-primary hover:bg-primary/5"
-                                onClick={() => userDoc.qrValue ? setSelectedUser(userDoc) : generateQR(userDoc)}
-                              >
-                                <QrCode className="w-4 h-4" />
-                                {userDoc.qrValue ? 'View QR' : 'Generate QR'}
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="sm:max-w-xs text-center">
-                              <DialogHeader>
-                                <DialogTitle className="text-xl font-bold">Laboratory QR</DialogTitle>
-                                <DialogDescription className="font-medium">{userDoc.email}</DialogDescription>
-                              </DialogHeader>
-                              <div className="flex justify-center p-4 bg-white rounded-2xl border-2 border-slate-50 shadow-inner my-4">
-                                <QRCodeCanvas 
-                                  ref={qrRef}
-                                  value={userDoc.qrValue || userDoc.email} 
-                                  size={200}
-                                  level="H"
-                                  includeMargin
-                                />
-                              </div>
-                              <div className="flex flex-col gap-2">
-                                <Button 
-                                  className="w-full h-12 font-bold gap-2 rounded-xl"
-                                  onClick={() => downloadQR(userDoc.email)}
-                                >
-                                  <Download className="w-4 h-4" />
-                                  Download PNG
-                                </Button>
-                                <Button 
-                                  variant="outline"
-                                  className="w-full h-12 font-bold gap-2 rounded-xl border-2 transition-all"
-                                  disabled={isEmailing}
-                                  onClick={() => emailQR(userDoc.email)}
-                                >
-                                  {isEmailing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                                  {isEmailing ? 'Sending Real-Time...' : 'Email QR Code'}
-                                </Button>
-                              </div>
-                            </DialogContent>
-                          </Dialog>
-
-                          <div className="flex items-center gap-3 ml-4">
-                            <span className={`text-[10px] font-black uppercase tracking-tighter ${userDoc.status === 'blocked' ? 'text-destructive' : 'text-muted-foreground'}`}>
-                              Block
-                            </span>
-                            <Switch 
-                              checked={userDoc.status === 'blocked'}
-                              onCheckedChange={() => toggleBlocked(userDoc.id, userDoc.status, userDoc.email)}
-                              className="data-[state=checked]:bg-destructive"
-                            />
-                          </div>
+                </TableHeader>
+                <TableBody>
+                  {filtered.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-24">
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                          <UserRound className="w-12 h-12 opacity-20" />
+                          <p className="font-bold text-lg">No matching records found</p>
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    filtered.map((userDoc) => (
+                      <TableRow key={userDoc.id} className="hover:bg-slate-50/80 transition-colors group">
+                        <TableCell className="px-6 py-4">
+                          <div className="flex items-center gap-4">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shadow-sm transition-transform duration-300 group-hover:scale-110 ${
+                              userDoc.status === 'blocked' ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'
+                            }`}>
+                              {(userDoc.email || 'U')[0].toUpperCase()}
+                            </div>
+                            <span className="font-bold text-slate-800">{userDoc.email}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="uppercase text-[10px] tracking-widest font-black">
+                            {userDoc.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {userDoc.status === 'blocked' ? (
+                            <Badge variant="destructive" className="gap-1 px-3 py-1 rounded-full font-bold">
+                              <UserX className="w-3 h-3" />
+                              Blocked
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="gap-1 px-3 py-1 rounded-full font-bold border-green-200 bg-green-50 text-green-700">
+                              <UserCheck className="w-3 h-3" />
+                              Active
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right px-6">
+                          <div className="flex items-center justify-end gap-3">
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-8 gap-2 font-bold text-primary hover:bg-primary/5"
+                                  onClick={() => userDoc.qrValue ? setSelectedUser(userDoc) : generateQR(userDoc)}
+                                >
+                                  <QrCode className="w-4 h-4" />
+                                  {userDoc.qrValue ? 'View QR' : 'Generate QR'}
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="sm:max-w-xs text-center">
+                                <DialogHeader>
+                                  <DialogTitle className="text-xl font-bold">Laboratory QR</DialogTitle>
+                                  <DialogDescription className="font-medium">{userDoc.email}</DialogDescription>
+                                </DialogHeader>
+                                <div className="flex justify-center p-4 bg-white rounded-2xl border-2 border-slate-50 shadow-inner my-4">
+                                  <QRCodeCanvas 
+                                    ref={qrRef}
+                                    value={userDoc.qrValue || userDoc.email} 
+                                    size={200}
+                                    level="H"
+                                    includeMargin
+                                  />
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                  <Button 
+                                    className="w-full h-12 font-bold gap-2 rounded-xl"
+                                    onClick={() => downloadQR(userDoc.email)}
+                                  >
+                                    <Download className="w-4 h-4" />
+                                    Download PNG
+                                  </Button>
+                                  <Button 
+                                    variant="outline"
+                                    className="w-full h-12 font-bold gap-2 rounded-xl border-2 transition-all"
+                                    disabled={isEmailing}
+                                    onClick={() => emailQR(userDoc.email)}
+                                  >
+                                    {isEmailing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                    {isEmailing ? 'Sending Real-Time...' : 'Email QR Code'}
+                                  </Button>
+                                </div>
+                              </DialogContent>
+                            </Dialog>
+
+                            <div className="flex items-center gap-3 ml-4">
+                              <span className={`text-[10px] font-black uppercase tracking-tighter ${userDoc.status === 'blocked' ? 'text-destructive' : 'text-muted-foreground'}`}>
+                                Block
+                              </span>
+                              <Switch 
+                                checked={userDoc.status === 'blocked'}
+                                onCheckedChange={() => toggleBlocked(userDoc.id, userDoc.status, userDoc.email)}
+                                className="data-[state=checked]:bg-destructive"
+                              />
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

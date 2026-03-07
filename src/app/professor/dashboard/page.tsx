@@ -37,7 +37,12 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   const [isProcessing, setIsProcessing] = useState(false);
   const [isEmailing, setIsEmailing] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'blocked' | 'unauthorized'>('idle');
-  const [qrIdentityEmail, setQrIdentityEmail] = useState<string | null>(null);
+  const [qrIdentityEmail, setQrIdentityEmail] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('identifiedProfessorEmail');
+    }
+    return null;
+  });
   const [userData, setUserData] = useState<any>(null);
   
   const userRef = useMemoFirebase(() => {
@@ -62,17 +67,16 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
 
   // Resolve active identity from either Google Auth or QR Scan persistent session
   useEffect(() => {
-    const storedEmail = localStorage.getItem('identifiedProfessorEmail');
-    if (storedEmail) {
-      setQrIdentityEmail(storedEmail);
-      if (firestore && !userData) {
-        UserService.syncProfileByEmail(firestore, storedEmail).then(profile => {
-          setUserData(profile);
-          if (profile.status === 'blocked') setStatus('blocked');
-        });
-      }
+    if (qrIdentityEmail && firestore && !userData) {
+      UserService.syncProfileByEmail(firestore, qrIdentityEmail).then(profile => {
+        setUserData(profile);
+        if (profile.status === 'blocked') setStatus('blocked');
+      }).catch(() => {
+        localStorage.removeItem('identifiedProfessorEmail');
+        setQrIdentityEmail(null);
+      });
     }
-  }, [firestore, userData]);
+  }, [firestore, userData, qrIdentityEmail]);
 
   const activeEmail = user?.email || qrIdentityEmail;
   const activeUserData = userDocData || userData;

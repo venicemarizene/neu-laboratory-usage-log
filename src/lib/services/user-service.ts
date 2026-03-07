@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Firestore, doc, getDoc, setDoc, serverTimestamp, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { Firestore, doc, getDoc, setDoc, serverTimestamp, updateDoc, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { User as FirebaseUser } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -72,59 +72,87 @@ export const UserService = {
   },
 
   /**
+   * Allows Admin to pre-provision a professor account.
+   */
+  async addProfessor(db: Firestore, email: string): Promise<void> {
+    const cleanEmail = email.toLowerCase().trim();
+    // Use email as doc ID for manual additions until they log in via Google
+    const docRef = doc(db, 'users', cleanEmail);
+    
+    const newProfile: UserMetadata = {
+      id: cleanEmail,
+      email: cleanEmail,
+      role: 'professor',
+      status: 'active',
+      qrValue: cleanEmail,
+      createdAt: serverTimestamp()
+    };
+
+    return setDoc(docRef, newProfile).catch(err => {
+      if (err.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: docRef.path,
+          operation: 'create',
+          requestResourceData: newProfile
+        }));
+      }
+      throw err;
+    });
+  },
+
+  /**
    * Synchronizes user metadata. 
    */
   async syncProfile(db: Firestore, user: FirebaseUser): Promise<UserMetadata> {
-    const docRef = doc(db, 'users', user.uid);
     const userEmail = (user.email || '').toLowerCase().trim();
+    const docRef = doc(db, 'users', user.uid);
     
     try {
+      // 1. Check if UID-based document already exists
       const userSnap = await getDoc(docRef);
 
       if (userSnap.exists()) {
         const existingData = userSnap.data() as UserMetadata;
         
+        // Ensure Admin role is synced
         if (userEmail === ADMIN_EMAIL && existingData.role !== 'admin') {
-          await updateDoc(docRef, { role: 'admin' }).catch(err => {
-            if (err.code === 'permission-denied') {
-              errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: docRef.path,
-                operation: 'update',
-                requestResourceData: { role: 'admin' }
-              }));
-            }
-          });
+          await updateDoc(docRef, { role: 'admin' });
           return { ...existingData, role: 'admin' };
         }
         
         return existingData;
       }
 
-      const finalRole: 'professor' | 'admin' = userEmail === ADMIN_EMAIL ? 'admin' : 'professor';
+      // 2. Check if a pre-provisioned email-based document exists
+      const emailQ = query(collection(db, 'users'), where('email', '==', userEmail));
+      const emailSnap = await getDocs(emailQ);
+
+      let baseData: Partial<UserMetadata> = {};
+      if (!emailSnap.empty) {
+        const preProvisioned = emailSnap.docs[0].data() as UserMetadata;
+        baseData = preProvisioned;
+        // Delete the pre-provisioned doc if it was using email as ID
+        if (emailSnap.docs[0].id === userEmail) {
+          await deleteDoc(doc(db, 'users', userEmail));
+        }
+      }
+
+      const finalRole: 'professor' | 'admin' = userEmail === ADMIN_EMAIL ? 'admin' : (baseData.role || 'professor');
 
       const newProfile: UserMetadata = {
+        ...baseData,
         id: user.uid,
         email: userEmail,
         role: finalRole,
-        status: 'active',
-        qrValue: userEmail, 
-        createdAt: serverTimestamp()
+        status: baseData.status || 'active',
+        qrValue: baseData.qrValue || userEmail, 
+        createdAt: baseData.createdAt || serverTimestamp()
       };
 
-      await setDoc(docRef, newProfile).catch(err => {
-        if (err.code === 'permission-denied') {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: docRef.path,
-            operation: 'create',
-            requestResourceData: newProfile
-          }));
-        }
-        throw err;
-      });
-      
+      await setDoc(docRef, newProfile);
       return newProfile;
     } catch (error: any) {
-      if (error.code === 'permission-denied' && !error.message.includes('denied by Firestore Security Rules')) {
+      if (error.code === 'permission-denied') {
          errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: docRef.path,
           operation: 'get'
