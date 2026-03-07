@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo, use } from 'react';
@@ -5,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Search, Calendar as CalendarIcon, Users, Monitor, Ban, FileText, Loader2, Activity, X, Clock, TrendingUp, TrendingDown, Zap } from 'lucide-react';
+import { Search, Calendar as CalendarIcon, Users, Monitor, Ban, FileText, Loader2, Activity, X, Clock, TrendingUp, TrendingDown, Zap, Timer } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +27,17 @@ const chartConfig = {
     color: "hsl(var(--primary))",
   },
 } satisfies ChartConfig;
+
+/**
+ * Formats duration in minutes to a readable "Hh Mm" format.
+ */
+function formatDuration(minutes: number | undefined): string {
+  if (!minutes) return "-";
+  if (minutes < 60) return `${minutes}m`;
+  const hrs = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
+}
 
 /**
  * Administrative Dashboard for monitoring laboratory usage.
@@ -343,11 +355,11 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
               <Table>
                 <TableHeader className="bg-slate-50/50">
                   <TableRow>
-                    <TableHead className="font-bold py-5 px-6">Professor Email</TableHead>
-                    <TableHead className="font-bold py-5">Laboratory</TableHead>
-                    <TableHead className="font-bold py-5">Login Time</TableHead>
-                    <TableHead className="font-bold py-5">Logout Time</TableHead>
-                    <TableHead className="font-bold py-5 text-center">Duration</TableHead>
+                    <TableHead className="font-bold py-5 px-6">Professor</TableHead>
+                    <TableHead className="font-bold py-5">Room</TableHead>
+                    <TableHead className="font-bold py-5">Start Time</TableHead>
+                    <TableHead className="font-bold py-5">End Time</TableHead>
+                    <TableHead className="font-bold py-5">Duration</TableHead>
                     <TableHead className="font-bold py-5 px-6">Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -361,36 +373,43 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
                   ) : (
                     filteredLogs.map((log) => (
                       <TableRow key={log.id}>
-                        <TableCell className="font-bold px-6 py-4">{log.professorEmail}</TableCell>
+                        <TableCell className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-800">{log.professorEmail.split('@')[0]}</span>
+                            <span className="text-[10px] text-muted-foreground">{log.professorEmail}</span>
+                          </div>
+                        </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="font-mono">
+                          <Badge variant="outline" className="font-mono bg-white">
                             {log.roomNumber}
                           </Badge>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div className="flex flex-col">
-                            <span className="text-sm font-medium">{new Date(log.loginTime).toLocaleDateString()}</span>
-                            <span className="text-xs text-muted-foreground">{new Date(log.loginTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span className="text-sm font-semibold">{new Date(log.loginTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span className="text-[10px] text-muted-foreground">{new Date(log.loginTime).toLocaleDateString()}</span>
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           {log.logoutTime ? (
                             <div className="flex flex-col">
-                              <span className="text-sm font-medium">{new Date(log.logoutTime).toLocaleDateString()}</span>
-                              <span className="text-xs text-muted-foreground">{new Date(log.logoutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                              <span className="text-sm font-semibold">{new Date(log.logoutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                              <span className="text-[10px] text-muted-foreground">{new Date(log.logoutTime).toLocaleDateString()}</span>
                             </div>
                           ) : (
-                            <span className="text-xs italic text-muted-foreground">In Progress</span>
+                            <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-50 text-[10px] uppercase font-black">
+                              In Progress
+                            </Badge>
                           )}
                         </TableCell>
-                        <TableCell className="text-center font-bold">
+                        <TableCell>
                           {log.duration ? (
-                            <div className="flex items-center justify-center gap-1 text-primary">
-                              <Clock className="w-3 h-3" />
-                              <span>{log.duration}m</span>
+                            <div className="flex items-center gap-1.5 text-primary">
+                              <Timer className="w-3 h-3" />
+                              <span className="text-sm font-bold">{formatDuration(log.duration)}</span>
                             </div>
                           ) : (
-                            "-"
+                            <span className="text-muted-foreground/50 text-xs">—</span>
                           )}
                         </TableCell>
                         <TableCell className="px-6 py-4">
