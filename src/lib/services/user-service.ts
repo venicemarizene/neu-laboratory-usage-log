@@ -53,18 +53,7 @@ export const UserService = {
   async syncProfileByEmail(db: Firestore, email: string): Promise<UserMetadata> {
     const cleanEmail = email.toLowerCase().trim();
     
-    // 1. Try to get doc directly by email (Admin-added docs use email as ID)
-    const docRef = doc(db, 'users', cleanEmail);
-    try {
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        return docSnap.data() as UserMetadata;
-      }
-    } catch (error) {
-      console.warn("Direct lookup failed, falling back to query", error);
-    }
-
-    // 2. Fallback to query
+    // Fallback to query
     const q = query(collection(db, 'users'), where('email', '==', cleanEmail));
     try {
       const snap = await getDocs(q);
@@ -73,7 +62,7 @@ export const UserService = {
         throw new Error("No professor record found for this QR code.");
       }
       
-      return snap.docs[0].data() as UserMetadata;
+      return { ...snap.docs[0].data(), id: snap.docs[0].id } as UserMetadata;
     } catch (error: any) {
       if (error.code === 'permission-denied') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -127,9 +116,9 @@ export const UserService = {
         const existingData = userSnap.data() as UserMetadata;
         if (userEmail === ADMIN_EMAIL && existingData.role !== 'admin') {
           await updateDoc(docRef, { role: 'admin' });
-          return { ...existingData, role: 'admin' };
+          return { ...existingData, id: userSnap.id, role: 'admin' };
         }
-        return existingData;
+        return { ...existingData, id: userSnap.id } as UserMetadata;
       }
 
       const emailQ = query(collection(db, 'users'), where('email', '==', userEmail));
@@ -139,6 +128,7 @@ export const UserService = {
       if (!emailSnap.empty) {
         const preProvisioned = emailSnap.docs[0].data() as UserMetadata;
         baseData = preProvisioned;
+        // If we found a pre-provisioned doc keyed by email, we'll effectively "migrate" it to the UID key
         if (emailSnap.docs[0].id === userEmail) {
           await deleteDoc(doc(db, 'users', userEmail));
         }
@@ -154,7 +144,7 @@ export const UserService = {
         status: baseData.status || 'active',
         qrValue: baseData.qrValue || userEmail, 
         createdAt: baseData.createdAt || serverTimestamp()
-      };
+      } as UserMetadata;
 
       await setDoc(docRef, newProfile);
       return newProfile;

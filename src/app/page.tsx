@@ -5,7 +5,7 @@ import { useState, use, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info, QrCode, AlertCircle, CheckCircle2, Ban, X } from 'lucide-react';
+import { Monitor, Loader2, ShieldCheck, UserCircle, QrCode, AlertCircle, Ban } from 'lucide-react';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -16,7 +16,7 @@ import { UserService } from '@/lib/services/user-service';
 import jsQR from 'jsqr';
 
 /**
- * Main Landing Page with "Login using QR Code" implementation.
+ * Main Landing Page with authoritative QR Code Login implementation.
  */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -29,12 +29,11 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const { toast } = useToast();
   
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [activeTab, setActiveTab] = useState('professor');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // QR Scanning State
   const [isScanning, setIsScanning] = useState(false);
-  const [isProcessingDetection, setIsProcessingDetection] = useState(false);
+  const [isProcessingDetection, setIsProcessingDetection] = useState(false); // loginProcessing flag
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [detectedEmail, setDetectedEmail] = useState<string | null>(null);
   
@@ -42,7 +41,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(null);
 
-  // Auto-redirect if already logged in (Google or QR)
+  // Auto-redirect if already logged in (Google or QR Session)
   useEffect(() => {
     if (isUserLoading || isLoggingIn || isProcessingDetection) return;
 
@@ -58,10 +57,12 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
               setErrorMessage("Your account has been blocked. Please contact the administrator.");
               if (user) AuthService.logout(auth!);
               localStorage.removeItem('identifiedProfessorEmail');
+              localStorage.removeItem('userRole');
+              localStorage.removeItem('userUid');
             }
           })
           .catch(() => {
-            // No profile found yet, stay on login
+            // No profile found, stay on login
           });
       }
     }
@@ -108,48 +109,49 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   };
 
   /**
-   * Process QR data: Extract email, verify in Firestore, and handle role-based redirection.
+   * Authoritative QR Login Function as per Prompt Requirements.
    */
-  const handleQRDetected = async (data: string) => {
-    if (isProcessingDetection || isLoggingIn || !firestore) return;
-    
-    const cleanData = data.trim();
-    // Validate institutional domain
-    const emailPattern = /[a-zA-Z0-9._%+-]+@neu\.edu\.ph/i;
-    const emailMatch = cleanData.match(emailPattern);
-    
-    if (!emailMatch) {
-      toast({ variant: 'destructive', title: 'Invalid QR Format', description: "This QR code does not contain a valid institutional email." });
+  const handleQRCodeLogin = async (scannedEmail: string) => {
+    if (isProcessingDetection || !firestore) return;
+    setIsProcessingDetection(true); // loginProcessing = true
+    setErrorMessage(null);
+    setDetectedEmail(scannedEmail);
+
+    // Institutional Domain Check
+    if (!scannedEmail.toLowerCase().endsWith("@neu.edu.ph")) {
+      setErrorMessage("Invalid QR code. Institutional email required.");
+      setIsProcessingDetection(false);
       return;
     }
 
-    const scannedEmail = emailMatch[0].toLowerCase();
-    setIsProcessingDetection(true);
-    setDetectedEmail(scannedEmail);
-    
     try {
-      // Condition 1: User Verification
+      // Step 1: Query Firestore
       const profile = await UserService.syncProfileByEmail(firestore, scannedEmail);
-      
-      // Condition 2: Account Status
+
+      // Step 2 & 3: Check Exists and Status
       if (profile.status === 'blocked') {
         setErrorMessage("Your account has been blocked. Please contact the administrator.");
         stopScanning();
         return;
       }
 
-      // Condition 3: Role Verification & Redirection
-      toast({ title: 'ID Verified', description: `Welcome, ${scannedEmail}` });
+      // Step 4: Create Authenticated Session
       localStorage.setItem('identifiedProfessorEmail', scannedEmail);
+      localStorage.setItem('userUid', profile.id);
+      localStorage.setItem('userRole', profile.role);
       localStorage.setItem('loginTimestamp', new Date().toISOString());
-      
+
+      toast({ title: 'Login Successful', description: `Welcome back, ${scannedEmail}` });
+
+      // Step 5: Redirect based on role
       setTimeout(() => {
         stopScanning();
         router.push(profile.role === 'admin' ? '/admin/dashboard' : '/professor/dashboard');
       }, 1000);
 
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'QR code not recognized', description: "Please contact the administrator." });
+      // Step 2 Fallback: User not found
+      setErrorMessage("QR code not recognized. Please contact the administrator.");
       setIsProcessingDetection(false);
       setDetectedEmail(null);
     }
@@ -169,7 +171,16 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       const code = jsQR(imageData.data, imageData.width, imageData.height);
 
       if (code) {
-        handleQRDetected(code.data);
+        const cleanData = code.data.trim();
+        const emailPattern = /[a-zA-Z0-9._%+-]+@neu\.edu\.ph/i;
+        const emailMatch = cleanData.match(emailPattern);
+        
+        if (emailMatch) {
+          handleQRCodeLogin(emailMatch[0].toLowerCase());
+        } else {
+          setErrorMessage("Invalid QR format.");
+          // We don't stop the loop here to allow the user to try another code
+        }
       }
     }
     if (!isProcessingDetection) {
@@ -193,7 +204,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       }
     } catch (error) {
       setHasCameraPermission(false);
-      toast({ variant: 'destructive', title: 'Camera Permission Denied', description: 'Camera access is required to scan QR codes.' });
+      setErrorMessage("Camera access is required to scan QR codes.");
     }
   };
 
@@ -218,15 +229,15 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         </div>
 
         {errorMessage && (
-          <Alert variant="destructive" className="animate-in slide-in-from-top-2 duration-300">
-            <Ban className="h-4 w-4" />
-            <AlertTitle className="font-bold">Access Restricted</AlertTitle>
+          <Alert variant="destructive" className="animate-in slide-in-from-top-2 duration-300 text-left">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle className="font-bold">Login Failed</AlertTitle>
             <AlertDescription className="font-semibold">{errorMessage}</AlertDescription>
           </Alert>
         )}
 
         <Card className="border-none shadow-2xl overflow-hidden rounded-2xl bg-card">
-          <Tabs defaultValue="professor" onValueChange={setActiveTab} className="w-full">
+          <Tabs defaultValue="professor" className="w-full">
             <TabsList className="w-full grid grid-cols-2 rounded-none h-14 bg-muted/30">
               <TabsTrigger value="professor" className="flex items-center gap-2 text-sm font-semibold">
                 <UserCircle className="w-4 h-4" />
@@ -280,6 +291,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                           <div className="text-center bg-white p-6 rounded-2xl shadow-2xl animate-in zoom-in duration-300">
                             <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-2" />
                             <p className="font-black text-primary text-xl">Verifying...</p>
+                            {detectedEmail && <p className="text-xs font-bold text-muted-foreground mt-1">{detectedEmail}</p>}
                           </div>
                         </div>
                       )}
