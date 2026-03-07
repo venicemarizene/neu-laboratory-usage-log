@@ -23,9 +23,9 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Prototype relaxation: Allow retrieval by ID (email or UID) to support QR identification
+      // Prototype relaxation: Allow retrieval and listing (for email queries) to support QR identification
       allow get: if true;
-      allow list: if isAdmin();
+      allow list: if true;
       allow create: if isSignedIn() && isOwner(userId);
       allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
       allow delete: if isAdmin();

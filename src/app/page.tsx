@@ -38,18 +38,11 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const [isScanning, setIsScanning] = useState(false);
   const [isProcessingDetection, setIsProcessingDetection] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-  const [detectedRoom, setDetectedRoom] = useState<string | null>(null);
   const [detectedEmail, setDetectedEmail] = useState<string | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(null);
-
-  const roomList = [
-    ...Array.from({ length: 11 }, (_, i) => `M${101 + i}`),
-    ...Array.from({ length: 11 }, (_, i) => `LAB${101 + i}`),
-    'LAB204'
-  ];
 
   /**
    * Check for existing active identity (QR or Google)
@@ -130,7 +123,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     const emailPattern = /[a-zA-Z0-9._%+-]+@neu\.edu\.ph/i;
     const emailMatch = cleanData.match(emailPattern);
     
-    // 1. Identify if it's a Professor Email QR (One-Touch Login)
     if (emailMatch) {
       const identifiedEmail = emailMatch[0].toLowerCase();
       setIsProcessingDetection(true);
@@ -142,40 +134,13 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       // Authoritatively set identity in localStorage
       localStorage.setItem('identifiedProfessorEmail', identifiedEmail);
       
-      // Short delay for visual confirmation
+      toast({ title: 'ID Verified', description: `Identifying ${identifiedEmail}...` });
+      
+      // Short delay for visual confirmation and persistence sync
       setTimeout(() => {
         stopScanning();
         router.push('/professor/dashboard');
-      }, 1000);
-      return;
-    }
-
-    // 2. Identify if it's a Room QR
-    const foundRoom = roomList.find(r => cleanData.toUpperCase().includes(r.toUpperCase()));
-    if (foundRoom) {
-      setIsProcessingDetection(true);
-      setDetectedRoom(foundRoom);
-
-      const activeEmail = user?.email || localStorage.getItem('identifiedProfessorEmail');
-
-      if (activeEmail && firestore) {
-        try {
-          await LogService.startSession(firestore, activeEmail, foundRoom);
-          toast({ title: "Entry Recorded", description: `Logged into ${foundRoom}` });
-          setTimeout(() => {
-            stopScanning();
-            router.push(`/professor/dashboard?room=${foundRoom}&auto=true`);
-          }, 1000);
-        } catch (error) {
-          toast({ variant: 'destructive', title: 'Error', description: 'Failed to record entry.' });
-          setDetectedRoom(null);
-          setIsProcessingDetection(false);
-        }
-      } else {
-        toast({ title: "Room Detected", description: "Please sign in or scan your ID to complete entry." });
-        setDetectedRoom(null);
-        setIsProcessingDetection(false);
-      }
+      }, 1200);
       return;
     }
   };
@@ -187,7 +152,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
     if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
-      // Process at full resolution for better jsQR accuracy
+      // High resolution scanning for better precision on mobile screens
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       
@@ -209,7 +174,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const startScanning = async () => {
     setIsScanning(true);
     setIsProcessingDetection(false);
-    setDetectedRoom(null);
     setDetectedEmail(null);
     setBlockedError(null);
     try {
