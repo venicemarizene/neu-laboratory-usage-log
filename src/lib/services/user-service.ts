@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Firestore, doc, getDoc, setDoc, serverTimestamp, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
@@ -51,13 +52,23 @@ export const UserService = {
    */
   async syncProfileByEmail(db: Firestore, email: string): Promise<UserMetadata> {
     const q = query(collection(db, 'users'), where('email', '==', email.toLowerCase().trim()));
-    const snap = await getDocs(q);
-    
-    if (snap.empty) {
-      throw new Error("No professor record found for this QR code.");
+    try {
+      const snap = await getDocs(q);
+      
+      if (snap.empty) {
+        throw new Error("No professor record found for this QR code.");
+      }
+      
+      return snap.docs[0].data() as UserMetadata;
+    } catch (error: any) {
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'users',
+          operation: 'list'
+        }));
+      }
+      throw error;
     }
-    
-    return snap.docs[0].data() as UserMetadata;
   },
 
   /**

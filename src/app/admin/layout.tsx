@@ -1,3 +1,4 @@
+
 "use client"
 
 import Link from 'next/link';
@@ -92,10 +93,10 @@ export default function AdminLayout(props: {
         
         <nav className="flex-1 space-y-2 whitespace-nowrap">
           <Link 
-            href="/admin" 
+            href="/admin/dashboard" 
             className={cn(
               "flex items-center gap-3 p-3 rounded-lg transition-colors duration-200",
-              pathname === '/admin' ? 'bg-white/20' : 'hover:bg-white/10'
+              pathname === '/admin/dashboard' ? 'bg-white/20' : 'hover:bg-white/10'
             )}
           >
             <LayoutDashboard className="w-5 h-5" />

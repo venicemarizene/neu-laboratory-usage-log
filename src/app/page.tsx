@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, use, useRef, useEffect } from 'react';
@@ -49,6 +50,22 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     'LAB204'
   ];
 
+  /**
+   * Authoritative redirection logic for logged-in users.
+   */
+  useEffect(() => {
+    if (user && !isLoggingIn) {
+      UserService.syncProfile(firestore!, user).then(profile => {
+        if (profile.status === 'active') {
+          router.push(profile.role === 'admin' ? '/admin/dashboard' : '/professor/dashboard');
+        } else {
+          setBlockedError("Your account has been blocked. Please contact the administrator.");
+          AuthService.logout(auth!);
+        }
+      });
+    }
+  }, [user, isLoggingIn, firestore, auth, router]);
+
   const handleGoogleLogin = async () => {
     if (!auth || !firestore) return;
     setIsLoggingIn(true);
@@ -79,7 +96,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       }
 
       toast({ title: 'Authenticated', description: `Welcome, ${signedInUser.displayName}` });
-      router.push(profile.role === 'admin' ? '/admin' : '/professor');
+      router.push(profile.role === 'admin' ? '/admin/dashboard' : '/professor/dashboard');
     } catch (error: any) {
       if (error.code !== 'auth/popup-closed-by-user') {
         toast({ variant: 'destructive', title: 'Authentication Error', description: error.message });
@@ -95,7 +112,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const handleQRDetected = async (data: string) => {
     const cleanData = data.trim();
     
-    // 1. Identify if it's a Professor Email QR
+    // 1. Identify if it's a Professor Email QR (Generated on Admin Dashboard)
     if (cleanData.toLowerCase().endsWith('@neu.edu.ph')) {
       if (detectedEmail) return;
       setDetectedEmail(cleanData);
@@ -104,17 +121,18 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       setIsLoggingIn(true);
       
       try {
-        // Query users by email to find UID and status
-        const usersRef = await UserService.syncProfileByEmail(firestore, cleanData);
-        if (usersRef.status === 'blocked') {
+        // Query users by email to find profile and verify status
+        const profile = await UserService.syncProfileByEmail(firestore, cleanData);
+        if (profile.status === 'blocked') {
           setBlockedError("Your account has been blocked. Please contact the administrator.");
           stopScanning();
           return;
         }
         
+        // "Log in" via QR for the prototype by persisting identity
+        localStorage.setItem('identifiedProfessorEmail', cleanData);
         toast({ title: "Identity Verified", description: `Welcome, ${cleanData}` });
-        // If we also had a room, we could log it now. For now, redirect to professor portal.
-        router.push('/professor');
+        router.push('/professor/dashboard');
       } catch (error: any) {
         toast({ variant: 'destructive', title: 'Identity Error', description: error.message });
       } finally {
@@ -129,18 +147,19 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       if (detectedRoom) return;
       setDetectedRoom(foundRoom);
 
-      // If already logged in, we can perform instant entry
-      if (user && firestore) {
+      const activeEmail = user?.email || localStorage.getItem('identifiedProfessorEmail');
+
+      if (activeEmail && firestore) {
         try {
-          await LogService.startSession(firestore, user.email!, foundRoom);
+          await LogService.startSession(firestore, activeEmail, foundRoom);
           toast({ title: "Entry Recorded", description: `Logged into ${foundRoom}` });
           stopScanning();
-          router.push(`/professor?room=${foundRoom}&auto=true`);
+          router.push(`/professor/dashboard?room=${foundRoom}&auto=true`);
         } catch (error) {
           toast({ variant: 'destructive', title: 'Error', description: 'Failed to record entry.' });
         }
       } else {
-        toast({ title: "Room Detected", description: "Please sign in to complete entry." });
+        toast({ title: "Room Detected", description: "Please sign in or scan your ID to complete entry." });
       }
       return;
     }
@@ -196,8 +215,12 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   };
 
   const handleSignOut = async () => {
-    if (auth && firestore && user?.email) {
-      await LogService.endActiveSession(firestore, user.email);
+    if (auth && firestore) {
+      const activeEmail = user?.email || localStorage.getItem('identifiedProfessorEmail');
+      if (activeEmail) {
+        await LogService.endActiveSession(firestore, activeEmail);
+      }
+      localStorage.removeItem('identifiedProfessorEmail');
       await AuthService.logout(auth);
       toast({ title: 'Signed Out', description: 'Session terminated.' });
     }
@@ -272,7 +295,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                 <Alert className="bg-primary/5 border border-primary/20">
                   <Info className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
-                    Use your @neu.edu.ph account. Scan a room OR your ID QR for instant entry.
+                    Use your @neu.edu.ph account. Scan your identification QR code for instant entry.
                   </AlertDescription>
                 </Alert>
                 
@@ -299,9 +322,9 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-md">
                       <DialogHeader>
-                        <DialogTitle>Instant Room Entry</DialogTitle>
+                        <DialogTitle>QR Identity & Entry</DialogTitle>
                         <DialogDescription>
-                          Scan the laboratory QR code or your Professor ID QR code.
+                          Scan your Professor ID QR code or a Room QR code.
                         </DialogDescription>
                       </DialogHeader>
                       <div className="aspect-square relative rounded-2xl bg-black overflow-hidden border-4 border-muted shadow-2xl">
@@ -327,7 +350,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                                   <p className="text-xs font-bold uppercase tracking-widest animate-pulse">Processing...</p>
                                 </div>
                               ) : (
-                                <p className="text-sm font-medium text-muted-foreground mt-1">Completing Entry...</p>
+                                <p className="text-sm font-medium text-muted-foreground mt-1">Completing Access...</p>
                               )}
                             </div>
                           </div>
