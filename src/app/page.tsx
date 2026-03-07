@@ -107,7 +107,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   };
 
   /**
-   * Authoritative QR Login Function with Debugging Logs.
+   * Authoritative QR Login Function with mandated debugging logs.
    */
   const handleQRCodeLogin = async (scannedEmail: string) => {
     // Step 6: Prevent Infinite Scanning
@@ -121,7 +121,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     setErrorMessage(null);
     setDetectedEmail(scannedEmail);
 
-    // Institutional Domain Check
+    // Institutional Domain Check (Requirement 11)
     if (!scannedEmail.toLowerCase().endsWith("@neu.edu.ph")) {
       console.log("Login failed: Invalid domain");
       setErrorMessage("Invalid QR code. Institutional email required.");
@@ -134,6 +134,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       const profile = await UserService.syncProfileByEmail(firestore, scannedEmail);
       console.log("User found:", profile);
 
+      // Condition 2 — Account Status
       if (profile.status === 'blocked') {
         console.log("Login failed: Account blocked");
         setErrorMessage("Your account has been blocked. Please contact the administrator.");
@@ -141,7 +142,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
-      // Create Authenticated Session
+      // Step 7 (Requirement 7): Create Authenticated Session
       localStorage.setItem('identifiedProfessorEmail', scannedEmail);
       localStorage.setItem('userUid', profile.id);
       localStorage.setItem('userRole', profile.role);
@@ -154,6 +155,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       // Step 7: Stop Camera After Login
       stopScanning();
       
+      // Redirect based on role (Condition 3)
       router.push(profile.role === 'admin' ? '/admin/dashboard' : '/professor/dashboard');
     } catch (error: any) {
       console.log("Login failed: User document not found or error", error);
@@ -164,7 +166,9 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   };
 
   const scanFrame = () => {
+    // Prevent multiple detection calls if already processing
     if (!isScanning || isProcessingDetection || !videoRef.current || !canvasRef.current) return;
+    
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d', { willReadFrequently: true });
@@ -187,13 +191,14 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         if (emailMatch) {
           // Step 2: Trigger Login Function
           handleQRCodeLogin(emailMatch[0].toLowerCase());
+          return; // Exit recursion after detection
         } else {
           console.log("QR decoded but no institutional email found");
-          // Don't stop the camera, wait for a valid scan
         }
       }
     }
     
+    // Continue loop only if not processing a detection
     if (!isProcessingDetection) {
       requestRef.current = requestAnimationFrame(scanFrame);
     }
