@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Search, Calendar as CalendarIcon, Users, Monitor, Ban, FileText, Loader2, Activity, X, Clock } from 'lucide-react';
+import { Search, Calendar as CalendarIcon, Users, Monitor, Ban, FileText, Loader2, Activity, X, Clock, TrendingUp, TrendingDown, Zap } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
@@ -107,12 +107,32 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
   const stats = useMemo(() => {
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    
+    // Rank logic
+    const roomCounts = roomList.reduce((acc, room) => {
+      acc[room] = filteredLogs.filter(l => l.roomNumber === room).length;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const sortedRooms = Object.entries(roomCounts).sort((a, b) => b[1] - a[1]);
+    
+    // Peak hour logic
+    const hourCounts = filteredLogs.reduce((acc, log) => {
+      const hour = new Date(log.loginTime).getHours();
+      acc[hour] = (acc[hour] || 0) + 1;
+      return acc;
+    }, {} as Record<number, number>);
+    const sortedHours = Object.entries(hourCounts).sort((a, b) => b[1] - a[1]);
+
     return {
       totalUsesToday: (logs || []).filter(l => new Date(l.loginTime).getTime() >= startOfDay).length,
       totalUniqueProfessors: new Set((logs || []).map(l => l.professorEmail)).size,
       totalBlockedUsers: (userProfiles || []).filter(u => u.status === 'blocked').length,
+      mostUsedRoom: sortedRooms[0],
+      leastUsedRoom: sortedRooms[sortedRooms.length - 1],
+      peakHour: sortedHours[0] ? format(new Date().setHours(Number(sortedHours[0][0]), 0, 0, 0), "ha") : 'N/A'
     };
-  }, [logs, userProfiles]);
+  }, [logs, userProfiles, filteredLogs]);
 
   if (!mounted) return null;
 
@@ -157,6 +177,41 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
           <CardContent>
             <div className="text-4xl font-black text-destructive">{stats.totalBlockedUsers}</div>
             <p className="text-xs mt-2 font-bold text-muted-foreground">Restricted system access</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl bg-white border-l-4 border-l-green-500">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Most Used Room</CardTitle>
+            <TrendingUp className="h-5 w-5 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-black text-slate-900">{stats.mostUsedRoom?.[0] || 'N/A'}</div>
+            <p className="text-xs mt-1 font-bold text-muted-foreground">{stats.mostUsedRoom?.[1] || 0} total uses in period</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl bg-white border-l-4 border-l-amber-500">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Least Used Room</CardTitle>
+            <TrendingDown className="h-5 w-5 text-amber-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-black text-slate-900">{stats.leastUsedRoom?.[0] || 'N/A'}</div>
+            <p className="text-xs mt-1 font-bold text-muted-foreground">{stats.leastUsedRoom?.[1] || 0} total uses in period</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl bg-white border-l-4 border-l-accent">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Peak Usage Hour</CardTitle>
+            <Zap className="h-5 w-5 text-accent" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-black text-slate-900">{stats.peakHour}</div>
+            <p className="text-xs mt-1 font-bold text-muted-foreground">Highest volume of logins</p>
           </CardContent>
         </Card>
       </div>
