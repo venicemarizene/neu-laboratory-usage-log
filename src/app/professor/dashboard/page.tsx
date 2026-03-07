@@ -37,13 +37,9 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   const [isProcessing, setIsProcessing] = useState(false);
   const [isEmailing, setIsEmailing] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'blocked' | 'unauthorized'>('idle');
-  const [qrIdentityEmail, setQrIdentityEmail] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('identifiedProfessorEmail');
-    }
-    return null;
-  });
+  const [qrIdentityEmail, setQrIdentityEmail] = useState<string | null>(null);
   const [userData, setUserData] = useState<any>(null);
+  const [isSessionLoading, setIsSessionLoading] = useState(true);
   
   const userRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -67,21 +63,29 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
 
   // Resolve active identity from either Google Auth or QR Scan persistent session
   useEffect(() => {
-    if (qrIdentityEmail && firestore && !userData) {
-      UserService.syncProfileByEmail(firestore, qrIdentityEmail).then(profile => {
-        setUserData(profile);
-        if (profile.status === 'blocked') setStatus('blocked');
-      }).catch(() => {
-        localStorage.removeItem('identifiedProfessorEmail');
-        setQrIdentityEmail(null);
-      });
+    const savedEmail = localStorage.getItem('identifiedProfessorEmail');
+    if (savedEmail) {
+      setQrIdentityEmail(savedEmail);
+      if (firestore && !userData) {
+        UserService.syncProfileByEmail(firestore, savedEmail).then(profile => {
+          setUserData(profile);
+          if (profile.status === 'blocked') setStatus('blocked');
+          setIsSessionLoading(false);
+        }).catch(() => {
+          localStorage.removeItem('identifiedProfessorEmail');
+          setQrIdentityEmail(null);
+          setIsSessionLoading(false);
+        });
+      }
+    } else {
+      setIsSessionLoading(false);
     }
-  }, [firestore, userData, qrIdentityEmail]);
+  }, [firestore, userData]);
 
   const activeEmail = user?.email || qrIdentityEmail;
   const activeUserData = userDocData || userData;
 
-  const isWaiting = isUserLoading && !qrIdentityEmail;
+  const isWaiting = (isUserLoading || isUserDataLoading || isSessionLoading) && !activeEmail;
 
   useEffect(() => {
     if (isWaiting) return;

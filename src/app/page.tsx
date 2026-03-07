@@ -50,9 +50,11 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   ];
 
   /**
-   * Authoritative redirection logic for logged-in users.
+   * Check for existing active identity (QR or Google)
    */
   useEffect(() => {
+    if (isUserLoading) return;
+
     if (user && !isLoggingIn) {
       UserService.syncProfile(firestore!, user).then(profile => {
         if (profile.status === 'active') {
@@ -62,8 +64,14 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
           AuthService.logout(auth!);
         }
       });
+    } else {
+      // Check for QR-based identity
+      const savedEmail = localStorage.getItem('identifiedProfessorEmail');
+      if (savedEmail) {
+        router.push('/professor/dashboard');
+      }
     }
-  }, [user, isLoggingIn, firestore, auth, router]);
+  }, [user, isUserLoading, isLoggingIn, firestore, auth, router]);
 
   const handleGoogleLogin = async () => {
     if (!auth || !firestore) return;
@@ -111,7 +119,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const handleQRDetected = async (data: string) => {
     const cleanData = data.trim();
     
-    // 1. Identify if it's a Professor Email QR (Generated on Admin Dashboard)
+    // 1. Identify if it's a Professor Email QR
     if (cleanData.toLowerCase().endsWith('@neu.edu.ph')) {
       if (detectedEmail || isLoggingIn) return;
       setDetectedEmail(cleanData);
