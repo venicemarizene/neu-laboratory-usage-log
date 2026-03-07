@@ -121,7 +121,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     setErrorMessage(null);
     setDetectedEmail(scannedEmail);
 
-    // Institutional Domain Check (Requirement 11)
+    // Institutional Domain Check
     if (!scannedEmail.toLowerCase().endsWith("@neu.edu.ph")) {
       console.log("Login failed: Invalid domain");
       setErrorMessage("Invalid QR code. Institutional email required.");
@@ -142,7 +142,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
-      // Step 7 (Requirement 7): Create Authenticated Session
+      // Create Authenticated Session
       localStorage.setItem('identifiedProfessorEmail', scannedEmail);
       localStorage.setItem('userUid', profile.id);
       localStorage.setItem('userRole', profile.role);
@@ -174,11 +174,14 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
     if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
-      canvas.width = 640;
-      canvas.height = 480;
+      // Use native video resolution for better scanning accuracy
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-      const code = jsQR(imageData.data, imageData.width, imageData.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "dontInvert",
+      });
 
       if (code) {
         const decodedText = code.data.trim();
@@ -193,13 +196,13 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
           handleQRCodeLogin(emailMatch[0].toLowerCase());
           return; // Exit recursion after detection
         } else {
-          console.log("QR decoded but no institutional email found");
+          console.log("QR decoded but no institutional email found in:", decodedText);
         }
       }
     }
     
     // Continue loop only if not processing a detection
-    if (!isProcessingDetection) {
+    if (isScanning && !isProcessingDetection) {
       requestRef.current = requestAnimationFrame(scanFrame);
     }
   };
@@ -216,9 +219,13 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       setHasCameraPermission(true);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        requestRef.current = requestAnimationFrame(scanFrame);
+        // Wait for video to be ready before starting loop
+        videoRef.current.onloadedmetadata = () => {
+          requestRef.current = requestAnimationFrame(scanFrame);
+        };
       }
     } catch (error) {
+      console.error("Camera error:", error);
       setHasCameraPermission(false);
       setErrorMessage("Camera access is required to scan QR codes.");
     }
@@ -227,12 +234,17 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const stopScanning = () => {
     console.log("Stopping scanner and closing camera...");
     setIsScanning(false);
-    setIsProcessingDetection(false);
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+      videoRef.current.srcObject = null;
     }
   };
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => stopScanning();
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
@@ -315,9 +327,10 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
                       {hasCameraPermission === false && (
                         <div className="absolute inset-0 bg-black/80 flex items-center justify-center text-white p-6 text-center">
-                          <div>
-                            <AlertCircle className="w-10 h-10 mx-auto mb-2 text-destructive" />
+                          <div className="space-y-2">
+                            <AlertCircle className="w-10 h-10 mx-auto text-destructive" />
                             <p className="font-bold">Camera access required</p>
+                            <p className="text-xs opacity-60">Please allow camera access to use the QR scanner.</p>
                           </div>
                         </div>
                       )}
