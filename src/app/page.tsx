@@ -18,6 +18,7 @@ import jsQR from 'jsqr';
 
 /**
  * Main Landing Page with Role-Based Redirection and QR-Based Identification.
+ * Optimized for "One-Touch" QR Entry.
  */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -68,7 +69,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       } else {
         const savedEmail = localStorage.getItem('identifiedProfessorEmail');
         if (savedEmail) {
-          router.push('/professor/dashboard');
+          router.replace('/professor/dashboard');
         }
       }
     };
@@ -124,7 +125,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const handleQRDetected = async (data: string) => {
     if (isProcessingDetection || isLoggingIn) return;
     
-    // Aggressive sanitization to catch institutional emails
     const cleanData = data.trim();
     const emailPattern = /[a-zA-Z0-9._%+-]+@neu\.edu\.ph/i;
     const emailMatch = cleanData.match(emailPattern);
@@ -141,7 +141,9 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       }
       
       try {
+        // Authoritative Verification
         const profile = await UserService.syncProfileByEmail(firestore, identifiedEmail);
+        
         if (profile.status === 'blocked') {
           setBlockedError("Your account has been blocked. Please contact the administrator.");
           stopScanning();
@@ -149,17 +151,15 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
           return;
         }
         
-        // Immediate authoritative identity storage
+        // Instant identity establishment
         localStorage.setItem('identifiedProfessorEmail', identifiedEmail);
-        toast({ title: "Identity Verified", description: `Welcome, ${identifiedEmail}` });
         
-        // Finalize state and redirect
+        // Definitive redirection
         setTimeout(() => {
           stopScanning();
           router.replace('/professor/dashboard');
         }, 800);
       } catch (error: any) {
-        console.error("QR Identification Error:", error);
         toast({ variant: 'destructive', title: 'Identity Error', description: error.message || 'No record found.' });
         setDetectedEmail(null);
         setIsProcessingDetection(false);
@@ -204,7 +204,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
     if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
-      // Scale down for faster processing
       const scale = 0.5;
       canvas.width = video.videoWidth * scale;
       canvas.height = video.videoHeight * scale;
@@ -384,7 +383,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                         />
                         <canvas ref={canvasRef} className="hidden" />
                         
-                        {(isProcessingDetection || isLoggingIn) && (
+                        {isProcessingDetection && (
                           <div className="absolute inset-0 bg-primary/20 flex items-center justify-center backdrop-blur-[2px] z-20">
                             <div className="text-center bg-white p-6 rounded-2xl shadow-2xl animate-in zoom-in duration-300">
                               <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-2" />

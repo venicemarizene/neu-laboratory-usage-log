@@ -23,6 +23,10 @@ import jsQR from 'jsqr';
 import { QRCodeCanvas } from 'qrcode.react';
 import { EmailService } from '@/lib/services/email-service';
 
+/**
+ * Professor Portal for Laboratory Entry and Identity Management.
+ * Designed for seamless "One-Touch" QR sessions.
+ */
 export default function ProfessorPortal(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
   const searchParams = use(props.searchParams);
@@ -40,16 +44,21 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   const [userData, setUserData] = useState<any>(null);
   const [isSessionLoading, setIsSessionLoading] = useState(true);
 
-  // Authoritative identity initialization from localStorage to prevent redirect race conditions
-  const [qrIdentityEmail, setQrIdentityEmail] = useState<string | null>(null);
+  // Authoritative identity initialization from localStorage to prevent redirect flicker
+  const [qrIdentityEmail, setQrIdentityEmail] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('identifiedProfessorEmail');
+    }
+    return null;
+  });
 
-  // Recover QR identity immediately on mount
+  // Keep state in sync with localStorage updates
   useEffect(() => {
     const saved = localStorage.getItem('identifiedProfessorEmail');
-    if (saved) {
+    if (saved && saved !== qrIdentityEmail) {
       setQrIdentityEmail(saved);
     }
-  }, []);
+  }, [qrIdentityEmail]);
   
   const userRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -71,7 +80,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
     'LAB204'
   ];
 
-  // Robust session recovery
+  // Robust session recovery and verification
   useEffect(() => {
     if (qrIdentityEmail && firestore) {
       setIsSessionLoading(true);
@@ -83,7 +92,6 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
         })
         .catch((err) => {
           console.error("QR Recovery Failed:", err);
-          // Only clear if explicitly not found or unauthorized
           if (err.message?.includes('No professor record')) {
             localStorage.removeItem('identifiedProfessorEmail');
             setQrIdentityEmail(null);
@@ -98,7 +106,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   const activeEmail = user?.email || qrIdentityEmail;
   const activeUserData = userDocData || userData;
 
-  // Authoritative loading check
+  // Authoritative loading check: only wait if we have no email identity at all
   const isWaiting = (isUserLoading || isUserDataLoading || isSessionLoading) && !activeEmail;
 
   useEffect(() => {
