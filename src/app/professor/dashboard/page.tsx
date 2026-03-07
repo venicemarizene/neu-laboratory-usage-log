@@ -92,8 +92,6 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
         })
         .catch((err) => {
           console.error("QR Recovery Failed:", err);
-          // If the profile doesn't exist yet, we still allow the session locally 
-          // as a fallback for pre-provisioned users who haven't synced yet.
           setIsSessionLoading(false);
         });
     } else {
@@ -105,7 +103,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   const activeUserData = userDocData || userData;
 
   // Authoritative loading check: wait until we've at least tried to load local or remote identity
-  const isWaiting = isUserLoading || isUserDataLoading || (isSessionLoading && !!qrIdentityEmail);
+  const isWaiting = isUserLoading || (isSessionLoading && !!qrIdentityEmail);
 
   useEffect(() => {
     if (isWaiting) return;
@@ -173,8 +171,8 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
     if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
-      canvas.height = 480;
-      canvas.width = 640;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
       const code = jsQR(imageData.data, imageData.width, imageData.height, {

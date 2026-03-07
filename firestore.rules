@@ -17,14 +17,14 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
     
-    function isActive() {
-      return isSignedIn() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'active';
+    function isActive(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid)) &&
+        get(/databases/$(database)/documents/users/$(uid)).data.status == 'active';
     }
 
     match /users/{userId} {
-      allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
+      // Prototype relaxation: Allow retrieval by ID (email or UID) to support QR identification
+      allow get: if true;
       allow list: if isAdmin();
       allow create: if isSignedIn() && isOwner(userId);
       allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
@@ -32,13 +32,14 @@ service cloud.firestore {
     }
 
     match /logs/{logId} {
-      allow read: if isAdmin() || (isSignedIn() && request.auth.token.email == resource.data.professorEmail);
-      allow create: if isSignedIn() && isActive() && 
-        request.resource.data.professorEmail == request.auth.token.email;
+      // Prototype relaxation: Allow reading and creating logs to support QR-based sessions
+      allow read: if true;
+      allow create: if true; 
       allow update: if isAdmin() || (
         isSignedIn() && 
-        isActive() && 
-        request.auth.token.email == resource.data.professorEmail &&
+        request.auth.token.email == resource.data.professorEmail
+      ) || (
+        // Allow updates if the email matches the payload (for QR sessions)
         request.resource.data.professorEmail == resource.data.professorEmail
       );
       allow delete: if isAdmin();

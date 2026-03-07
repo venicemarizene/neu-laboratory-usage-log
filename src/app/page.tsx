@@ -126,6 +126,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     if (isProcessingDetection || isLoggingIn) return;
     
     const cleanData = data.trim();
+    // Use a broad email pattern to catch institutional emails inside QR data
     const emailPattern = /[a-zA-Z0-9._%+-]+@neu\.edu\.ph/i;
     const emailMatch = cleanData.match(emailPattern);
     
@@ -135,17 +136,17 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       setIsProcessingDetection(true);
       setDetectedEmail(identifiedEmail);
       
-      // Stop scanning immediately to prevent duplicate detections
+      // Stop scanning immediately
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
       
-      // Authoritatively set identity
+      // Authoritatively set identity in localStorage
       localStorage.setItem('identifiedProfessorEmail', identifiedEmail);
       
-      // Short delay for visual confirmation before authoritative redirect
+      // Short delay for visual confirmation
       setTimeout(() => {
         stopScanning();
         router.push('/professor/dashboard');
-      }, 800);
+      }, 1000);
       return;
     }
 
@@ -164,7 +165,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
           setTimeout(() => {
             stopScanning();
             router.push(`/professor/dashboard?room=${foundRoom}&auto=true`);
-          }, 800);
+          }, 1000);
         } catch (error) {
           toast({ variant: 'destructive', title: 'Error', description: 'Failed to record entry.' });
           setDetectedRoom(null);
@@ -186,9 +187,9 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
     if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
-      // Process at fixed resolution for consistent speed
-      canvas.width = 640;
-      canvas.height = 480;
+      // Process at full resolution for better jsQR accuracy
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
       
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
@@ -373,14 +374,14 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                               {detectedEmail ? (
                                 <>
                                   <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-2" />
-                                  <p className="font-black text-green-600 text-xl">Identity Verified</p>
-                                  <p className="text-sm font-medium text-muted-foreground mt-1">Logging you in...</p>
+                                  <p className="font-black text-green-600 text-xl">ID Verified</p>
+                                  <p className="text-sm font-medium text-muted-foreground mt-1">Establishing session...</p>
                                 </>
                               ) : (
                                 <>
                                   <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-2" />
                                   <p className="font-black text-primary text-xl">Processing</p>
-                                  <p className="text-sm font-medium text-muted-foreground mt-1">Establishing session...</p>
+                                  <p className="text-sm font-medium text-muted-foreground mt-1">Verifying identity...</p>
                                 </>
                               )}
                             </div>
