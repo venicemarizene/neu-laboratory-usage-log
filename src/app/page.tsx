@@ -128,7 +128,10 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       setIsProcessingDetection(true);
       setDetectedEmail(cleanData);
       
-      if (!firestore) return;
+      if (!firestore) {
+        setIsProcessingDetection(false);
+        return;
+      }
       
       try {
         const profile = await UserService.syncProfileByEmail(firestore, cleanData);
@@ -193,8 +196,11 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
     if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
-      canvas.height = video.videoHeight;
-      canvas.width = video.videoWidth;
+      // Optimization: Downscale processing resolution for better performance/accuracy on mobile
+      const scale = Math.min(1, 640 / video.videoWidth);
+      canvas.width = video.videoWidth * scale;
+      canvas.height = video.videoHeight * scale;
+      
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
       const code = jsQR(imageData.data, imageData.width, imageData.height, {
@@ -399,7 +405,9 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                         )}
 
                         <div className="absolute inset-0 border-[40px] border-black/40 pointer-events-none">
-                          <div className="w-full h-full border-2 border-accent/50 rounded-lg animate-pulse" />
+                          <div className="w-full h-full border-2 border-accent/50 rounded-lg relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-0.5 bg-accent/80 animate-[scan_2s_linear_infinite]" />
+                          </div>
                         </div>
                       </div>
                     </DialogContent>
@@ -434,6 +442,12 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
           Institutional <span className="text-primary font-bold">@neu.edu.ph</span> domain enforced.
         </p>
       </div>
+      <style jsx global>{`
+        @keyframes scan {
+          0% { top: 0; }
+          100% { top: 100%; }
+        }
+      `}</style>
     </div>
   );
 }

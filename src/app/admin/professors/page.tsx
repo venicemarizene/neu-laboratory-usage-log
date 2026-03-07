@@ -290,7 +290,7 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
                                     ref={qrRef}
                                     value={userDoc.qrValue || userDoc.email} 
                                     size={200}
-                                    level="H"
+                                    level="M"
                                     includeMargin
                                   />
                                 </div>
