@@ -35,7 +35,12 @@ service cloud.firestore {
       allow read: if isAdmin() || (isSignedIn() && request.auth.token.email == resource.data.professorEmail);
       allow create: if isSignedIn() && isActive() && 
         request.resource.data.professorEmail == request.auth.token.email;
-      allow update: if isAdmin();
+      allow update: if isAdmin() || (
+        isSignedIn() && 
+        isActive() && 
+        request.auth.token.email == resource.data.professorEmail &&
+        request.resource.data.professorEmail == resource.data.professorEmail
+      );
       allow delete: if isAdmin();
     }
   }
