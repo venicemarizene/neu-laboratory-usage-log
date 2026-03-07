@@ -21,9 +21,6 @@ import jsQR from 'jsqr';
 import { QRCodeCanvas } from 'qrcode.react';
 import { EmailService } from '@/lib/services/email-service';
 
-/**
- * Standard Professor Portal for laboratory entry logging.
- */
 export default function ProfessorPortal(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
   const searchParams = use(props.searchParams);
@@ -191,14 +188,14 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
     try {
       await EmailService.sendQREmail(user.email, url);
       toast({
-        title: 'QR Sent',
-        description: `Your identification QR code has been emailed to you.`,
+        title: 'Dispatch Complete',
+        description: `Your identification QR code has been emailed to you in real-time.`,
       });
-    } catch (error) {
+    } catch (error: any) {
       toast({
         variant: 'destructive',
-        title: 'Email Failed',
-        description: 'Could not send your QR code at this time.',
+        title: 'Dispatch Error',
+        description: error.message || 'Could not send your QR code at this time.',
       });
     } finally {
       setIsEmailing(false);
@@ -385,12 +382,12 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
                     </Button>
                     <Button 
                       variant="outline"
-                      className="w-full h-14 font-black gap-2 rounded-xl shadow-sm border-2"
+                      className="w-full h-14 font-black gap-2 rounded-xl shadow-sm border-2 transition-all"
                       disabled={isEmailing}
                       onClick={emailMyQR}
                     >
                       {isEmailing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                      Email Me QR
+                      {isEmailing ? 'Sending Real-Time...' : 'Email Me QR'}
                     </Button>
                   </div>
                 </div>

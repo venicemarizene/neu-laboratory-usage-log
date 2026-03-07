@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Search, UserRound, Mail, Loader2, ShieldAlert, UserX, UserCheck, X, QrCode, Download, Send } from 'lucide-react';
+import { Search, UserRound, Mail, Loader2, ShieldAlert, UserX, UserCheck, X, QrCode, Download, Send, CheckCircle2 } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -79,14 +79,14 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
     try {
       await EmailService.sendQREmail(email, url);
       toast({
-        title: 'QR Sent',
-        description: `The identification QR code has been emailed to ${email}.`,
+        title: 'Dispatched Successfully',
+        description: `The identification QR code has been sent to ${email} in real-time.`,
       });
-    } catch (error) {
+    } catch (error: any) {
       toast({
         variant: 'destructive',
-        title: 'Email Failed',
-        description: 'Could not send the QR code at this time.',
+        title: 'Dispatch Failed',
+        description: error.message || 'Could not send the QR code at this time.',
       });
     } finally {
       setIsEmailing(false);
@@ -240,12 +240,12 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
                                 </Button>
                                 <Button 
                                   variant="outline"
-                                  className="w-full h-12 font-bold gap-2 rounded-xl border-2"
+                                  className="w-full h-12 font-bold gap-2 rounded-xl border-2 transition-all"
                                   disabled={isEmailing}
                                   onClick={() => emailQR(userDoc.email)}
                                 >
                                   {isEmailing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                                  {isEmailing ? 'Sending...' : 'Email QR Code'}
+                                  {isEmailing ? 'Sending Real-Time...' : 'Email QR Code'}
                                 </Button>
                               </div>
                             </DialogContent>
