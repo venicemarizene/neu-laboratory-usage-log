@@ -10,9 +10,11 @@ import { useEffect, useState, use } from 'react';
 import { AuthService } from '@/lib/services/auth-service';
 import { cn } from '@/lib/utils';
 
+const ADMIN_EMAIL = 'venicemarizene.linga@neu.edu.ph';
+
 /**
  * Layout guard for Administrative routes.
- * Optimized for minimal delay by using derived authorization states and cache-first rendering.
+ * Strictly enforced to only allow venicemarizene.linga@neu.edu.ph.
  */
 export default function AdminLayout(props: {
   children: React.ReactNode;
@@ -33,9 +35,14 @@ export default function AdminLayout(props: {
 
   const { data: userData, isLoading: isDataLoading } = useDoc(userRef);
 
-  // Optimized loading condition: only wait if we have a user but don't have their data yet.
-  // If userData exists (even if still updating from network), we allow rendering.
-  const isAuthorized = user && userData && userData.role === 'admin' && userData.status !== 'blocked';
+  // Authoritative check: User must have correct email, correct role, and be active.
+  const isAuthorized = 
+    user && 
+    user.email === ADMIN_EMAIL && 
+    userData && 
+    userData.role === 'admin' && 
+    userData.status !== 'blocked';
+
   const isWaiting = isUserLoading || (user && isDataLoading && !userData);
 
   useEffect(() => {
@@ -46,7 +53,7 @@ export default function AdminLayout(props: {
       return;
     }
 
-    if (!userData || userData.role !== 'admin' || userData.status === 'blocked') {
+    if (user.email !== ADMIN_EMAIL || !userData || userData.role !== 'admin' || userData.status === 'blocked') {
       router.replace('/');
       return;
     }
@@ -70,7 +77,6 @@ export default function AdminLayout(props: {
     );
   }
 
-  // Prevent flash of unauthorized content
   if (!isAuthorized) return null;
 
   return (

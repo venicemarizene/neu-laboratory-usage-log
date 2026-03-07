@@ -1,6 +1,6 @@
 'use client';
 
-import { Firestore, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { Firestore, doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { User as FirebaseUser } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -15,6 +15,8 @@ export interface UserMetadata {
   status: 'active' | 'blocked';
   createdAt: any;
 }
+
+const ADMIN_EMAIL = 'venicemarizene.linga@neu.edu.ph';
 
 /**
  * Service to manage user profiles in Firestore.
@@ -44,25 +46,43 @@ export const UserService = {
 
   /**
    * Synchronizes user metadata. 
-   * Authoritative Logic: If a profile exists, return it (DB wins).
-   * Only creates a new profile if it doesn't exist.
+   * Authoritative Logic: Enforces the specific Admin email.
+   * Only 'venicemarizene.linga@neu.edu.ph' can be an admin.
    */
   async syncProfile(db: Firestore, user: FirebaseUser, requestedRole: 'professor' | 'admin'): Promise<UserMetadata> {
     const docRef = doc(db, 'users', user.uid);
+    const userEmail = (user.email || '').toLowerCase().trim();
     
+    // Determine the authoritative role
+    let finalRole: 'professor' | 'admin' = 'professor';
+    if (userEmail === ADMIN_EMAIL) {
+      finalRole = 'admin';
+    } else {
+      // Force anyone else to be a professor even if they requested admin role
+      finalRole = 'professor';
+    }
+
     try {
       const userSnap = await getDoc(docRef);
 
       if (userSnap.exists()) {
-        // Return existing authoritative data from DB. Do NOT update role.
-        return userSnap.data() as UserMetadata;
+        const existingData = userSnap.data() as UserMetadata;
+        
+        // Corrective logic: If the admin email is currently a professor in DB, upgrade it.
+        // If a non-admin email is currently an admin in DB, downgrade it.
+        if (existingData.role !== finalRole) {
+          await updateDoc(docRef, { role: finalRole });
+          return { ...existingData, role: finalRole };
+        }
+        
+        return existingData;
       }
 
-      // Profile doesn't exist, create it with the requested role (initial registration)
+      // Profile doesn't exist, create it with the enforced role
       const newProfile: UserMetadata = {
         id: user.uid,
-        email: (user.email || '').toLowerCase().trim(),
-        role: requestedRole,
+        email: userEmail,
+        role: finalRole,
         status: 'active',
         createdAt: serverTimestamp()
       };
