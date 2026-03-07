@@ -54,7 +54,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
    * Check for existing active identity (QR or Google)
    */
   useEffect(() => {
-    if (isUserLoading || isLoggingIn) return;
+    if (isUserLoading || isLoggingIn || isProcessingDetection) return;
 
     const checkIdentity = async () => {
       if (user) {
@@ -73,8 +73,10 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       }
     };
 
-    checkIdentity();
-  }, [user, isUserLoading, isLoggingIn, firestore, auth, router]);
+    if (firestore && auth) {
+      checkIdentity();
+    }
+  }, [user, isUserLoading, isLoggingIn, isProcessingDetection, firestore, auth, router]);
 
   const handleGoogleLogin = async () => {
     if (!auth || !firestore) return;
@@ -127,7 +129,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     const emailPattern = /[a-zA-Z0-9._%+-]+@neu\.edu\.ph/i;
     const emailMatch = cleanData.match(emailPattern);
     
-    // 1. Identify if it's a Professor Email QR
+    // 1. Identify if it's a Professor Email QR (Login)
     if (emailMatch) {
       const identifiedEmail = emailMatch[0].toLowerCase();
       setIsProcessingDetection(true);
@@ -151,14 +153,14 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         localStorage.setItem('identifiedProfessorEmail', identifiedEmail);
         toast({ title: "Identity Verified", description: `Welcome, ${identifiedEmail}` });
         
-        // Critical: small timeout to allow state/localStorage to settle before router kicks in
+        // Finalize state and redirect
         setTimeout(() => {
           stopScanning();
           router.replace('/professor/dashboard');
         }, 800);
       } catch (error: any) {
         console.error("QR Identification Error:", error);
-        toast({ variant: 'destructive', title: 'Identity Error', description: error.message });
+        toast({ variant: 'destructive', title: 'Identity Error', description: error.message || 'No record found.' });
         setDetectedEmail(null);
         setIsProcessingDetection(false);
       }
@@ -202,8 +204,8 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
     if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
-      // Optimized processing resolution
-      const scale = Math.min(1, 640 / video.videoWidth);
+      // Scale down for faster processing
+      const scale = 0.5;
       canvas.width = video.videoWidth * scale;
       canvas.height = video.videoHeight * scale;
       
@@ -295,7 +297,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         )}
 
         {(user || localStorage.getItem('identifiedProfessorEmail')) && !blockedError && (
-          <div className="p-3 bg-card border rounded-xl shadow-sm flex items-center justify-between">
+          <div className="p-3 bg-card border rounded-xl shadow-sm flex items-center justify-between animate-in slide-in-from-top-2">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center font-bold text-primary shadow-inner text-xs">
                 {(user?.email || localStorage.getItem('identifiedProfessorEmail') || 'P')[0].toUpperCase()}
@@ -347,8 +349,8 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                 <div className="grid grid-cols-1 gap-3">
                   <Button 
                     onClick={handleGoogleLogin}
-                    disabled={isLoggingIn}
-                    className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3"
+                    disabled={isLoggingIn || isProcessingDetection}
+                    className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3 transition-all"
                   >
                     {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <Monitor className="w-5 h-5" />}
                     Sign in with Google
@@ -359,16 +361,16 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                       <Button 
                         variant="outline" 
                         onClick={startScanning}
-                        className="w-full h-14 text-lg font-bold border-2 gap-3"
+                        className="w-full h-14 text-lg font-bold border-2 gap-3 hover:bg-slate-50 transition-all"
                       >
                         <QrCode className="w-5 h-5 text-primary" />
                         One-Touch QR Entry
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className="sm:max-w-md rounded-2xl">
                       <DialogHeader>
-                        <DialogTitle>QR Identity & Entry</DialogTitle>
-                        <DialogDescription>
+                        <DialogTitle className="text-xl font-black">QR Identity & Entry</DialogTitle>
+                        <DialogDescription className="text-sm font-medium">
                           Scan your Professor ID QR code or a Room QR code.
                         </DialogDescription>
                       </DialogHeader>
@@ -382,20 +384,22 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                         />
                         <canvas ref={canvasRef} className="hidden" />
                         
-                        {(detectedRoom || detectedEmail || isProcessingDetection || isLoggingIn) && !blockedError && (
-                          <div className="absolute inset-0 bg-primary/20 flex items-center justify-center backdrop-blur-[2px] z-10">
+                        {(isProcessingDetection || isLoggingIn) && (
+                          <div className="absolute inset-0 bg-primary/20 flex items-center justify-center backdrop-blur-[2px] z-20">
                             <div className="text-center bg-white p-6 rounded-2xl shadow-2xl animate-in zoom-in duration-300">
-                              {(isLoggingIn || isProcessingDetection) ? (
-                                <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-2" />
-                              ) : (
-                                <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-2" />
-                              )}
-                              <p className="font-black text-primary text-xl">
-                                {(isLoggingIn || isProcessingDetection) ? 'Processing...' : (detectedRoom ? `Lab ${detectedRoom}` : 'ID Verified')}
-                              </p>
-                              <p className="text-sm font-medium text-muted-foreground mt-1">
-                                {(isLoggingIn || isProcessingDetection) ? 'Verifying profile...' : 'Completing Access...'}
-                              </p>
+                              <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-2" />
+                              <p className="font-black text-primary text-xl">Processing Identity</p>
+                              <p className="text-sm font-medium text-muted-foreground mt-1">Verifying institutional record...</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {detectedEmail && !isProcessingDetection && (
+                          <div className="absolute inset-0 bg-green-500/20 flex items-center justify-center backdrop-blur-[2px] z-20">
+                            <div className="text-center bg-white p-6 rounded-2xl shadow-2xl animate-in zoom-in duration-300">
+                              <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-2" />
+                              <p className="font-black text-green-600 text-xl">ID Verified</p>
+                              <p className="text-sm font-medium text-muted-foreground mt-1">Redirecting to dashboard...</p>
                             </div>
                           </div>
                         )}
@@ -434,7 +438,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                 <Button 
                   onClick={handleGoogleLogin}
                   disabled={isLoggingIn}
-                  className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3"
+                  className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3 transition-all"
                 >
                   {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
                   Admin Google Login

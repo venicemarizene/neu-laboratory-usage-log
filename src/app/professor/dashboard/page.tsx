@@ -41,12 +41,15 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   const [isSessionLoading, setIsSessionLoading] = useState(true);
 
   // Authoritative identity initialization from localStorage to prevent redirect race conditions
-  const [qrIdentityEmail, setQrIdentityEmail] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('identifiedProfessorEmail');
+  const [qrIdentityEmail, setQrIdentityEmail] = useState<string | null>(null);
+
+  // Recover QR identity immediately on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('identifiedProfessorEmail');
+    if (saved) {
+      setQrIdentityEmail(saved);
     }
-    return null;
-  });
+  }, []);
   
   const userRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -78,9 +81,13 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
           if (profile.status === 'blocked') setStatus('blocked');
           setIsSessionLoading(false);
         })
-        .catch(() => {
-          localStorage.removeItem('identifiedProfessorEmail');
-          setQrIdentityEmail(null);
+        .catch((err) => {
+          console.error("QR Recovery Failed:", err);
+          // Only clear if explicitly not found or unauthorized
+          if (err.message?.includes('No professor record')) {
+            localStorage.removeItem('identifiedProfessorEmail');
+            setQrIdentityEmail(null);
+          }
           setIsSessionLoading(false);
         });
     } else {
@@ -113,7 +120,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       setTimeout(() => {
         localStorage.removeItem('identifiedProfessorEmail');
         AuthService.logout(auth!).then(() => router.replace('/'));
-      }, 3000);
+      }, 2500);
       return;
     }
 
@@ -286,7 +293,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
         </div>
         <div className="flex items-center gap-4">
           <div className="hidden sm:flex flex-col items-end">
-            <span className="text-xs font-bold leading-none">{user?.displayName || activeEmail?.split('@')[0]}</span>
+            <span className="text-xs font-bold leading-none">{activeUserData?.name || activeEmail?.split('@')[0]}</span>
             <span className="text-[10px] text-muted-foreground">{activeEmail}</span>
           </div>
           <Button variant="ghost" size="sm" onClick={handleSignOut} disabled={isProcessing} className="h-8 text-xs font-bold text-muted-foreground hover:text-destructive">
@@ -448,7 +455,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
               {activeEmail?.[0].toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="text-lg font-black text-slate-900 truncate">{user?.displayName || activeEmail?.split('@')[0]}</p>
+              <p className="text-lg font-black text-slate-900 truncate">{activeUserData?.name || activeEmail?.split('@')[0]}</p>
               <p className="text-sm font-bold text-muted-foreground truncate opacity-70">{activeEmail}</p>
             </div>
             <Badge variant="outline" className="ml-auto text-[10px] font-black uppercase tracking-[0.15em] h-8 px-3 border-slate-200 bg-slate-50 rounded-lg">
