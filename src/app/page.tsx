@@ -122,8 +122,8 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     setDetectedEmail(scannedEmail);
 
     // Institutional Domain Check
-    if (!scannedEmail.toLowerCase().endsWith("@neu.edu.ph")) {
-      console.log("Login failed: Invalid domain");
+    if (!scannedEmail.toLowerCase().includes("@neu.edu.ph")) {
+      console.log("Login failed: Invalid domain or QR format");
       setErrorMessage("Invalid QR code. Institutional email required.");
       setIsProcessingDetection(false);
       return;
@@ -174,7 +174,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
     if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
-      // Use native video resolution for better scanning accuracy
+      // Step 1: Use native video resolution for better scanning accuracy
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -187,17 +187,10 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         const decodedText = code.data.trim();
         // Step 1: Verify QR Scanner Output
         console.log("QR detected:", decodedText);
-
-        const emailPattern = /[a-zA-Z0-9._%+-]+@neu\.edu\.ph/i;
-        const emailMatch = decodedText.match(emailPattern);
         
-        if (emailMatch) {
-          // Step 2: Trigger Login Function
-          handleQRCodeLogin(emailMatch[0].toLowerCase());
-          return; // Exit recursion after detection
-        } else {
-          console.log("QR decoded but no institutional email found in:", decodedText);
-        }
+        // Step 2: Trigger Login Function
+        handleQRCodeLogin(decodedText);
+        return; // Exit recursion after detection
       }
     }
     
