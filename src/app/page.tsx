@@ -53,24 +53,26 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
    * Check for existing active identity (QR or Google)
    */
   useEffect(() => {
-    if (isUserLoading) return;
+    if (isUserLoading || isLoggingIn) return;
 
-    if (user && !isLoggingIn) {
-      UserService.syncProfile(firestore!, user).then(profile => {
+    const checkIdentity = async () => {
+      if (user) {
+        const profile = await UserService.syncProfile(firestore!, user);
         if (profile.status === 'active') {
           router.push(profile.role === 'admin' ? '/admin/dashboard' : '/professor/dashboard');
         } else {
           setBlockedError("Your account has been blocked. Please contact the administrator.");
           AuthService.logout(auth!);
         }
-      });
-    } else {
-      // Check for QR-based identity
-      const savedEmail = localStorage.getItem('identifiedProfessorEmail');
-      if (savedEmail) {
-        router.push('/professor/dashboard');
+      } else {
+        const savedEmail = localStorage.getItem('identifiedProfessorEmail');
+        if (savedEmail) {
+          router.push('/professor/dashboard');
+        }
       }
-    }
+    };
+
+    checkIdentity();
   }, [user, isUserLoading, isLoggingIn, firestore, auth, router]);
 
   const handleGoogleLogin = async () => {
@@ -122,6 +124,9 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     // 1. Identify if it's a Professor Email QR
     if (cleanData.toLowerCase().endsWith('@neu.edu.ph')) {
       if (detectedEmail || isLoggingIn) return;
+      
+      // Stop scanning immediately to prevent duplicate triggers
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
       setDetectedEmail(cleanData);
       
       if (!firestore) return;
@@ -137,14 +142,19 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         
         // Persist identity and redirect
         localStorage.setItem('identifiedProfessorEmail', cleanData);
-        stopScanning();
         toast({ title: "Identity Verified", description: `Welcome, ${cleanData}` });
-        router.push('/professor/dashboard');
+        
+        // Wait a small moment for localStorage to settle before navigating
+        setTimeout(() => {
+          stopScanning();
+          router.push('/professor/dashboard');
+        }, 500);
       } catch (error: any) {
         toast({ variant: 'destructive', title: 'Identity Error', description: error.message });
         setDetectedEmail(null);
-      } finally {
         setIsLoggingIn(false);
+        // Restart scanning on error
+        requestRef.current = requestAnimationFrame(scanFrame);
       }
       return;
     }
@@ -192,6 +202,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
       if (code) {
         handleQRDetected(code.data);
+        return; // Important: exit current frame processing
       }
     }
     requestRef.current = requestAnimationFrame(scanFrame);
@@ -267,21 +278,31 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
           </Alert>
         )}
 
-        {user && !blockedError && (
+        {(user || localStorage.getItem('identifiedProfessorEmail')) && !blockedError && (
           <div className="p-3 bg-card border rounded-xl shadow-sm flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center font-bold text-primary shadow-inner text-xs">
-                {user.email?.[0].toUpperCase()}
+                {(user?.email || localStorage.getItem('identifiedProfessorEmail') || 'P')[0].toUpperCase()}
               </div>
               <div className="text-left">
-                <p className="text-xs font-semibold leading-none">{user.displayName || 'Staff'}</p>
-                <p className="text-[10px] text-muted-foreground font-medium">{user.email}</p>
+                <p className="text-xs font-semibold leading-none">{user?.displayName || 'Professor'}</p>
+                <p className="text-[10px] text-muted-foreground font-medium">{user?.email || localStorage.getItem('identifiedProfessorEmail')}</p>
               </div>
             </div>
-            <Button variant="ghost" size="sm" onClick={handleSignOut} className="h-8 text-[10px] text-destructive hover:bg-destructive/10">
-              <LogOut className="w-3 h-3 mr-1" />
-              Sign Out
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => router.push('/professor/dashboard')} 
+                className="h-8 text-[10px] font-bold"
+              >
+                Dashboard
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleSignOut} className="h-8 text-[10px] text-destructive hover:bg-destructive/10">
+                <LogOut className="w-3 h-3 mr-1" />
+                Sign Out
+              </Button>
+            </div>
           </div>
         )}
 

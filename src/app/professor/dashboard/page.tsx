@@ -76,6 +76,11 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
           setQrIdentityEmail(null);
           setIsSessionLoading(false);
         });
+      } else if (!firestore) {
+         // Firestore not ready yet, keep loading
+         setIsSessionLoading(true);
+      } else {
+        setIsSessionLoading(false);
       }
     } else {
       setIsSessionLoading(false);
@@ -85,11 +90,13 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   const activeEmail = user?.email || qrIdentityEmail;
   const activeUserData = userDocData || userData;
 
+  // Authoritative loading check
   const isWaiting = (isUserLoading || isUserDataLoading || isSessionLoading) && !activeEmail;
 
   useEffect(() => {
     if (isWaiting) return;
     
+    // If we've finished loading and still have no identity, go home
     if (!activeEmail) {
       router.replace('/');
       return;
