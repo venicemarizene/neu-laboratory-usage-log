@@ -21,13 +21,13 @@ export default function UsageReport({ logs }: UsageReportProps) {
     setLoading(true);
     try {
       const weeklyLogs = logs.map(l => 
-        `${l.professorName} used ${l.roomNumber} on ${new Date(l.timestamp).toISOString().split('T')[0]} at ${new Date(l.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+        `${l.professorEmail} used ${l.roomNumber} on ${new Date(l.loginTime).toISOString().split('T')[0]} at ${new Date(l.loginTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
       );
 
       const result = await adminUsageReportSummary({
         startDate: new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0],
         endDate: new Date().toISOString().split('T')[0],
-        weeklyLogs: weeklyLogs.slice(0, 50) // Limit to 50 for token efficiency
+        weeklyLogs: weeklyLogs.slice(0, 50)
       });
       setReport(result);
     } catch (error) {

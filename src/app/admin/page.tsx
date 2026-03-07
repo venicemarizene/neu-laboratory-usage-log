@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo, use } from 'react';
@@ -16,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import UsageReport from '@/components/UsageReport';
 
 const roomList = ['M101', 'M102', 'M103', 'M104', 'M105', 'M106', 'M107', 'M108', 'M109', 'M110', 'M111'];
 
@@ -42,7 +44,7 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
 
   const logsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'room_logs'), orderBy('timestamp', 'desc'), limit(2000));
+    return query(collection(firestore, 'logs'), orderBy('loginTime', 'desc'), limit(1000));
   }, [firestore]);
 
   const { data: logs, isLoading: isLogsLoading } = useCollection(logsQuery);
@@ -62,18 +64,17 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
     if (!logs) return [];
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    
     const startOfWeek = Date.now() - (7 * 24 * 60 * 60 * 1000);
     const startOfMonth = Date.now() - (30 * 24 * 60 * 60 * 1000);
 
     return logs.filter(log => {
-      const logTime = new Date(log.timestamp).getTime();
-      const profName = log.professorName || '';
+      const logTime = new Date(log.loginTime).getTime();
+      const profEmail = log.professorEmail || '';
       const roomNum = log.roomNumber || '';
       const term = searchTerm.toLowerCase();
 
       const matchesSearch = 
-        profName.toLowerCase().includes(term) ||
+        profEmail.toLowerCase().includes(term) ||
         roomNum.toLowerCase().includes(term);
       
       let matchesDate = true;
@@ -108,8 +109,8 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     return {
-      totalUsesToday: (logs || []).filter(l => new Date(l.timestamp).getTime() >= startOfDay).length,
-      totalUniqueProfessors: new Set((logs || []).map(l => l.professorId)).size,
+      totalUsesToday: (logs || []).filter(l => new Date(l.loginTime).getTime() >= startOfDay).length,
+      totalUniqueProfessors: new Set((logs || []).map(l => l.professorEmail)).size,
       totalBlockedUsers: (userProfiles || []).filter(u => u.status === 'blocked').length,
     };
   }, [logs, userProfiles]);
@@ -123,6 +124,7 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
           <h1 className="text-3xl font-black font-headline text-primary tracking-tight">Laboratory Analytics</h1>
           <p className="text-muted-foreground font-medium uppercase tracking-wider text-xs">NEU Computer Laboratory Management</p>
         </div>
+        <UsageReport logs={filteredLogs} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -209,7 +211,7 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
                 <div className="relative w-full sm:w-72">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input 
-                    placeholder="Search..." 
+                    placeholder="Search email/room..." 
                     className="pl-10 h-11 border-2 rounded-xl"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -286,9 +288,9 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
             <Table>
               <TableHeader className="bg-slate-50/50">
                 <TableRow>
-                  <TableHead className="font-bold py-5 px-6">Faculty</TableHead>
+                  <TableHead className="font-bold py-5 px-6">Professor Email</TableHead>
                   <TableHead className="font-bold py-5">Laboratory</TableHead>
-                  <TableHead className="font-bold py-5">Timestamp</TableHead>
+                  <TableHead className="font-bold py-5">Login Time</TableHead>
                   <TableHead className="font-bold py-5 px-6">Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -302,17 +304,20 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
                 ) : (
                   filteredLogs.map((log) => (
                     <TableRow key={log.id}>
-                      <TableCell className="font-bold px-6 py-4">{log.professorName}</TableCell>
+                      <TableCell className="font-bold px-6 py-4">{log.professorEmail}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="font-mono">
                           {log.roomNumber}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {new Date(log.timestamp).toLocaleString()}
+                        {new Date(log.loginTime).toLocaleString()}
                       </TableCell>
                       <TableCell className="px-6 py-4">
-                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+                        <Badge className={cn(
+                          "uppercase text-[10px] font-black",
+                          log.status === 'active' ? "bg-green-100 text-green-700 hover:bg-green-100" : "bg-slate-100 text-slate-700 hover:bg-slate-100"
+                        )}>
                           {log.status}
                         </Badge>
                       </TableCell>

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef, use } from 'react';
@@ -18,7 +19,6 @@ import jsQR from 'jsqr';
 
 /**
  * Standard Professor Portal for laboratory entry logging.
- * Features strict role-based guarding and authoritative DB checks.
  */
 export default function ProfessorPortal(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -59,7 +59,6 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       return;
     }
 
-    // Role Guard: Redirect admins trying to access the professor portal
     if (userData?.role === 'admin') {
       router.replace('/admin');
       return;
@@ -89,13 +88,14 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
     if (!selectedRoom || !firestore || !user) return;
     setIsProcessing(true);
     const logData = {
-      professorId: user.uid,
-      professorName: user.displayName || userData?.email || 'Professor',
+      professorEmail: user.email,
       roomNumber: selectedRoom,
-      timestamp: new Date().toISOString(),
-      status: 'Active'
+      loginTime: new Date().toISOString(),
+      logoutTime: null,
+      duration: 0,
+      status: 'active'
     };
-    addDoc(collection(firestore, 'room_logs'), logData)
+    addDoc(collection(firestore, 'logs'), logData)
       .then(() => {
         setStatus('success');
         setIsProcessing(false);
@@ -104,7 +104,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       .catch(async () => {
         setIsProcessing(false);
         errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: 'room_logs', operation: 'create', requestResourceData: logData,
+          path: 'logs', operation: 'create', requestResourceData: logData,
         }));
       });
   };
@@ -176,7 +176,6 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
     );
   }
 
-  // Final check to prevent unauthorized flash
   if (userData?.role === 'admin' || userData?.status === 'blocked') return null;
 
   return (
@@ -253,12 +252,6 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
                             </div>
                           )}
                         </div>
-                        <div className="flex justify-center">
-                           <Badge variant="secondary" className="px-4 py-1.5 text-[10px] font-black uppercase tracking-widest gap-1.5 bg-accent/10 text-accent-foreground border-accent/20 rounded-full">
-                             <div className="w-2 h-2 rounded-full bg-accent animate-ping" />
-                             Auto-Entry Active
-                           </Badge>
-                        </div>
                       </DialogContent>
                     </Dialog>
 
@@ -296,21 +289,6 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
                   </Button>
                 </div>
               )}
-
-              {status === 'blocked' && (
-                <div className="text-center py-8 space-y-6 animate-in shake duration-500">
-                  <div className="w-24 h-24 bg-destructive/5 rounded-full flex items-center justify-center mx-auto text-destructive border-2 border-destructive/10">
-                    <AlertTriangle className="w-12 h-12" />
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="text-3xl font-black text-destructive">Access Restricted</h3>
-                    <p className="text-base font-bold text-slate-500 px-6 leading-tight">Your account has been flagged. Please see the laboratory administrator.</p>
-                  </div>
-                  <Button onClick={handleSignOut} variant="destructive" className="w-full h-16 text-lg font-bold rounded-xl shadow-lg">
-                    Sign Out
-                  </Button>
-                </div>
-              )}
             </CardContent>
           </Card>
 
@@ -328,15 +306,6 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
           </div>
         </div>
       </main>
-      
-      <style jsx global>{`
-        @keyframes scan {
-          0% { top: 0%; opacity: 0; }
-          10% { opacity: 1; }
-          90% { opacity: 1; }
-          100% { top: 100%; opacity: 0; }
-        }
-      `}</style>
     </div>
   );
 }

@@ -34,33 +34,41 @@
       },
       "required": ["id", "email", "role", "status", "createdAt"]
     },
-    "RoomLog": {
+    "Log": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "RoomLog",
+      "title": "Log",
       "type": "object",
-      "description": "Records laboratory usage.",
+      "description": "Records laboratory usage sessions.",
       "properties": {
         "id": {
           "type": "string"
         },
-        "professorId": {
-          "type": "string"
-        },
-        "professorName": {
-          "type": "string"
+        "professorEmail": {
+          "type": "string",
+          "format": "email"
         },
         "roomNumber": {
           "type": "string"
         },
-        "timestamp": {
+        "loginTime": {
           "type": "string",
           "format": "date-time"
         },
+        "logoutTime": {
+          "type": "string",
+          "format": "date-time",
+          "nullable": true
+        },
+        "duration": {
+          "type": "number",
+          "description": "Duration in minutes."
+        },
         "status": {
-          "type": "string"
+          "type": "string",
+          "enum": ["active", "completed"]
         }
       },
-      "required": ["id", "professorId", "professorName", "roomNumber", "timestamp", "status"]
+      "required": ["professorEmail", "roomNumber", "loginTime", "status"]
     }
   },
   "auth": {
@@ -77,10 +85,10 @@
         }
       },
       {
-        "path": "/room_logs/{logId}",
+        "path": "/logs/{logId}",
         "definition": {
-          "entityName": "RoomLog",
-          "schema": { "$ref": "#/backend/entities/RoomLog" },
+          "entityName": "Log",
+          "schema": { "$ref": "#/backend/entities/Log" },
           "description": "Records of laboratory entry. Admins can read all; Professors can create for themselves."
         }
       }

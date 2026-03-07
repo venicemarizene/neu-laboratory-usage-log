@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, use, useRef } from 'react';
@@ -59,7 +60,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
-      // syncProfile returns the AUTHORITATIVE role from the DB
       const profile = await UserService.syncProfile(firestore, signedInUser, intendedRole);
       
       if (profile.status === 'blocked') {
@@ -71,7 +71,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
       toast({ title: 'Authenticated', description: `Welcome, ${signedInUser.displayName}` });
 
-      // AUTHORITATIVE REDIRECTION
       if (profile.role === 'admin') {
         router.push('/admin');
       } else {
@@ -129,13 +128,14 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
     try {
       const logData = {
-        professorId: currentUser.uid,
-        professorName: currentUser.displayName || currentUser.email || 'Professor',
+        professorEmail: currentUser.email,
         roomNumber: room,
-        timestamp: new Date().toISOString(),
-        status: 'Active'
+        loginTime: new Date().toISOString(),
+        logoutTime: null,
+        duration: 0,
+        status: 'active'
       };
-      await addDoc(collection(firestore, 'room_logs'), logData);
+      await addDoc(collection(firestore, 'logs'), logData);
       toast({ title: "Entry Recorded", description: `Logged into ${room}` });
       stopScanning();
       router.push(`/professor?room=${room}&auto=true`);
