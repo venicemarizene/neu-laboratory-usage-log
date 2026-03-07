@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, use, useRef } from 'react';
@@ -9,12 +8,13 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Search, UserRound, Mail, Loader2, ShieldAlert, UserX, UserCheck, X, QrCode, Download } from 'lucide-react';
+import { Search, UserRound, Mail, Loader2, ShieldAlert, UserX, UserCheck, X, QrCode, Download, Send } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { QRCodeCanvas } from 'qrcode.react';
+import { EmailService } from '@/lib/services/email-service';
 
 export default function ProfessorManagement(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -22,6 +22,7 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [isEmailing, setIsEmailing] = useState(false);
   const qrRef = useRef<HTMLCanvasElement>(null);
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -65,6 +66,30 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    }
+  };
+
+  const emailQR = async (email: string) => {
+    const canvas = qrRef.current;
+    if (!canvas) return;
+
+    setIsEmailing(true);
+    const url = canvas.toDataURL("image/png");
+    
+    try {
+      await EmailService.sendQREmail(email, url);
+      toast({
+        title: 'QR Sent',
+        description: `The identification QR code has been emailed to ${email}.`,
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Email Failed',
+        description: 'Could not send the QR code at this time.',
+      });
+    } finally {
+      setIsEmailing(false);
     }
   };
 
@@ -205,13 +230,24 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
                                   includeMargin
                                 />
                               </div>
-                              <Button 
-                                className="w-full h-12 font-bold gap-2 rounded-xl"
-                                onClick={() => downloadQR(userDoc.email)}
-                              >
-                                <Download className="w-4 h-4" />
-                                Download PNG
-                              </Button>
+                              <div className="flex flex-col gap-2">
+                                <Button 
+                                  className="w-full h-12 font-bold gap-2 rounded-xl"
+                                  onClick={() => downloadQR(userDoc.email)}
+                                >
+                                  <Download className="w-4 h-4" />
+                                  Download PNG
+                                </Button>
+                                <Button 
+                                  variant="outline"
+                                  className="w-full h-12 font-bold gap-2 rounded-xl border-2"
+                                  disabled={isEmailing}
+                                  onClick={() => emailQR(userDoc.email)}
+                                >
+                                  {isEmailing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                  {isEmailing ? 'Sending...' : 'Email QR Code'}
+                                </Button>
+                              </div>
                             </DialogContent>
                           </Dialog>
 

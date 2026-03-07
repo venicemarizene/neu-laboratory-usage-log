@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef, use } from 'react';
@@ -10,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Monitor, LogOut, CheckCircle2, AlertTriangle, Loader2, ArrowRight, QrCode, AlertCircle, Ban, Download, ShieldCheck } from 'lucide-react';
+import { Monitor, LogOut, CheckCircle2, AlertTriangle, Loader2, ArrowRight, QrCode, AlertCircle, Ban, Download, ShieldCheck, Send } from 'lucide-react';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -20,6 +19,7 @@ import { AuthService } from '@/lib/services/auth-service';
 import { LogService } from '@/lib/services/log-service';
 import jsQR from 'jsqr';
 import { QRCodeCanvas } from 'qrcode.react';
+import { EmailService } from '@/lib/services/email-service';
 
 /**
  * Standard Professor Portal for laboratory entry logging.
@@ -36,6 +36,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
 
   const [room, setRoom] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isEmailing, setIsEmailing] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'blocked' | 'unauthorized'>('idle');
   
   const userRef = useMemoFirebase(() => {
@@ -177,6 +178,30 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    }
+  };
+
+  const emailMyQR = async () => {
+    const canvas = qrRef.current;
+    if (!canvas || !user?.email) return;
+
+    setIsEmailing(true);
+    const url = canvas.toDataURL("image/png");
+    
+    try {
+      await EmailService.sendQREmail(user.email, url);
+      toast({
+        title: 'QR Sent',
+        description: `Your identification QR code has been emailed to you.`,
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Email Failed',
+        description: 'Could not send your QR code at this time.',
+      });
+    } finally {
+      setIsEmailing(false);
     }
   };
 
@@ -350,13 +375,24 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
                       <p className="text-sm font-bold text-slate-800 truncate">{user?.email}</p>
                     </div>
                   </div>
-                  <Button 
-                    className="w-full h-14 font-black gap-3 rounded-xl shadow-md"
-                    onClick={downloadMyQR}
-                  >
-                    <Download className="w-5 h-5" />
-                    Download Identification QR
-                  </Button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Button 
+                      className="w-full h-14 font-black gap-2 rounded-xl shadow-md"
+                      onClick={downloadMyQR}
+                    >
+                      <Download className="w-4 h-4" />
+                      Download QR
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      className="w-full h-14 font-black gap-2 rounded-xl shadow-sm border-2"
+                      disabled={isEmailing}
+                      onClick={emailMyQR}
+                    >
+                      {isEmailing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      Email Me QR
+                    </Button>
+                  </div>
                 </div>
               </TabsContent>
             </Tabs>
