@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef, use } from 'react';
@@ -8,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Monitor, LogOut, CheckCircle2, AlertTriangle, Loader2, ArrowRight, QrCode, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Monitor, LogOut, CheckCircle2, AlertTriangle, Loader2, ArrowRight, QrCode, AlertCircle, Ban } from 'lucide-react';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -68,7 +68,10 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
 
     if (userData?.status === 'blocked') {
       setStatus('blocked');
-      AuthService.logout(auth!).then(() => router.replace('/'));
+      // Briefly show alert before redirection
+      setTimeout(() => {
+        AuthService.logout(auth!).then(() => router.replace('/'));
+      }, 3000);
       return;
     }
 
@@ -175,7 +178,21 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
     );
   }
 
-  if (userData?.role === 'admin' || userData?.status === 'blocked') return null;
+  if (userData?.role === 'admin') return null;
+
+  if (status === 'blocked') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+        <Alert variant="destructive" className="max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-500 border-2">
+          <Ban className="h-6 w-6" />
+          <AlertTitle className="text-xl font-black mb-2">Access Denied</AlertTitle>
+          <AlertDescription className="text-base font-bold leading-relaxed">
+            Your account has been blocked. Please contact the administrator.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">

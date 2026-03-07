@@ -4,11 +4,11 @@ import { useState, use, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info, QrCode, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Monitor, Loader2, ShieldCheck, UserCircle, LogOut, Info, QrCode, AlertCircle, CheckCircle2, Ban } from 'lucide-react';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AuthService } from '@/lib/services/auth-service';
 import { UserService } from '@/lib/services/user-service';
@@ -16,7 +16,7 @@ import { LogService } from '@/lib/services/log-service';
 import jsQR from 'jsqr';
 
 /**
- * Main Landing Page with Role-Based Redirection from Firestore.
+ * Main Landing Page with Role-Based Redirection and Blocked Account System.
  */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -30,6 +30,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [activeTab, setActiveTab] = useState('professor');
+  const [blockedError, setBlockedError] = useState<string | null>(null);
 
   // QR Scanning State
   const [isScanning, setIsScanning] = useState(false);
@@ -44,6 +45,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const handleGoogleLogin = async () => {
     if (!auth || !firestore) return;
     setIsLoggingIn(true);
+    setBlockedError(null);
     
     try {
       const signedInUser = await AuthService.signInWithGoogle(auth);
@@ -54,17 +56,17 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       
       const email = (signedInUser.email || '').toLowerCase().trim();
       if (!email.endsWith("@neu.edu.ph")) {
-        alert("Only @neu.edu.ph emails are allowed!");
+        toast({ variant: 'destructive', title: 'Institutional Required', description: "Only @neu.edu.ph emails are allowed!" });
         await AuthService.logout(auth);
         setIsLoggingIn(false);
         return;
       }
 
-      // Sync profile - role is determined authoritatively in the database
+      // Sync profile - role and status are determined authoritatively in the database
       const profile = await UserService.syncProfile(firestore, signedInUser);
       
       if (profile.status === 'blocked') {
-        alert("Your account has been blocked.");
+        setBlockedError("Your account has been blocked. Please contact the administrator.");
         await AuthService.logout(auth);
         setIsLoggingIn(false);
         return;
@@ -90,6 +92,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const handleQRDetected = async (room: string) => {
     if (detectedRoom) return; 
     setDetectedRoom(room);
+    setBlockedError(null);
     let currentUser = user;
 
     if (!currentUser) {
@@ -105,7 +108,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         
         const email = (signedInUser.email || '').toLowerCase().trim();
         if (!email.endsWith("@neu.edu.ph")) {
-          alert("Institutional account required.");
+          toast({ variant: 'destructive', title: 'Access Denied', description: "Institutional account required." });
           await AuthService.logout(auth);
           setIsLoggingIn(false);
           setDetectedRoom(null);
@@ -114,10 +117,11 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
 
         const profile = await UserService.syncProfile(firestore, signedInUser);
         if (profile.status === 'blocked') {
-          alert("Account blocked.");
+          setBlockedError("Your account has been blocked. Please contact the administrator.");
           await AuthService.logout(auth);
           setIsLoggingIn(false);
           setDetectedRoom(null);
+          stopScanning();
           return;
         }
         currentUser = signedInUser;
@@ -171,6 +175,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const startScanning = async () => {
     setIsScanning(true);
     setDetectedRoom(null);
+    setBlockedError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       setHasCameraPermission(true);
@@ -219,7 +224,17 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
           <p className="text-muted-foreground font-medium uppercase tracking-wider text-[10px]">Institutional Laboratory Management</p>
         </div>
 
-        {user && (
+        {blockedError && (
+          <Alert variant="destructive" className="animate-in slide-in-from-top-2 duration-300">
+            <Ban className="h-4 w-4" />
+            <AlertTitle className="font-bold">Access Restricted</AlertTitle>
+            <AlertDescription className="font-semibold">
+              {blockedError}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {user && !blockedError && (
           <div className="p-3 bg-card border rounded-xl shadow-sm flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center font-bold text-primary shadow-inner text-xs">
@@ -297,7 +312,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                         />
                         <canvas ref={canvasRef} className="hidden" />
                         
-                        {detectedRoom && (
+                        {detectedRoom && !blockedError && (
                           <div className="absolute inset-0 bg-primary/20 flex items-center justify-center backdrop-blur-[2px] z-10">
                             <div className="text-center bg-white p-6 rounded-2xl shadow-2xl animate-in zoom-in duration-300">
                               <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-2" />
