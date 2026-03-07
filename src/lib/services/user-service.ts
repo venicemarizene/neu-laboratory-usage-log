@@ -1,7 +1,6 @@
-
 'use client';
 
-import { Firestore, doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { Firestore, doc, getDoc, setDoc, serverTimestamp, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { User as FirebaseUser } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -48,6 +47,20 @@ export const UserService = {
   },
 
   /**
+   * Synchronizes user metadata by email. Used for QR identification.
+   */
+  async syncProfileByEmail(db: Firestore, email: string): Promise<UserMetadata> {
+    const q = query(collection(db, 'users'), where('email', '==', email.toLowerCase().trim()));
+    const snap = await getDocs(q);
+    
+    if (snap.empty) {
+      throw new Error("No professor record found for this QR code.");
+    }
+    
+    return snap.docs[0].data() as UserMetadata;
+  },
+
+  /**
    * Synchronizes user metadata. 
    */
   async syncProfile(db: Firestore, user: FirebaseUser): Promise<UserMetadata> {
@@ -83,7 +96,7 @@ export const UserService = {
         email: userEmail,
         role: finalRole,
         status: 'active',
-        qrValue: userEmail, // Initialize with email as requested
+        qrValue: userEmail, 
         createdAt: serverTimestamp()
       };
 

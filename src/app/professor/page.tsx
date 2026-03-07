@@ -50,7 +50,11 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   const qrRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(null);
 
-  const roomList = Array.from({ length: 11 }, (_, i) => `M${101 + i}`);
+  const roomList = [
+    ...Array.from({ length: 11 }, (_, i) => `M${101 + i}`),
+    ...Array.from({ length: 11 }, (_, i) => `LAB${101 + i}`),
+    'LAB204'
+  ];
 
   const isWaiting = isUserLoading || (user && isUserDataLoading && !userData);
 
@@ -125,7 +129,9 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       });
 
       if (code) {
-        const foundRoom = roomList.find(r => code.data.includes(r));
+        // Since we are in the Professor Portal, we specifically look for Room QRs
+        const cleanData = code.data.trim().toUpperCase();
+        const foundRoom = roomList.find(r => cleanData.includes(r.toUpperCase()));
         if (foundRoom) {
           handleQRDetected(foundRoom);
           return;
@@ -158,11 +164,9 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   };
 
   const handleQRDetected = (detectedRoom: string) => {
-    if (roomList.includes(detectedRoom)) {
-      setRoom(detectedRoom);
-      stopScanning();
-      performEntry(detectedRoom);
-    }
+    setRoom(detectedRoom);
+    stopScanning();
+    performEntry(detectedRoom);
   };
 
   const downloadMyQR = () => {
@@ -201,6 +205,10 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       setIsEmailing(false);
     }
   };
+
+  useEffect(() => {
+    return () => stopScanning();
+  }, []);
 
   if (isWaiting) {
     return (

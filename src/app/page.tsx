@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, use, useRef } from 'react';
+import { useState, use, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -16,7 +16,7 @@ import { LogService } from '@/lib/services/log-service';
 import jsQR from 'jsqr';
 
 /**
- * Main Landing Page with Role-Based Redirection and Blocked Account System.
+ * Main Landing Page with Role-Based Redirection and QR-Based Identification.
  */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -36,11 +36,18 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const [isScanning, setIsScanning] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [detectedRoom, setDetectedRoom] = useState<string | null>(null);
+  const [detectedEmail, setDetectedEmail] = useState<string | null>(null);
+  
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(null);
 
-  const roomList = Array.from({ length: 11 }, (_, i) => `M${101 + i}`);
+  // Supports both M101-M111 and the LAB prefixes mentioned in requirements
+  const roomList = [
+    ...Array.from({ length: 11 }, (_, i) => `M${101 + i}`),
+    ...Array.from({ length: 11 }, (_, i) => `LAB${101 + i}`),
+    'LAB204'
+  ];
 
   const handleGoogleLogin = async () => {
     if (!auth || !firestore) return;
@@ -62,7 +69,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
         return;
       }
 
-      // Sync profile - role and status are determined authoritatively in the database
       const profile = await UserService.syncProfile(firestore, signedInUser);
       
       if (profile.status === 'blocked') {
@@ -73,13 +79,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       }
 
       toast({ title: 'Authenticated', description: `Welcome, ${signedInUser.displayName}` });
-
-      // Redirect based on role stored in Firestore
-      if (profile.role === 'admin') {
-        router.push('/admin');
-      } else {
-        router.push('/professor');
-      }
+      router.push(profile.role === 'admin' ? '/admin' : '/professor');
     } catch (error: any) {
       if (error.code !== 'auth/popup-closed-by-user') {
         toast({ variant: 'destructive', title: 'Authentication Error', description: error.message });
@@ -89,60 +89,60 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     }
   };
 
-  const handleQRDetected = async (room: string) => {
-    if (detectedRoom) return; 
-    setDetectedRoom(room);
-    setBlockedError(null);
-    let currentUser = user;
-
-    if (!currentUser) {
-      if (!auth || !firestore) return;
+  /**
+   * Process QR data based on content type (Email or Room ID)
+   */
+  const handleQRDetected = async (data: string) => {
+    const cleanData = data.trim();
+    
+    // 1. Identify if it's a Professor Email QR
+    if (cleanData.toLowerCase().endsWith('@neu.edu.ph')) {
+      if (detectedEmail) return;
+      setDetectedEmail(cleanData);
+      
+      if (!firestore) return;
       setIsLoggingIn(true);
+      
       try {
-        const signedInUser = await AuthService.signInWithGoogle(auth);
-        if (!signedInUser) {
-          setIsLoggingIn(false);
-          setDetectedRoom(null);
-          return;
-        }
-        
-        const email = (signedInUser.email || '').toLowerCase().trim();
-        if (!email.endsWith("@neu.edu.ph")) {
-          toast({ variant: 'destructive', title: 'Access Denied', description: "Institutional account required." });
-          await AuthService.logout(auth);
-          setIsLoggingIn(false);
-          setDetectedRoom(null);
-          return;
-        }
-
-        const profile = await UserService.syncProfile(firestore, signedInUser);
-        if (profile.status === 'blocked') {
+        // Query users by email to find UID and status
+        const usersRef = await UserService.syncProfileByEmail(firestore, cleanData);
+        if (usersRef.status === 'blocked') {
           setBlockedError("Your account has been blocked. Please contact the administrator.");
-          await AuthService.logout(auth);
-          setIsLoggingIn(false);
-          setDetectedRoom(null);
           stopScanning();
           return;
         }
-        currentUser = signedInUser;
+        
+        toast({ title: "Identity Verified", description: `Welcome, ${cleanData}` });
+        // If we also had a room, we could log it now. For now, redirect to professor portal.
+        router.push('/professor');
       } catch (error: any) {
-        setIsLoggingIn(false);
-        setDetectedRoom(null);
-        return;
+        toast({ variant: 'destructive', title: 'Identity Error', description: error.message });
       } finally {
         setIsLoggingIn(false);
       }
+      return;
     }
 
-    try {
-      if (firestore && currentUser?.email) {
-        await LogService.startSession(firestore, currentUser.email, room);
-        toast({ title: "Entry Recorded", description: `Logged into ${room}` });
-        stopScanning();
-        router.push(`/professor?room=${room}&auto=true`);
+    // 2. Identify if it's a Room QR
+    const foundRoom = roomList.find(r => cleanData.toUpperCase().includes(r.toUpperCase()));
+    if (foundRoom) {
+      if (detectedRoom) return;
+      setDetectedRoom(foundRoom);
+
+      // If already logged in, we can perform instant entry
+      if (user && firestore) {
+        try {
+          await LogService.startSession(firestore, user.email!, foundRoom);
+          toast({ title: "Entry Recorded", description: `Logged into ${foundRoom}` });
+          stopScanning();
+          router.push(`/professor?room=${foundRoom}&auto=true`);
+        } catch (error) {
+          toast({ variant: 'destructive', title: 'Error', description: 'Failed to record entry.' });
+        }
+      } else {
+        toast({ title: "Room Detected", description: "Please sign in to complete entry." });
       }
-    } catch (error) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to record entry.' });
+      return;
     }
   };
 
@@ -162,11 +162,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       });
 
       if (code) {
-        const foundRoom = roomList.find(r => code.data.includes(r));
-        if (foundRoom) {
-          handleQRDetected(foundRoom);
-          return;
-        }
+        handleQRDetected(code.data);
       }
     }
     requestRef.current = requestAnimationFrame(scanFrame);
@@ -175,6 +171,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const startScanning = async () => {
     setIsScanning(true);
     setDetectedRoom(null);
+    setDetectedEmail(null);
     setBlockedError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
@@ -191,6 +188,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const stopScanning = () => {
     setIsScanning(false);
     setDetectedRoom(null);
+    setDetectedEmail(null);
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
@@ -204,6 +202,10 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
       toast({ title: 'Signed Out', description: 'Session terminated.' });
     }
   };
+
+  useEffect(() => {
+    return () => stopScanning();
+  }, []);
 
   if (isUserLoading) {
     return (
@@ -270,7 +272,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                 <Alert className="bg-primary/5 border border-primary/20">
                   <Info className="h-4 w-4 text-primary" />
                   <AlertDescription className="text-sm font-medium">
-                    Use your @neu.edu.ph account. Scan a room QR code for instant entry.
+                    Use your @neu.edu.ph account. Scan a room OR your ID QR for instant entry.
                   </AlertDescription>
                 </Alert>
                 
@@ -299,7 +301,7 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                       <DialogHeader>
                         <DialogTitle>Instant Room Entry</DialogTitle>
                         <DialogDescription>
-                          Scan the laboratory QR code. If you aren't signed in, we'll authenticate you to complete the entry.
+                          Scan the laboratory QR code or your Professor ID QR code.
                         </DialogDescription>
                       </DialogHeader>
                       <div className="aspect-square relative rounded-2xl bg-black overflow-hidden border-4 border-muted shadow-2xl">
@@ -312,15 +314,17 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
                         />
                         <canvas ref={canvasRef} className="hidden" />
                         
-                        {detectedRoom && !blockedError && (
+                        {(detectedRoom || detectedEmail) && !blockedError && (
                           <div className="absolute inset-0 bg-primary/20 flex items-center justify-center backdrop-blur-[2px] z-10">
                             <div className="text-center bg-white p-6 rounded-2xl shadow-2xl animate-in zoom-in duration-300">
                               <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-2" />
-                              <p className="font-black text-primary text-xl">Lab {detectedRoom} Detected</p>
+                              <p className="font-black text-primary text-xl">
+                                {detectedRoom ? `Lab ${detectedRoom}` : 'ID Verified'}
+                              </p>
                               {isLoggingIn ? (
                                 <div className="mt-4 flex flex-col items-center gap-2">
                                   <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                                  <p className="text-xs font-bold uppercase tracking-widest animate-pulse">Authenticating...</p>
+                                  <p className="text-xs font-bold uppercase tracking-widest animate-pulse">Processing...</p>
                                 </div>
                               ) : (
                                 <p className="text-sm font-medium text-muted-foreground mt-1">Completing Entry...</p>
