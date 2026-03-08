@@ -1,13 +1,12 @@
-
 "use client"
 
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, LogOut, Monitor, Loader2, ShieldCheck, PanelLeft, QrCode } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, Monitor, Loader2, PanelLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser, useAuth, useDoc, useMemoFirebase, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState } from 'react';
 import { AuthService } from '@/lib/services/auth-service';
 import { cn } from '@/lib/utils';
 
@@ -88,16 +87,6 @@ export default function AdminLayout(props: {
           >
             <LayoutDashboard className="w-5 h-5" />
             <span>Dashboard</span>
-          </Link>
-          <Link 
-            href="/admin/qr-generator" 
-            className={cn(
-              "flex items-center gap-3 p-3 rounded-lg transition-colors duration-200",
-              pathname === '/admin/qr-generator' ? 'bg-white/20' : 'hover:bg-white/10'
-            )}
-          >
-            <QrCode className="w-5 h-5" />
-            <span>Room QR Generator</span>
           </Link>
           <Link 
             href="/admin/professors" 

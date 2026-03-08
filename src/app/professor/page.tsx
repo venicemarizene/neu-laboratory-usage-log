@@ -1,25 +1,20 @@
-
 "use client"
 
-import { useState, useEffect, useRef, use } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Monitor, LogOut, CheckCircle2, Loader2, ArrowRight, QrCode, AlertCircle, Ban } from 'lucide-react';
+import { Monitor, LogOut, CheckCircle2, Loader2, ArrowRight, Ban } from 'lucide-react';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
 import { AuthService } from '@/lib/services/auth-service';
 import { LogService } from '@/lib/services/log-service';
-import jsQR from 'jsqr';
 
-export default function ProfessorPortal(props: { params: Promise<any>; searchParams: Promise<any> }) {
+export default function ProfessorPortal() {
   const router = useRouter();
   const auth = useAuth();
   const firestore = useFirestore();
@@ -28,7 +23,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
 
   const [room, setRoom] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [status, setStatus] = useState<'idle' | 'success' | 'blocked' | 'unauthorized'>('idle');
+  const [status, setStatus] = useState<'idle' | 'success' | 'blocked'>('idle');
   
   const userRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -37,17 +32,7 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
   
   const { data: userData, isLoading: isUserDataLoading } = useDoc(userRef);
   
-  const [isScanning, setIsScanning] = useState(false);
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const requestRef = useRef<number>(null);
-
-  const roomList = [
-    ...Array.from({ length: 11 }, (_, i) => `M${101 + i}`),
-    ...Array.from({ length: 11 }, (_, i) => `LAB${101 + i}`),
-    'LAB204'
-  ];
+  const roomList = Array.from({ length: 11 }, (_, i) => `M${101 + i}`);
 
   const isWaiting = isUserLoading || (user && isUserDataLoading && !userData);
 
@@ -91,79 +76,11 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
       setStatus('success');
       toast({ title: "Entry Logged", description: `Laboratory ${selectedRoom} session started.` });
     } catch (error: any) {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: 'roomLogs', operation: 'create', requestResourceData: { professorEmail: user.email, room: selectedRoom },
-      }));
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
     } finally {
       setIsProcessing(false);
     }
   };
-
-  const scanFrame = () => {
-    if (!isScanning || !videoRef.current || !canvasRef.current) return;
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d', { willReadFrequently: true });
-
-    if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
-      canvas.height = video.videoHeight;
-      canvas.width = video.videoWidth;
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-      const code = jsQR(imageData.data, imageData.width, imageData.height);
-
-      if (code) {
-        try {
-          const qrData = JSON.parse(code.data);
-          if (qrData.room) {
-            handleQRDetected(qrData.room);
-            return;
-          }
-        } catch (e) {
-          // Check for plain text room identifier as fallback
-          const cleanData = code.data.trim().toUpperCase();
-          const foundRoom = roomList.find(r => cleanData.includes(r.toUpperCase()));
-          if (foundRoom) {
-            handleQRDetected(foundRoom);
-            return;
-          }
-        }
-      }
-    }
-    requestRef.current = requestAnimationFrame(scanFrame);
-  };
-
-  const startScanning = async () => {
-    setIsScanning(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      setHasCameraPermission(true);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        requestRef.current = requestAnimationFrame(scanFrame);
-      }
-    } catch (error) {
-      setHasCameraPermission(false);
-    }
-  };
-
-  const stopScanning = () => {
-    setIsScanning(false);
-    if (requestRef.current) cancelAnimationFrame(requestRef.current);
-    if (videoRef.current?.srcObject) {
-      (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
-    }
-  };
-
-  const handleQRDetected = (detectedRoom: string) => {
-    setRoom(detectedRoom);
-    stopScanning();
-    performEntry(detectedRoom);
-  };
-
-  useEffect(() => {
-    return () => stopScanning();
-  }, []);
 
   if (isWaiting) {
     return (
@@ -214,13 +131,13 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
           <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-white">
             <CardHeader className="pb-4 text-center pt-8 px-8">
               <CardTitle className="text-3xl font-black text-slate-900">Laboratory Entry</CardTitle>
-              <CardDescription className="text-lg font-semibold text-muted-foreground mt-1">Identify your room to begin</CardDescription>
+              <CardDescription className="text-lg font-semibold text-muted-foreground mt-1">Select your room to begin</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 px-8 pb-10">
               {status === 'idle' && (
                 <div className="space-y-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-1">Manual Selection</label>
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-1">Laboratory Selection</label>
                     <Select value={room} onValueChange={setRoom}>
                       <SelectTrigger className="h-16 rounded-xl border-slate-200 text-lg font-bold shadow-sm focus:ring-primary">
                         <SelectValue placeholder="Select Laboratory" />
@@ -233,49 +150,14 @@ export default function ProfessorPortal(props: { params: Promise<any>; searchPar
                     </Select>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4">
-                    <Dialog onOpenChange={(o) => !o && stopScanning()}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" onClick={startScanning} className="h-16 rounded-xl gap-3 border-2 border-slate-200 font-bold text-lg hover:bg-slate-50 transition-all">
-                          <QrCode className="w-6 h-6 text-primary" />
-                          Scan Room QR
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-md rounded-2xl">
-                        <DialogHeader>
-                          <DialogTitle className="text-xl font-black">Room Identification</DialogTitle>
-                          <DialogDescription className="text-sm font-medium">Position the room QR code within the frame for instant recording.</DialogDescription>
-                        </DialogHeader>
-                        <div className="aspect-video relative rounded-xl bg-black overflow-hidden border-2 border-slate-100 shadow-inner">
-                          <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" autoPlay muted playsInline />
-                          <canvas ref={canvasRef} className="hidden" />
-                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <div className="w-48 h-48 border-2 border-accent/60 rounded-2xl animate-pulse relative">
-                              <div className="absolute top-0 left-0 w-full h-0.5 bg-accent/80 animate-[scan_2s_linear_infinite]" />
-                            </div>
-                          </div>
-                          {hasCameraPermission === false && (
-                            <div className="absolute inset-0 bg-black/95 flex items-center justify-center text-white p-6 text-center">
-                              <div className="space-y-3">
-                                <AlertCircle className="w-12 h-12 mx-auto text-destructive" />
-                                <p className="font-black text-xl">Camera Access Required</p>
-                                <p className="text-xs opacity-60">Please enable camera permissions in your browser settings.</p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-
-                    <Button 
-                      onClick={() => performEntry(room)} 
-                      disabled={!room || isProcessing}
-                      className="w-full h-20 text-xl font-black bg-primary hover:bg-primary/90 rounded-xl gap-3 transition-all shadow-lg active:scale-[0.98] border-b-4 border-primary/20"
-                    >
-                      {isProcessing ? <Loader2 className="w-6 h-6 animate-spin" /> : <ArrowRight className="w-6 h-6" />}
-                      {isProcessing ? 'Recording...' : `Log Entry ${room}`}
-                    </Button>
-                  </div>
+                  <Button 
+                    onClick={() => performEntry(room)} 
+                    disabled={!room || isProcessing}
+                    className="w-full h-20 text-xl font-black bg-primary hover:bg-primary/90 rounded-xl gap-3 transition-all shadow-lg active:scale-[0.98] border-b-4 border-primary/20"
+                  >
+                    {isProcessing ? <Loader2 className="w-6 h-6 animate-spin" /> : <ArrowRight className="w-6 h-6" />}
+                    {isProcessing ? 'Recording...' : `Log Entry ${room}`}
+                  </Button>
                 </div>
               )}
 
