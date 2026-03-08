@@ -1,19 +1,23 @@
 
 "use client"
 
-import { useState, useEffect, useRef, use } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Monitor, LogOut, CheckCircle2, Loader2, QrCode, Clock, MapPin, AlertCircle } from 'lucide-react';
-import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, limit, orderBy } from 'firebase/firestore';
+import { useUser, useAuth, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
+import { collection, query, where, limit, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { AuthService } from '@/lib/services/auth-service';
 import { LogService } from '@/lib/services/log-service';
 import jsQR from 'jsqr';
+import { format } from 'date-fns';
 
+/**
+ * Professor Portal - Secure laboratory room logging via QR identification.
+ */
 export default function ProfessorPortal() {
   const router = useRouter();
   const auth = useAuth();
@@ -29,6 +33,15 @@ export default function ProfessorPortal() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(null);
+  const scanProcessedRef = useRef(false);
+
+  // Fetch user profile to check for blocked status
+  const userRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+
+  const { data: userData } = useDoc(userRef);
 
   const activeLogQuery = useMemoFirebase(() => {
     if (!firestore || !user?.email) return null;
@@ -56,29 +69,54 @@ export default function ProfessorPortal() {
     }
   };
 
+  /**
+   * Processes the extracted room name and saves to Firestore.
+   */
   const performRoomLog = async (roomCode: string) => {
-    if (isProcessing || !firestore || !user?.email) return;
-    setIsProcessing(true);
+    if (!firestore || !user?.email) return;
     
+    // Step 4: Room extracted
+    console.log("Room extracted:", roomCode);
+
+    // Final security check for blocked accounts
+    if (userData?.status === 'blocked') {
+      toast({ 
+        variant: 'destructive', 
+        title: 'Access Denied', 
+        description: 'Your account has been blocked by the administrator.' 
+      });
+      return;
+    }
+
+    setIsProcessing(true);
     try {
       await LogService.startRoomSession(firestore, user.email, roomCode);
+      
+      // Step 5: Usage logged successfully
+      console.log("Usage logged successfully");
+      
       setLastLoggedRoom(roomCode);
       setStatus('success');
       toast({ title: "Room Logged", description: `Laboratory ${roomCode} usage started.` });
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Logging Failed', description: error.message });
+      scanProcessedRef.current = false; // Reset if failed so user can try again
     } finally {
       setIsProcessing(false);
     }
   };
 
+  /**
+   * Continuous animation loop to detect QR codes from video stream.
+   */
   const scanFrame = () => {
-    if (!isScanning || !videoRef.current || !canvasRef.current) return;
+    if (!isScanning || !videoRef.current || !canvasRef.current || scanProcessedRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
     if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
+      // Use native video resolution for high-fidelity scanning
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -86,15 +124,33 @@ export default function ProfessorPortal() {
       const code = jsQR(imageData.data, imageData.width, imageData.height);
 
       if (code) {
+        const decodedText = code.data.trim();
+        
+        // Step 2: QR detected
+        console.log("QR detected:", decodedText);
+        // Step 3: Decoded QR text
+        console.log("Decoded QR text:", decodedText);
+
         try {
-          const qrData = JSON.parse(code.data);
+          const qrData = JSON.parse(decodedText);
           if (qrData.room) {
+            scanProcessedRef.current = true;
             stopScanning();
             performRoomLog(qrData.room);
             return;
+          } else {
+            throw new Error("Missing room property");
           }
         } catch (e) {
-          // Not valid JSON or missing room, ignore or show hint
+          // Surfacing invalid JSON error
+          toast({ 
+            variant: 'destructive', 
+            title: 'Scan Error', 
+            description: 'Invalid room QR code.' 
+          });
+          // Add small delay to prevent rapid-fire toast spam
+          scanProcessedRef.current = true;
+          setTimeout(() => { scanProcessedRef.current = false; }, 3000);
         }
       }
     }
@@ -102,8 +158,13 @@ export default function ProfessorPortal() {
   };
 
   const startScanning = async () => {
+    // Step 1: Scanner initialized
+    console.log("Scanner started");
+    
     setIsScanning(true);
     setStatus('idle');
+    scanProcessedRef.current = false;
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: 'environment' } 
