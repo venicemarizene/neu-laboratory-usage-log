@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, Users, Monitor, Activity, Clock, Timer, Calendar as CalendarIcon, TrendingUp, X } from 'lucide-react';
+import { Search, Users, Monitor, Activity, Clock, Timer, Calendar as CalendarIcon, TrendingUp, X, Ban } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { format, differenceInMinutes, startOfDay, subDays, subMonths, isWithinInterval } from 'date-fns';
@@ -53,6 +53,13 @@ export default function AdminDashboard() {
 
   const { data: logs, isLoading: isLogsLoading } = useCollection(logsQuery);
 
+  const usersQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'users');
+  }, [firestore]);
+
+  const { data: users, isLoading: isUsersLoading } = useCollection(usersQuery);
+
   const filteredLogs = useMemo(() => {
     if (!logs) return [];
     const now = new Date();
@@ -71,15 +78,11 @@ export default function AdminDashboard() {
       } else if (periodFilter === 'monthly') {
         matchesPeriod = logDate >= subMonths(now, 1);
       } else if (periodFilter === 'custom') {
-        if (startDate && endDate) {
-          matchesPeriod = isWithinInterval(logDate, { start: startOfDay(startDate), end: now });
-          if (endDate) {
-            const e = new Date(endDate);
-            e.setHours(23, 59, 59, 999);
-            matchesPeriod = isWithinInterval(logDate, { start: startOfDay(startDate), end: e });
-          }
-        } else if (startDate) {
-          matchesPeriod = logDate >= startOfDay(startDate);
+        if (startDate) {
+          const s = startOfDay(startDate);
+          const e = endDate ? new Date(endDate) : new Date(now);
+          if (endDate) e.setHours(23, 59, 59, 999);
+          matchesPeriod = isWithinInterval(logDate, { start: s, end: e });
         }
       }
 
@@ -88,18 +91,17 @@ export default function AdminDashboard() {
   }, [logs, searchTerm, periodFilter, startDate, endDate]);
 
   const stats = useMemo(() => {
-    if (!logs) return { active: 0, today: 0, uniqueProfs: 0 };
     const now = new Date();
-    const todayLogs = logs.filter(l => l.timeIn?.toDate && l.timeIn.toDate() >= startOfDay(now));
-    const activeLogs = logs.filter(l => l.status === 'active');
-    const uniqueProfs = new Set(logs.map(l => l.professorEmail)).size;
+    const activeLogsCount = (logs || []).filter(l => l.status === 'active').length;
+    const todayLogsCount = (logs || []).filter(l => l.timeIn?.toDate && l.timeIn.toDate() >= startOfDay(now)).length;
+    const blockedCount = (users || []).filter(u => u.status === 'blocked').length;
 
     return {
-      active: activeLogs.length,
-      today: todayLogs.length,
-      uniqueProfs: uniqueProfs
+      active: activeLogsCount,
+      today: todayLogsCount,
+      blocked: blockedCount,
     };
-  }, [logs]);
+  }, [logs, users]);
 
   const chartData = useMemo(() => {
     return roomList.map(room => ({
@@ -145,12 +147,12 @@ export default function AdminDashboard() {
         <Card className="border-none shadow-xl bg-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary" /> Total Faculty
+              <Ban className="h-4 w-4 text-destructive" /> Blocked Accounts
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-4xl font-black text-primary">{stats.uniqueProfs}</div>
-            <p className="text-xs mt-2 text-muted-foreground">Unique professors logged</p>
+            <div className="text-4xl font-black text-destructive">{stats.blocked}</div>
+            <p className="text-xs mt-2 text-muted-foreground">Restricted faculty access</p>
           </CardContent>
         </Card>
       </div>
@@ -326,9 +328,9 @@ export default function AdminDashboard() {
                         <TableCell className="px-8 text-right">
                           <Badge className={cn(
                             "text-[10px] font-black uppercase",
-                            log.status === 'active' ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-700"
+                            log.status === 'active' ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"
                           )}>
-                            {log.status}
+                            {log.status === 'active' ? 'In progress' : 'Completed'}
                           </Badge>
                         </TableCell>
                       </TableRow>
