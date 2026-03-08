@@ -107,7 +107,7 @@ export default function AdminLayout(props: {
             )}
           >
             <Users className="w-5 h-5" />
-            <span>Professors</span>
+            <span>Professors Directory</span>
           </Link>
         </nav>
 

@@ -79,7 +79,7 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
     <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold font-headline text-primary tracking-tight">System Users</h1>
+          <h1 className="text-3xl font-bold font-headline text-primary tracking-tight">Professors Directory</h1>
           <p className="text-muted-foreground font-medium">Manage institutional accounts and system access</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
