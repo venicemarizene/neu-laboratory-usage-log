@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo } from 'react';
@@ -122,11 +121,14 @@ export default function AdminDashboard() {
   const monthlyTrendData = useMemo(() => {
     if (!logs) return [];
     const now = new Date();
-    const sixMonthsAgo = subMonths(now, 5);
-    const months = eachMonthOfInterval({ start: sixMonthsAgo, end: now });
+    // Start interval from January 1, 2026 onwards
+    const trendStart = new Date(2026, 0, 1);
+    const trendEnd = now < trendStart ? trendStart : now;
+    
+    const months = eachMonthOfInterval({ start: trendStart, end: trendEnd });
 
     return months.map(m => {
-      const monthStr = format(m, 'MMM');
+      const monthStr = format(m, 'MMM yy');
       const count = (logs || []).filter(l => {
         const d = l.timeIn?.toDate ? l.timeIn.toDate() : null;
         return d && d >= startOfMonth(m) && d <= endOfMonth(m);
@@ -191,7 +193,7 @@ export default function AdminDashboard() {
               </div>
               <div>
                 <CardTitle className="text-xl font-bold">Monthly Usage Trend</CardTitle>
-                <CardDescription>Laboratory session volume over the last 6 months</CardDescription>
+                <CardDescription>Laboratory session volume starting January 2026</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -210,7 +212,7 @@ export default function AdminDashboard() {
                     dataKey="month" 
                     axisLine={false} 
                     tickLine={false} 
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontWeight: 700 }}
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10, fontWeight: 700 }}
                   />
                   <YAxis hide />
                   <Tooltip 
