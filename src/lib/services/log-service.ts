@@ -1,38 +1,32 @@
 
 'use client';
 
-import { Firestore, collection, addDoc, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { Firestore, collection, addDoc, query, where, getDocs, updateDoc, doc, serverTimestamp, Timestamp, orderBy } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
-/**
- * Service to manage laboratory usage logs in Firestore.
- * Handles automatic session completion and duration calculations.
- */
 export const LogService = {
   /**
    * Starts a new laboratory session for a professor.
-   * Automatically ends any existing active session for that professor.
    */
-  async startSession(db: Firestore, email: string, room: string) {
-    // End any existing active sessions before starting a new one
-    await this.endActiveSession(db, email);
+  async startRoomSession(db: Firestore, email: string, room: string) {
+    // End any existing active sessions first
+    await this.endActiveRoomSession(db, email);
 
     const logData = {
       professorEmail: email,
-      roomNumber: room,
-      loginTime: new Date().toISOString(),
-      logoutTime: null,
-      duration: 0,
+      room: room,
+      timeIn: serverTimestamp(),
+      timeOut: null,
       status: 'active'
     };
 
     try {
-      return await addDoc(collection(db, 'logs'), logData);
+      return await addDoc(collection(db, 'roomLogs'), logData);
     } catch (err: any) {
       if (err.code === 'permission-denied') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: 'logs',
+          path: 'roomLogs',
           operation: 'create',
           requestResourceData: logData
         }));
@@ -42,44 +36,25 @@ export const LogService = {
   },
 
   /**
-   * Finds and completes all active laboratory sessions for a specific professor.
-   * Calculates the final duration in minutes.
+   * Ends active room sessions for a specific professor.
    */
-  async endActiveSession(db: Firestore, email: string) {
+  async endActiveRoomSession(db: Firestore, email: string) {
     const q = query(
-      collection(db, 'logs'),
+      collection(db, 'roomLogs'),
       where('professorEmail', '==', email),
       where('status', '==', 'active')
     );
     
     try {
       const querySnapshot = await getDocs(q);
-      
-      const updatePromises = querySnapshot.docs.map(async (activeLog) => {
-        const data = activeLog.data();
-        const loginTime = new Date(data.loginTime);
-        const logoutTime = new Date();
-        
-        // Calculate duration in minutes (difference in MS / 60000)
-        const duration = Math.max(1, Math.round((logoutTime.getTime() - loginTime.getTime()) / 60000));
-        
-        const updateData = {
-          logoutTime: logoutTime.toISOString(),
-          duration: duration,
+      const updatePromises = querySnapshot.docs.map((logDoc) => {
+        return updateDoc(doc(db, 'roomLogs', logDoc.id), {
+          timeOut: serverTimestamp(),
           status: 'completed'
-        };
-
-        return updateDoc(doc(db, 'logs', activeLog.id), updateData);
+        });
       });
-
       await Promise.all(updatePromises);
     } catch (err: any) {
-      if (err.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: 'logs',
-          operation: 'list'
-        }));
-      }
       console.error("Error ending active sessions:", err);
     }
   }

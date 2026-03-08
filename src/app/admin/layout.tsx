@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, LogOut, Monitor, Loader2, ShieldCheck, PanelLeft } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, Monitor, Loader2, ShieldCheck, PanelLeft, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser, useAuth, useDoc, useMemoFirebase, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -13,15 +13,10 @@ import { cn } from '@/lib/utils';
 
 const ADMIN_EMAIL = 'venicemarizene.linga@neu.edu.ph';
 
-/**
- * Layout guard for Administrative routes.
- * Strictly enforced to only allow venicemarizene.linga@neu.edu.ph.
- */
 export default function AdminLayout(props: {
   children: React.ReactNode;
   params: Promise<any>;
 }) {
-  const params = use(props.params);
   const router = useRouter();
   const pathname = usePathname();
   const auth = useAuth();
@@ -36,7 +31,6 @@ export default function AdminLayout(props: {
 
   const { data: userData, isLoading: isDataLoading } = useDoc(userRef);
 
-  // Authoritative check: User must have correct email, correct role, and be active.
   const isAuthorized = 
     user && 
     user.email === ADMIN_EMAIL && 
@@ -48,15 +42,8 @@ export default function AdminLayout(props: {
 
   useEffect(() => {
     if (isWaiting) return;
-
-    if (!user) {
+    if (!user || user.email !== ADMIN_EMAIL || !userData || userData.role !== 'admin' || userData.status === 'blocked') {
       router.replace('/');
-      return;
-    }
-
-    if (user.email !== ADMIN_EMAIL || !userData || userData.role !== 'admin' || userData.status === 'blocked') {
-      router.replace('/');
-      return;
     }
   }, [user, userData, isWaiting, router]);
 
@@ -88,7 +75,7 @@ export default function AdminLayout(props: {
       )}>
         <div className="flex items-center gap-3 mb-10 px-2 whitespace-nowrap">
           <Monitor className="w-8 h-8 text-accent" />
-          <span className="text-xl font-bold tracking-tight font-headline">NEU LabTrack</span>
+          <span className="text-xl font-bold tracking-tight">NEU LabTrack</span>
         </div>
         
         <nav className="flex-1 space-y-2 whitespace-nowrap">
@@ -103,6 +90,16 @@ export default function AdminLayout(props: {
             <span>Dashboard</span>
           </Link>
           <Link 
+            href="/admin/qr-generator" 
+            className={cn(
+              "flex items-center gap-3 p-3 rounded-lg transition-colors duration-200",
+              pathname === '/admin/qr-generator' ? 'bg-white/20' : 'hover:bg-white/10'
+            )}
+          >
+            <QrCode className="w-5 h-5" />
+            <span>Room QR Generator</span>
+          </Link>
+          <Link 
             href="/admin/professors" 
             className={cn(
               "flex items-center gap-3 p-3 rounded-lg transition-colors duration-200",
@@ -110,19 +107,15 @@ export default function AdminLayout(props: {
             )}
           >
             <Users className="w-5 h-5" />
-            <span>Professor Directory</span>
+            <span>Professors</span>
           </Link>
         </nav>
 
         <div className="pt-6 border-t border-white/10 space-y-4 whitespace-nowrap">
-          <div className="flex items-center gap-2 px-3 py-2 bg-accent/20 rounded-lg">
-            <ShieldCheck className="w-4 h-4 text-accent" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-accent-foreground">Admin Mode</span>
-          </div>
           <Button 
             variant="ghost" 
             onClick={handleSignOut}
-            className="w-full justify-start text-white hover:bg-white/10 gap-3 transition-all duration-200"
+            className="w-full justify-start text-white hover:bg-white/10 gap-3"
           >
             <LogOut className="w-5 h-5" />
             <span>Sign Out</span>
@@ -130,15 +123,14 @@ export default function AdminLayout(props: {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden transition-all duration-300">
+      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         <header className="h-16 border-b bg-card px-8 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
             <Button 
               variant="ghost" 
               size="icon" 
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="text-primary hover:bg-primary/5 hidden md:flex"
-              title={isSidebarOpen ? "Hide Sidebar" : "Show Sidebar"}
+              className="text-primary hidden md:flex"
             >
               <PanelLeft className="w-5 h-5" />
             </Button>
@@ -146,15 +138,15 @@ export default function AdminLayout(props: {
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold leading-none">{user?.displayName || 'Administrator'}</p>
-              <p className="text-xs text-muted-foreground font-medium">{user?.email}</p>
+              <p className="text-sm font-bold leading-none">{user?.displayName}</p>
+              <p className="text-xs text-muted-foreground">{user?.email}</p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center font-bold text-primary shadow-inner">
-              {user?.email?.[0].toUpperCase() || 'A'}
+            <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center font-bold text-primary">
+              {user?.email?.[0].toUpperCase()}
             </div>
           </div>
         </header>
-        <div className="flex-1 p-8 overflow-y-auto bg-slate-50/50 min-w-0">
+        <div className="flex-1 p-8 overflow-y-auto bg-slate-50/50">
           {props.children}
         </div>
       </main>

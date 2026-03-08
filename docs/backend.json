@@ -2,96 +2,58 @@
 {
   "entities": {
     "User": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
-      "type": "object",
       "description": "Represents a user (Professor or Admin) in the system.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Firebase UID."
-        },
-        "email": {
-          "type": "string",
-          "format": "email",
-          "description": "User email address."
-        },
-        "role": {
-          "type": "string",
-          "enum": ["professor", "admin"],
-          "description": "User role."
-        },
-        "status": {
-          "type": "string",
-          "enum": ["active", "blocked"],
-          "description": "Account status."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Timestamp of account creation."
-        }
-      },
-      "required": ["id", "email", "role", "status", "createdAt"]
-    },
-    "Log": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Log",
       "type": "object",
-      "description": "Records laboratory usage sessions.",
       "properties": {
-        "id": {
-          "type": "string"
-        },
-        "professorEmail": {
-          "type": "string",
-          "format": "email"
-        },
-        "roomNumber": {
-          "type": "string"
-        },
-        "loginTime": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "logoutTime": {
-          "type": "string",
-          "format": "date-time",
-          "nullable": true
-        },
-        "duration": {
-          "type": "number",
-          "description": "Duration in minutes."
-        },
-        "status": {
-          "type": "string",
-          "enum": ["active", "completed"]
-        }
+        "id": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["professor", "admin"] },
+        "status": { "type": "string", "enum": ["active", "blocked"] },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["professorEmail", "roomNumber", "loginTime", "status"]
+      "required": ["id", "email", "role", "status"]
+    },
+    "Room": {
+      "title": "Room",
+      "description": "Represents a computer laboratory room.",
+      "type": "object",
+      "properties": {
+        "roomId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["roomId"]
+    },
+    "RoomLog": {
+      "title": "RoomLog",
+      "description": "Records of laboratory usage sessions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "professorEmail": { "type": "string", "format": "email" },
+        "room": { "type": "string" },
+        "timeIn": { "type": "string", "format": "date-time" },
+        "timeOut": { "type": "string", "format": "date-time", "nullable": true },
+        "status": { "type": "string", "enum": ["active", "completed"] }
+      },
+      "required": ["professorEmail", "room", "timeIn", "status"]
     }
   },
   "auth": {
-    "providers": ["google", "password"]
+    "providers": ["google"]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": { "$ref": "#/backend/entities/User" },
-          "description": "Stores user metadata. Admins can read/write all; users can read their own."
-        }
-      },
-      {
-        "path": "/logs/{logId}",
-        "definition": {
-          "entityName": "Log",
-          "schema": { "$ref": "#/backend/entities/Log" },
-          "description": "Records of laboratory entry. Admins can read all; Professors can create for themselves."
-        }
-      }
-    ]
+    "/users/{userId}": {
+      "schema": { "$ref": "#/backend/entities/User" },
+      "description": "User profiles and permissions."
+    },
+    "/rooms/{roomId}": {
+      "schema": { "$ref": "#/backend/entities/Room" },
+      "description": "Registered laboratory rooms."
+    },
+    "/roomLogs/{logId}": {
+      "schema": { "$ref": "#/backend/entities/RoomLog" },
+      "description": "Detailed usage logs for rooms."
+    }
   }
 }
