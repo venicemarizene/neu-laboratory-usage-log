@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useMemo, use, useRef } from 'react';
+import { useState, useMemo, use } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
@@ -9,25 +9,17 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Search, UserRound, Mail, Loader2, ShieldAlert, UserX, UserCheck, X, QrCode, Download, Send, UserPlus } from 'lucide-react';
+import { Search, UserRound, Loader2, ShieldAlert, UserX, UserCheck, X, UserPlus } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
-import { QRCodeCanvas } from 'qrcode.react';
-import { EmailService } from '@/lib/services/email-service';
 import { UserService } from '@/lib/services/user-service';
 
 export default function ProfessorManagement(props: { params: Promise<any>; searchParams: Promise<any> }) {
-  const params = use(props.params);
-  const searchParams = use(props.searchParams);
-  
   const [searchTerm, setSearchTerm] = useState('');
   const [newProfessorEmail, setNewProfessorEmail] = useState('');
   const [isAdding, setIsAdding] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [isEmailing, setIsEmailing] = useState(false);
-  const qrRef = useRef<HTMLCanvasElement>(null);
   const firestore = useFirestore();
   const { toast } = useToast();
 
@@ -68,51 +60,6 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
       toast({ variant: 'destructive', title: 'Error', description: error.message });
     } finally {
       setIsAdding(false);
-    }
-  };
-
-  const generateQR = (user: any) => {
-    if (!firestore) return;
-    const docRef = doc(firestore, 'users', user.id);
-    updateDocumentNonBlocking(docRef, { qrValue: user.email });
-    setSelectedUser({ ...user, qrValue: user.email });
-    toast({ title: 'QR Generated', description: `Permanent QR code created for ${user.email}` });
-  };
-
-  const downloadQR = (email: string) => {
-    const canvas = qrRef.current;
-    if (canvas) {
-      const url = canvas.toDataURL("image/png");
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${email.split('@')[0]}-qr.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-  };
-
-  const emailQR = async (email: string) => {
-    const canvas = qrRef.current;
-    if (!canvas) return;
-
-    setIsEmailing(true);
-    const url = canvas.toDataURL("image/png");
-    
-    try {
-      await EmailService.sendQREmail(email, url);
-      toast({
-        title: 'Dispatched Successfully',
-        description: `The identification QR code has been sent to ${email} in real-time.`,
-      });
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Dispatch Failed',
-        description: error.message || 'Could not send the QR code at this time.',
-      });
-    } finally {
-      setIsEmailing(false);
     }
   };
 
@@ -203,7 +150,7 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
             <div>
               <CardTitle className="text-xl font-bold">Access Control Center</CardTitle>
               <CardDescription>
-                Review accounts, toggle access, and manage identification QR codes.
+                Review accounts and toggle faculty system access.
               </CardDescription>
             </div>
           </div>
@@ -222,7 +169,7 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
                     <TableHead className="font-bold py-5 px-6">Institutional Email</TableHead>
                     <TableHead className="font-bold py-5">Role</TableHead>
                     <TableHead className="font-bold py-5">Current Status</TableHead>
-                    <TableHead className="text-right font-bold py-5 px-6">Actions</TableHead>
+                    <TableHead className="text-right font-bold py-5 px-6">Account Control</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -268,56 +215,9 @@ export default function ProfessorManagement(props: { params: Promise<any>; searc
                         </TableCell>
                         <TableCell className="text-right px-6">
                           <div className="flex items-center justify-end gap-3">
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  className="h-8 gap-2 font-bold text-primary hover:bg-primary/5"
-                                  onClick={() => userDoc.qrValue ? setSelectedUser(userDoc) : generateQR(userDoc)}
-                                >
-                                  <QrCode className="w-4 h-4" />
-                                  {userDoc.qrValue ? 'View QR' : 'Generate QR'}
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent className="sm:max-w-xs text-center">
-                                <DialogHeader>
-                                  <DialogTitle className="text-xl font-bold">Laboratory QR</DialogTitle>
-                                  <DialogDescription className="font-medium">{userDoc.email}</DialogDescription>
-                                </DialogHeader>
-                                <div className="flex justify-center p-4 bg-white rounded-2xl border-2 border-slate-50 shadow-inner my-4">
-                                  <QRCodeCanvas 
-                                    ref={qrRef}
-                                    value={userDoc.qrValue || userDoc.email} 
-                                    size={200}
-                                    level="M"
-                                    includeMargin
-                                  />
-                                </div>
-                                <div className="flex flex-col gap-2">
-                                  <Button 
-                                    className="w-full h-12 font-bold gap-2 rounded-xl"
-                                    onClick={() => downloadQR(userDoc.email)}
-                                  >
-                                    <Download className="w-4 h-4" />
-                                    Download PNG
-                                  </Button>
-                                  <Button 
-                                    variant="outline"
-                                    className="w-full h-12 font-bold gap-2 rounded-xl border-2 transition-all"
-                                    disabled={isEmailing}
-                                    onClick={() => emailQR(userDoc.email)}
-                                  >
-                                    {isEmailing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                                    {isEmailing ? 'Sending Real-Time...' : 'Email QR Code'}
-                                  </Button>
-                                </div>
-                              </DialogContent>
-                            </Dialog>
-
-                            <div className="flex items-center gap-3 ml-4">
+                            <div className="flex items-center gap-3">
                               <span className={`text-[10px] font-black uppercase tracking-tighter ${userDoc.status === 'blocked' ? 'text-destructive' : 'text-muted-foreground'}`}>
-                                Block
+                                Block Access
                               </span>
                               <Switch 
                                 checked={userDoc.status === 'blocked'}
