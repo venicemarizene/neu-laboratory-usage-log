@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Search, Calendar as CalendarIcon, Users, Monitor, Ban, FileText, Loader2, Activity, X, Clock, TrendingUp, TrendingDown, Zap, Timer } from 'lucide-react';
+import { Search, Calendar as CalendarIcon, Users, Monitor, Ban, Loader2, Activity, X, TrendingUp, TrendingDown, Zap, Timer } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
@@ -23,14 +23,11 @@ const roomList = ['M101', 'M102', 'M103', 'M104', 'M105', 'M106', 'M107', 'M108'
 
 const chartConfig = {
   count: {
-    label: "Usage Count",
+    label: "Usage Frequency",
     color: "hsl(var(--primary))",
   },
 } satisfies ChartConfig;
 
-/**
- * Formats duration in minutes to a readable "Hh Mm" format.
- */
 function formatDuration(minutes: number | undefined): string {
   if (!minutes) return "-";
   if (minutes < 60) return `${minutes}m`;
@@ -40,7 +37,7 @@ function formatDuration(minutes: number | undefined): string {
 }
 
 /**
- * Administrative Dashboard for monitoring laboratory usage.
+ * Administrative Analytics Hub.
  */
 export default function AdminDashboard(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -50,7 +47,6 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'weekly' | 'monthly' | 'custom'>('all');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [mounted, setMounted] = useState(false);
   const firestore = useFirestore();
 
   const logsQuery = useMemoFirebase(() => {
@@ -66,10 +62,6 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
   }, [firestore]);
 
   const { data: userProfiles } = useCollection(usersQuery);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const filteredLogs = useMemo(() => {
     if (!logs) return [];
@@ -120,7 +112,6 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     
-    // Rank logic
     const roomCounts = roomList.reduce((acc, room) => {
       acc[room] = filteredLogs.filter(l => l.roomNumber === room).length;
       return acc;
@@ -128,7 +119,6 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
 
     const sortedRooms = Object.entries(roomCounts).sort((a, b) => b[1] - a[1]);
     
-    // Peak hour logic
     const hourCounts = filteredLogs.reduce((acc, log) => {
       const hour = new Date(log.loginTime).getHours();
       acc[hour] = (acc[hour] || 0) + 1;
@@ -146,45 +136,46 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
     };
   }, [logs, userProfiles, filteredLogs]);
 
-  if (!mounted) return null;
-
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 pb-12">
+    <div className="space-y-6 animate-in fade-in duration-300 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black font-headline text-primary tracking-tight">Laboratory Analytics</h1>
-          <p className="text-muted-foreground font-medium uppercase tracking-wider text-xs">NEU Computer Laboratory Management</p>
+          <h1 className="text-3xl font-black text-primary tracking-tight">Institutional Analytics</h1>
+          <p className="text-muted-foreground font-bold uppercase tracking-[0.2em] text-[10px]">Laboratory Usage Monitor</p>
         </div>
         <UsageReport logs={filteredLogs} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl bg-gradient-to-br from-primary to-primary/90 text-primary-foreground">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] opacity-80">Active Logs Today</CardTitle>
-            <Activity className="h-5 w-5 opacity-80" />
+        <Card className="border-none shadow-xl rounded-3xl bg-gradient-to-br from-primary to-primary/90 text-primary-foreground">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] opacity-80 flex items-center gap-2">
+              <Activity className="h-4 w-4" /> Today's Traffic
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-4xl font-black">{stats.totalUsesToday}</div>
-            <p className="text-xs mt-2 font-bold opacity-70">New sessions since 00:00</p>
+            <p className="text-xs mt-2 font-bold opacity-70 italic">Active sessions recorded today</p>
           </CardContent>
         </Card>
         
-        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Unique Faculty</CardTitle>
-            <Users className="h-5 w-5 text-accent" />
+        <Card className="border-none shadow-xl rounded-3xl bg-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+              <Users className="h-4 w-4 text-accent" /> Active Faculty
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-4xl font-black text-primary">{stats.totalUniqueProfessors}</div>
-            <p className="text-xs mt-2 font-bold text-muted-foreground">Active teaching staff</p>
+            <p className="text-xs mt-2 font-bold text-muted-foreground">Unique institutional users</p>
           </CardContent>
         </Card>
         
-        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Blocked Accounts</CardTitle>
-            <Ban className="h-5 w-5 text-destructive" />
+        <Card className="border-none shadow-xl rounded-3xl bg-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+              <Ban className="h-4 w-4 text-destructive" /> Security Alerts
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-4xl font-black text-destructive">{stats.totalBlockedUsers}</div>
@@ -194,67 +185,57 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl bg-white border-l-4 border-l-green-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Most Used Room</CardTitle>
-            <TrendingUp className="h-5 w-5 text-green-500" />
+        <Card className="border-none shadow-lg rounded-2xl bg-white border-l-4 border-l-green-500">
+          <CardHeader className="pb-1">
+            <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">High Demand</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-slate-900">{stats.mostUsedRoom?.[0] || 'N/A'}</div>
-            <p className="text-xs mt-1 font-bold text-muted-foreground">{stats.mostUsedRoom?.[1] || 0} total uses in period</p>
+            <div className="flex items-center justify-between">
+              <span className="text-2xl font-black text-slate-900">{stats.mostUsedRoom?.[0] || '—'}</span>
+              <TrendingUp className="h-5 w-5 text-green-500" />
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl bg-white border-l-4 border-l-amber-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Least Used Room</CardTitle>
-            <TrendingDown className="h-5 w-5 text-amber-500" />
+        <Card className="border-none shadow-lg rounded-2xl bg-white border-l-4 border-l-amber-500">
+          <CardHeader className="pb-1">
+            <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Low Demand</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-slate-900">{stats.leastUsedRoom?.[0] || 'N/A'}</div>
-            <p className="text-xs mt-1 font-bold text-muted-foreground">{stats.leastUsedRoom?.[1] || 0} total uses in period</p>
+            <div className="flex items-center justify-between">
+              <span className="text-2xl font-black text-slate-900">{stats.leastUsedRoom?.[0] || '—'}</span>
+              <TrendingDown className="h-5 w-5 text-amber-500" />
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl bg-white border-l-4 border-l-accent">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Peak Usage Hour</CardTitle>
-            <Zap className="h-5 w-5 text-accent" />
+        <Card className="border-none shadow-lg rounded-2xl bg-white border-l-4 border-l-accent">
+          <CardHeader className="pb-1">
+            <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Peak Period</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-slate-900">{stats.peakHour}</div>
-            <p className="text-xs mt-1 font-bold text-muted-foreground">Highest volume of logins</p>
+            <div className="flex items-center justify-between">
+              <span className="text-2xl font-black text-slate-900">{stats.peakHour}</span>
+              <Zap className="h-5 w-5 text-accent" />
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-card transition-all duration-300">
-        <CardHeader className="border-b pb-6">
-          <CardTitle className="text-xl font-bold">Computer Laboratory Distribution</CardTitle>
-          <CardDescription>Visual frequency of usage across M101–M111</CardDescription>
+      <Card className="border-none shadow-2xl rounded-3xl overflow-hidden bg-card">
+        <CardHeader className="border-b px-8 py-6">
+          <CardTitle className="text-xl font-black">Room Usage Distribution</CardTitle>
+          <CardDescription>Frequency analysis across M101–M111</CardDescription>
         </CardHeader>
-        <CardContent className="pt-8">
-          <div className="h-[350px] w-full min-w-0">
+        <CardContent className="p-8">
+          <div className="h-[300px] w-full">
             <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
-              <BarChart
-                data={chartData}
-                margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
-              >
+              <BarChart data={chartData}>
                 <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis 
-                  dataKey="room" 
-                  tickLine={false} 
-                  axisLine={false} 
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontWeight: 700 }}
-                  dy={10}
-                />
-                <YAxis 
-                  tickLine={false} 
-                  axisLine={false} 
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                />
+                <XAxis dataKey="room" tickLine={false} axisLine={false} tick={{ fontSize: 10, fontWeight: 900 }} />
+                <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
                 <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={40}>
+                <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={30}>
                   {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={index % 2 === 0 ? "hsl(var(--primary))" : "hsl(var(--accent))"} />
                   ))}
@@ -265,168 +246,77 @@ export default function AdminDashboard(props: { params: Promise<any>; searchPara
         </CardContent>
       </Card>
 
-      <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-card transition-all duration-300">
-        <CardHeader className="bg-card border-b pb-6">
-          <div className="flex flex-col space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <CardTitle className="text-xl font-bold">Activity Logs</CardTitle>
-                <CardDescription>Search and filter institutional usage</CardDescription>
-              </div>
-              <div className="flex flex-col sm:flex-row items-center gap-2">
-                <div className="relative w-full sm:w-72">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input 
-                    placeholder="Search email/room..." 
-                    className="pl-10 h-11 border-2 rounded-xl"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <Select value={dateFilter} onValueChange={(v: any) => setDateFilter(v)}>
-                  <SelectTrigger className="w-full sm:w-44 h-11 border-2 rounded-xl font-bold">
-                    <CalendarIcon className="w-4 h-4 mr-2 opacity-50" />
-                    <SelectValue placeholder="Period" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Logs</SelectItem>
-                    <SelectItem value="today">Today</SelectItem>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                    <SelectItem value="custom">Custom Range</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+      <Card className="border-none shadow-2xl rounded-3xl overflow-hidden bg-card">
+        <CardHeader className="px-8 py-6 border-b">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-xl font-black">Institutional Log Ledger</CardTitle>
+              <CardDescription>Authoritative laboratory usage records</CardDescription>
             </div>
-
-            {dateFilter === 'custom' && (
-              <div className="flex flex-wrap items-center gap-4 p-4 bg-muted/30 rounded-xl border border-dashed">
-                <div className="flex flex-col space-y-1">
-                  <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Start Date</label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("w-48 h-10 border-2 rounded-lg font-bold justify-start text-left", !startDate && "text-muted-foreground")}>
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {startDate ? format(startDate, "PPP") : "Pick a date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={startDate} onSelect={setStartDate} initialFocus />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="flex flex-col space-y-1">
-                  <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">End Date</label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("w-48 h-10 border-2 rounded-lg font-bold justify-start text-left", !endDate && "text-muted-foreground")}>
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {endDate ? format(endDate, "PPP") : "Pick a date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="mt-5 rounded-full hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => {
-                    setStartDate(undefined);
-                    setEndDate(undefined);
-                  }}
-                >
-                  <X className="w-4 h-4" />
-                </Button>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Search logs..." 
+                  className="pl-9 h-10 w-64 rounded-xl"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
-            )}
+              <Select value={dateFilter} onValueChange={(v: any) => setDateFilter(v)}>
+                <SelectTrigger className="w-40 rounded-xl font-bold">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="weekly">This Week</SelectItem>
+                  <SelectItem value="monthly">This Month</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {isLogsLoading ? (
-            <div className="flex flex-col items-center justify-center py-24 gap-4">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Updating...</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-slate-50/50">
-                  <TableRow>
-                    <TableHead className="font-bold py-5 px-6">Professor</TableHead>
-                    <TableHead className="font-bold py-5">Room</TableHead>
-                    <TableHead className="font-bold py-5">Start Time</TableHead>
-                    <TableHead className="font-bold py-5">End Time</TableHead>
-                    <TableHead className="font-bold py-5">Duration</TableHead>
-                    <TableHead className="font-bold py-5 px-6">Status</TableHead>
+          <Table>
+            <TableHeader className="bg-slate-50/50">
+              <TableRow>
+                <TableHead className="font-black px-8">Professor</TableHead>
+                <TableHead className="font-black">Room</TableHead>
+                <TableHead className="font-black">Time In</TableHead>
+                <TableHead className="font-black">Time Out</TableHead>
+                <TableHead className="font-black">Duration</TableHead>
+                <TableHead className="font-black px-8 text-right">Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLogsLoading ? (
+                <TableRow><TableCell colSpan={6} className="text-center py-20"><Loader2 className="w-8 h-8 animate-spin mx-auto opacity-20" /></TableCell></TableRow>
+              ) : filteredLogs.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="text-center py-20 text-muted-foreground font-bold italic">No records found</TableCell></TableRow>
+              ) : (
+                filteredLogs.map(log => (
+                  <TableRow key={log.id} className="group">
+                    <TableCell className="px-8 font-bold">{log.professorEmail.split('@')[0]}</TableCell>
+                    <TableCell><Badge variant="outline" className="font-black bg-white">{log.roomNumber}</Badge></TableCell>
+                    <TableCell className="text-xs font-medium">{new Date(log.loginTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</TableCell>
+                    <TableCell className="text-xs font-medium">
+                      {log.logoutTime ? new Date(log.logoutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                    </TableCell>
+                    <TableCell className="text-xs font-bold text-primary">{formatDuration(log.duration)}</TableCell>
+                    <TableCell className="px-8 text-right">
+                      <Badge className={cn(
+                        "text-[10px] font-black uppercase",
+                        log.status === 'active' ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-700"
+                      )}>
+                        {log.status}
+                      </Badge>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredLogs.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-24 text-muted-foreground">
-                        No logs found.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredLogs.map((log) => (
-                      <TableRow key={log.id}>
-                        <TableCell className="px-6 py-4">
-                          <div className="flex flex-col">
-                            <span className="font-bold text-slate-800">{log.professorEmail.split('@')[0]}</span>
-                            <span className="text-[10px] text-muted-foreground">{log.professorEmail}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="font-mono bg-white">
-                            {log.roomNumber}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-semibold">{new Date(log.loginTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                            <span className="text-[10px] text-muted-foreground">{new Date(log.loginTime).toLocaleDateString()}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {log.logoutTime ? (
-                            <div className="flex flex-col">
-                              <span className="text-sm font-semibold">{new Date(log.logoutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                              <span className="text-[10px] text-muted-foreground">{new Date(log.logoutTime).toLocaleDateString()}</span>
-                            </div>
-                          ) : (
-                            <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-50 text-[10px] uppercase font-black">
-                              In Progress
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {log.duration ? (
-                            <div className="flex items-center gap-1.5 text-primary">
-                              <Timer className="w-3 h-3" />
-                              <span className="text-sm font-bold">{formatDuration(log.duration)}</span>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground/50 text-xs">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="px-6 py-4">
-                          <Badge className={cn(
-                            "uppercase text-[10px] font-black",
-                            log.status === 'active' ? "bg-green-100 text-green-700 hover:bg-green-100" : "bg-slate-100 text-slate-700 hover:bg-slate-100"
-                          )}>
-                            {log.status}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+                ))
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>

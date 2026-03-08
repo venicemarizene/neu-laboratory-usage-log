@@ -15,7 +15,7 @@ export const LogService = {
    * Automatically ends any existing active session for that professor.
    */
   async startSession(db: Firestore, email: string, room: string) {
-    // Authoritative check: close previous sessions before starting a new one
+    // End any existing active sessions before starting a new one
     await this.endActiveSession(db, email);
 
     const logData = {
@@ -27,7 +27,9 @@ export const LogService = {
       status: 'active'
     };
 
-    return addDoc(collection(db, 'logs'), logData).catch(err => {
+    try {
+      return await addDoc(collection(db, 'logs'), logData);
+    } catch (err: any) {
       if (err.code === 'permission-denied') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: 'logs',
@@ -36,7 +38,7 @@ export const LogService = {
         }));
       }
       throw err;
-    });
+    }
   },
 
   /**
@@ -58,7 +60,7 @@ export const LogService = {
         const loginTime = new Date(data.loginTime);
         const logoutTime = new Date();
         
-        // Calculate duration in minutes, minimum 1 minute
+        // Calculate duration in minutes (difference in MS / 60000)
         const duration = Math.max(1, Math.round((logoutTime.getTime() - loginTime.getTime()) / 60000));
         
         const updateData = {
@@ -67,15 +69,7 @@ export const LogService = {
           status: 'completed'
         };
 
-        return updateDoc(doc(db, 'logs', activeLog.id), updateData).catch(err => {
-          if (err.code === 'permission-denied') {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-              path: `logs/${activeLog.id}`,
-              operation: 'update',
-              requestResourceData: updateData
-            }));
-          }
-        });
+        return updateDoc(doc(db, 'logs', activeLog.id), updateData);
       });
 
       await Promise.all(updatePromises);

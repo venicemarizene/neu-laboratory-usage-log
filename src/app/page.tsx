@@ -1,22 +1,20 @@
 
 "use client";
 
-import { useState, use, useRef, useEffect } from 'react';
+import { useState, use, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Monitor, Loader2, ShieldCheck, UserCircle, QrCode, AlertCircle } from 'lucide-react';
+import { Monitor, Loader2, ShieldCheck, UserCircle, AlertCircle } from 'lucide-react';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AuthService } from '@/lib/services/auth-service';
 import { UserService } from '@/lib/services/user-service';
-import jsQR from 'jsqr';
 
 /**
- * Main Landing Page with authoritative QR Code Login implementation.
+ * Main Landing Page - Google Institutional Login for all users.
  */
 export default function Home(props: { params: Promise<any>; searchParams: Promise<any> }) {
   const params = use(props.params);
@@ -31,40 +29,25 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // QR Scanning State
-  const [isScanning, setIsScanning] = useState(false);
-  const [isProcessingDetection, setIsProcessingDetection] = useState(false); 
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-  const [detectedEmail, setDetectedEmail] = useState<string | null>(null);
-  
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const requestRef = useRef<number>(null);
-
-  // Auto-redirect if already logged in (Google or QR Session)
+  // Auto-redirect if already logged in
   useEffect(() => {
-    if (isUserLoading || isLoggingIn || isProcessingDetection) return;
+    if (isUserLoading || isLoggingIn) return;
 
-    const savedEmail = localStorage.getItem('identifiedProfessorEmail');
-    if (user || savedEmail) {
-      const email = user?.email || savedEmail;
-      if (email && firestore) {
-        UserService.syncProfileByEmail(firestore, email)
-          .then(profile => {
-            if (profile.status === 'active') {
-              router.push(profile.role === 'admin' ? '/admin/dashboard' : '/professor/dashboard');
-            } else {
-              setErrorMessage("Your account has been blocked. Please contact the administrator.");
-              if (user) AuthService.logout(auth!);
-              localStorage.removeItem('identifiedProfessorEmail');
-            }
-          })
-          .catch(() => {
-            // No profile found, stay on login
-          });
-      }
+    if (user && firestore) {
+      UserService.syncProfile(firestore, user)
+        .then(profile => {
+          if (profile.status === 'active') {
+            router.push(profile.role === 'admin' ? '/admin/dashboard' : '/professor/dashboard');
+          } else {
+            setErrorMessage("Your account has been blocked. Please contact the administrator.");
+            AuthService.logout(auth!);
+          }
+        })
+        .catch(() => {
+          // Stay on login
+        });
     }
-  }, [user, isUserLoading, isLoggingIn, isProcessingDetection, firestore, auth, router]);
+  }, [user, isUserLoading, isLoggingIn, firestore, auth, router]);
 
   const handleGoogleLogin = async () => {
     if (!auth || !firestore) return;
@@ -106,139 +89,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
     }
   };
 
-  /**
-   * Authoritative QR Login Function with Step 3-7 logs.
-   */
-  const handleQRCodeLogin = async (scannedEmail: string) => {
-    // Prevent Infinite Scanning (concurrency lock)
-    if (isProcessingDetection || !firestore) return;
-    setIsProcessingDetection(true); 
-    
-    // Stop camera immediately after detection
-    stopScanning();
-
-    // Step 3: Debug Login Function
-    console.log("Processing QR login...");
-    console.log("Scanned email:", scannedEmail);
-    
-    setErrorMessage(null);
-    setDetectedEmail(scannedEmail);
-
-    // Institutional Domain Check
-    if (!scannedEmail.toLowerCase().includes("@neu.edu.ph")) {
-      console.log("Login failed: Invalid domain or QR format");
-      setErrorMessage("Invalid QR code. Institutional email required.");
-      setIsProcessingDetection(false);
-      return;
-    }
-
-    try {
-      // Step 4: Verify Firestore Query
-      const profile = await UserService.syncProfileByEmail(firestore, scannedEmail);
-      console.log("User found:", profile);
-
-      // Account Status Check
-      if (profile.status === 'blocked') {
-        console.log("Login failed: Account blocked");
-        setErrorMessage("Your account has been blocked. Please contact the administrator.");
-        setIsProcessingDetection(false);
-        return;
-      }
-
-      // Create Authenticated Session
-      localStorage.setItem('identifiedProfessorEmail', scannedEmail);
-      localStorage.setItem('userUid', profile.id);
-      localStorage.setItem('userRole', profile.role);
-      localStorage.setItem('loginTimestamp', new Date().toISOString());
-
-      // Step 5: Confirm Redirect
-      console.log("Login successful. Redirecting...");
-      toast({ title: 'Login Successful', description: `Welcome back, ${scannedEmail}` });
-      
-      // Redirect based on role
-      router.push(profile.role === 'admin' ? '/admin/dashboard' : '/professor/dashboard');
-    } catch (error: any) {
-      console.log("Login failed: User document not found or query error", error);
-      setErrorMessage("QR code not recognized. Please contact the administrator.");
-      setIsProcessingDetection(false);
-      setDetectedEmail(null);
-    }
-  };
-
-  const scanFrame = () => {
-    // Prevent multiple detection calls if already processing
-    if (!isScanning || isProcessingDetection || !videoRef.current || !canvasRef.current) return;
-    
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d', { willReadFrequently: true });
-
-    if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
-      // Use native resolution for best accuracy
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-      const code = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: "dontInvert",
-      });
-
-      if (code) {
-        const decodedText = code.data.trim();
-        // Step 1: Verify QR Scanner Output
-        console.log("QR detected:", decodedText);
-        
-        // Step 2: Trigger Login Function
-        handleQRCodeLogin(decodedText);
-        return; // Exit recursion after detection
-      }
-    }
-    
-    // Continue loop only if not processing a detection
-    if (isScanning && !isProcessingDetection) {
-      requestRef.current = requestAnimationFrame(scanFrame);
-    }
-  };
-
-  const startScanning = async () => {
-    console.log("Scanner started");
-    setIsScanning(true);
-    setIsProcessingDetection(false);
-    setDetectedEmail(null);
-    setErrorMessage(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
-      });
-      setHasCameraPermission(true);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          requestRef.current = requestAnimationFrame(scanFrame);
-        };
-      }
-    } catch (error) {
-      console.error("Camera error:", error);
-      setHasCameraPermission(false);
-      setErrorMessage("Camera access is required to scan QR codes.");
-    }
-  };
-
-  const stopScanning = () => {
-    console.log("Stopping scanner and closing camera tracks...");
-    setIsScanning(false);
-    if (requestRef.current) cancelAnimationFrame(requestRef.current);
-    if (videoRef.current?.srcObject) {
-      (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
-      videoRef.current.srcObject = null;
-    }
-  };
-
-  // Clean up on unmount
-  useEffect(() => {
-    return () => stopScanning();
-  }, []);
-
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
       <div className="max-w-md w-full space-y-6 text-center animate-in fade-in duration-300">
@@ -272,71 +122,14 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
             </TabsList>
             
             <TabsContent value="professor" className="p-6 space-y-6 m-0">
-              <div className="space-y-4">
-                <Button 
-                  onClick={handleGoogleLogin}
-                  disabled={isLoggingIn || isProcessingDetection}
-                  className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3 transition-all"
-                >
-                  {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <Monitor className="w-5 h-5" />}
-                  Sign in with Google
-                </Button>
-
-                <Dialog onOpenChange={(o) => !o && stopScanning()}>
-                  <DialogTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      onClick={startScanning}
-                      className="w-full h-14 text-lg font-bold border-2 gap-3 hover:bg-slate-50 transition-all"
-                    >
-                      <QrCode className="w-5 h-5 text-primary" />
-                      Login using QR Code
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-md rounded-2xl">
-                    <DialogHeader>
-                      <DialogTitle className="text-xl font-black text-center">QR Identity Login</DialogTitle>
-                      <DialogDescription className="text-center">Scan your Professor ID QR code for instant entry.</DialogDescription>
-                    </DialogHeader>
-                    <div className="aspect-square relative rounded-2xl bg-black overflow-hidden border-4 border-muted shadow-2xl">
-                      <video 
-                        ref={videoRef} 
-                        className="absolute inset-0 w-full h-full object-cover" 
-                        autoPlay 
-                        muted 
-                        playsInline 
-                      />
-                      <canvas ref={canvasRef} className="hidden" />
-                      
-                      {isProcessingDetection && (
-                        <div className="absolute inset-0 bg-primary/20 flex items-center justify-center backdrop-blur-[2px] z-20">
-                          <div className="text-center bg-white p-6 rounded-2xl shadow-2xl animate-in zoom-in duration-300">
-                            <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-2" />
-                            <p className="font-black text-primary text-xl">Verifying...</p>
-                            {detectedEmail && <p className="text-xs font-bold text-muted-foreground mt-1">{detectedEmail}</p>}
-                          </div>
-                        </div>
-                      )}
-
-                      {hasCameraPermission === false && (
-                        <div className="absolute inset-0 bg-black/80 flex items-center justify-center text-white p-6 text-center">
-                          <div className="space-y-2">
-                            <AlertCircle className="w-10 h-10 mx-auto text-destructive" />
-                            <p className="font-bold">Camera access required</p>
-                            <p className="text-xs opacity-60">Please allow camera access to use the QR scanner.</p>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="absolute inset-0 border-[40px] border-black/40 pointer-events-none">
-                        <div className="w-full h-full border-2 border-accent/50 rounded-lg relative overflow-hidden">
-                          <div className="absolute top-0 left-0 w-full h-0.5 bg-accent/80 animate-[scan_2s_linear_infinite]" />
-                        </div>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
+              <Button 
+                onClick={handleGoogleLogin}
+                disabled={isLoggingIn}
+                className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md gap-3 transition-all"
+              >
+                {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <Monitor className="w-5 h-5" />}
+                Sign in with Google
+              </Button>
             </TabsContent>
 
             <TabsContent value="admin" className="p-6 space-y-4 m-0">
@@ -356,12 +149,6 @@ export default function Home(props: { params: Promise<any>; searchParams: Promis
           Institutional <span className="text-primary font-bold">@neu.edu.ph</span> domain enforced.
         </p>
       </div>
-      <style jsx global>{`
-        @keyframes scan {
-          0% { top: 0; }
-          100% { top: 100%; }
-        }
-      `}</style>
     </div>
   );
 }

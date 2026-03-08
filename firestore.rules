@@ -16,31 +16,27 @@ service cloud.firestore {
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
-    
-    function isActive(uid) {
-      return exists(/databases/$(database)/documents/users/$(uid)) &&
-        get(/databases/$(database)/documents/users/$(uid)).data.status == 'active';
-    }
 
     match /users/{userId} {
-      // Prototype relaxation: Allow retrieval and listing (for email queries) to support QR identification
-      allow get: if true;
-      allow list: if true;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create, update: if isSignedIn() && (isOwner(userId) || isAdmin());
       allow delete: if isAdmin();
     }
 
     match /logs/{logId} {
-      // Prototype relaxation: Allow reading and creating logs to support QR-based sessions
-      allow read: if true;
-      allow create: if true; 
-      allow update: if isAdmin() || (
-        isSignedIn() && 
+      // Professors can read their own logs or all logs for their email
+      allow read: if isSignedIn() && (
+        isAdmin() || 
         request.auth.token.email == resource.data.professorEmail
-      ) || (
-        // Allow updates if the email matches the payload (for QR sessions)
-        request.resource.data.professorEmail == resource.data.professorEmail
+      );
+      // Professors can create logs if authenticated with their email
+      allow create: if isSignedIn() && 
+        request.resource.data.professorEmail == request.auth.token.email;
+      // Professors can update their own logs (to complete sessions)
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        request.auth.token.email == resource.data.professorEmail
       );
       allow delete: if isAdmin();
     }
