@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, Users, Activity, Clock, Timer, Calendar as CalendarIcon, TrendingUp, X, Ban, BarChart3 } from 'lucide-react';
+import { Search, Users, Activity, Clock, Timer, Calendar as CalendarIcon, TrendingUp, X, Ban, BarChart3, Monitor } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { format, differenceInMinutes, startOfDay, subDays, subMonths, isWithinInterval, startOfMonth, endOfMonth, eachMonthOfInterval } from 'date-fns';
@@ -100,12 +100,16 @@ export default function AdminDashboard() {
     const now = new Date();
     const todayStart = startOfDay(now);
     
-    const activeCount = (logs || []).filter(l => l.status === 'active').length;
+    const activeLogs = (logs || []).filter(l => l.status === 'active');
+    const activeCount = activeLogs.length;
+    const activeRoomsCount = new Set(activeLogs.map(l => l.room)).size;
+    
     const professorsToday = new Set((logs || []).filter(l => l.timeIn?.toDate && l.timeIn.toDate() >= todayStart).map(l => l.professorEmail)).size;
     const blockedCount = (users || []).filter(u => u.status === 'blocked').length;
 
     return {
       active: activeCount,
+      activeRooms: activeRoomsCount,
       todayProfessors: professorsToday,
       blocked: blockedCount,
     };
@@ -146,7 +150,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="border-none shadow-xl bg-primary text-primary-foreground rounded-3xl">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80 flex items-center gap-2">
@@ -156,6 +160,18 @@ export default function AdminDashboard() {
           <CardContent>
             <div className="text-5xl font-black tracking-tighter">{stats.active}</div>
             <p className="text-xs mt-2 font-medium opacity-70">Faculty currently in labs</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-xl bg-card rounded-3xl">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+              <Monitor className="h-4 w-4 text-primary" /> Active Rooms
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-5xl font-black text-primary tracking-tighter">{stats.activeRooms}</div>
+            <p className="text-xs mt-2 text-muted-foreground font-medium">Laboratories currently in use</p>
           </CardContent>
         </Card>
         
